@@ -2,18 +2,18 @@
 
 These need the actual source tree or a Windows machine, so bootstrap.ps1 left them to you. Work top-down; tick off here.
 
-- [ ] **1. Write `docs/CODE-MAP.md`.** ~20 entries, one line each, path + what it does: pathfinder, `Locomotor`, AI idle/move states,
-      `Drawable` / logic-frame boundary, `DX8Wrapper` and `DX8Renderer`, main loop / frame pacing, network layer (frame delay / run-ahead,
-      packet handling, CRC check and the "mismatch" disconnect), save-game serialisation, partition manager, INI parsing for unit `Mass`/kind flags,
-      replay record/playback, crash handling. This is what every later session reads first.
-- [~] **2. Make `scripts/verify.ps1` real** — harness done 2026-10-21: runs the built exe from `build\` with `-useCwd -headless -jobs N -replay <abs>`
+- [x] **1. `docs/CODE-MAP.md`** — written 2026-10-21, 22 entries with verified paths, entry-point functions, and which plan phase touches each.
+      Notable: `Mass` is parsed by `PhysicsBehavior`, not `Locomotor`; `class Network` is defined inside `Network.cpp`; world XY of drawables is
+      *not* interpolated yet; the CRC-mismatch path ends the game rather than disconnecting; `DebugLogFile` only exists in `*-releaselog` builds.
+- [x] **2. Make `scripts/verify.ps1` real** — done 2026-10-21. First baseline `tests/replays/skirmish-01.rep` (6:20 of game, human-recorded,
+      re-simulates in 3 s, all CRCs match). Harness details: runs the built exe from `build\` with `-useCwd -headless -jobs N -replay <abs>`
       per replay in `tests/replays/`, parses stdout into per-replay verdicts (`CRC MISMATCH frame N` / `CANNOT OPEN` / `ok`), exit code = failures,
       auto-postmortem on crash. `-Import -Name x` copies the game's last replay into `tests/replays/x.rep` as a baseline. No CRC log file is
       needed: the replay carries the CRCs (see Findings). **Upstream's `GeneralsReplays` (retail 1.04 recordings) mismatch at the first check
       (frame 110) on the VS2022 build** — expected, CI only certifies VC6 builds against them; they are not usable as our baseline.
-      Still open: (a) commit the first baseline replay recorded with our exe and confirm it reproduces; (b) CI replay job needs game data,
-      which we cannot publish — upstream uses a private, encrypted trimmed data set in R2; do the same with a private release asset, or skip CI
-      replay checks and rely on the local loop.
+      Still open (not blocking): a CI replay job needs game data we cannot publish — upstream uses a private, encrypted trimmed data set in R2;
+      do the same with a private release asset later, or rely on the local loop. More baselines wanted: one per faction pair, one long (20+ min)
+      game, one 2-player LAN/online game (exercises the network command path).
 - [x] **2b. Smoke-test `scripts/run.ps1`** — done 2026-10-21: 30 s windowed run survives, screenshot at 20 s shows the intro movie rendering
       (use `-Args "-win -quickstart"` to skip to the menu). Harvest now covers the Documents user-data folder (DebugLogFile*, ReleaseCrashInfo.txt,
       CrashM*.dmp) and auto-runs `postmortem.ps1` when a run produced a dump. Release builds don't write DebugLogFile; that needs a `-releaselog`-style preset.
