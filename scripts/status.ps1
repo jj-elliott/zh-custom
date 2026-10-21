@@ -9,7 +9,7 @@ Probe "local"    { (Get-Content "$repo\.zh-local.json" | ConvertFrom-Json).gameD
 Probe "exe"      { (Get-ChildItem "$repo\build" -Recurse -Include generalszh.exe | ? FullName -match Release | select -First 1).LastWriteTime }
 Probe "pdb"      { (Get-ChildItem "$repo\build" -Recurse -Include generalszh.pdb | select -First 1).FullName }
 Probe "msvc"     { (Get-ChildItem "C:\Program Files*\Microsoft Visual Studio\2022\*\VC\Auxiliary\Build\vcvars32.bat" | select -First 1).FullName }
-Probe "cmake"    { $c = Get-Command cmake -ErrorAction SilentlyContinue; if (-not $c) { $c = Get-Item "C:\Program Files\CMake\bin\cmake.exe" }; (& $c.Source --version | select -First 1) + " ($($c.Source))" }
+Probe "cmake"    { $c = Get-Command cmake -ErrorAction SilentlyContinue; $path = if ($c) { $c.Source } else { (Get-Item "C:\Program Files\CMake\bin\cmake.exe").FullName }; (& $path --version | select -First 1) + " ($path)" }
 Probe "dotnet"   { dotnet --version }
 Probe "vulkan"   { Test-Path "$env:SystemRoot\System32\vulkan-1.dll" }
 Probe "replays"  { (Get-ChildItem "$repo\tests\replays\*.rep" -ErrorAction SilentlyContinue | Measure-Object).Count }
