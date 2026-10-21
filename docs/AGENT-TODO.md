@@ -6,9 +6,14 @@ These need the actual source tree or a Windows machine, so bootstrap.ps1 left th
       `Drawable` / logic-frame boundary, `DX8Wrapper` and `DX8Renderer`, main loop / frame pacing, network layer (frame delay / run-ahead,
       packet handling, CRC check and the "mismatch" disconnect), save-game serialisation, partition manager, INI parsing for unit `Mass`/kind flags,
       replay record/playback, crash handling. This is what every later session reads first.
-- [ ] **2. Make `scripts/verify.ps1` real.** Find upstream's headless/replay-test mechanism (wiki: `replay_testing`, `crcdiff`; search source for
-      headless, `-replay`, CRC logging flags). Implement the invocation, make sure a CRC-per-frame log lands at the path the script expects,
-      record one baseline from a short skirmish replay in `tests/replays/`. Add it as a second job in `.github/workflows/release.yml`.
+- [~] **2. Make `scripts/verify.ps1` real** — harness done 2026-10-21: runs the built exe from `build\` with `-useCwd -headless -jobs N -replay <abs>`
+      per replay in `tests/replays/`, parses stdout into per-replay verdicts (`CRC MISMATCH frame N` / `CANNOT OPEN` / `ok`), exit code = failures,
+      auto-postmortem on crash. `-Import -Name x` copies the game's last replay into `tests/replays/x.rep` as a baseline. No CRC log file is
+      needed: the replay carries the CRCs (see Findings). **Upstream's `GeneralsReplays` (retail 1.04 recordings) mismatch at the first check
+      (frame 110) on the VS2022 build** — expected, CI only certifies VC6 builds against them; they are not usable as our baseline.
+      Still open: (a) commit the first baseline replay recorded with our exe and confirm it reproduces; (b) CI replay job needs game data,
+      which we cannot publish — upstream uses a private, encrypted trimmed data set in R2; do the same with a private release asset, or skip CI
+      replay checks and rely on the local loop.
 - [x] **2b. Smoke-test `scripts/run.ps1`** — done 2026-10-21: 30 s windowed run survives, screenshot at 20 s shows the intro movie rendering
       (use `-Args "-win -quickstart"` to skip to the menu). Harvest now covers the Documents user-data folder (DebugLogFile*, ReleaseCrashInfo.txt,
       CrashM*.dmp) and auto-runs `postmortem.ps1` when a run produced a dump. Release builds don't write DebugLogFile; that needs a `-releaselog`-style preset.

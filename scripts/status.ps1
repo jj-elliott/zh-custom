@@ -13,5 +13,5 @@ Probe "cmake"    { $c = Get-Command cmake -ErrorAction SilentlyContinue; $path =
 Probe "dotnet"   { dotnet --version }
 Probe "vulkan"   { Test-Path "$env:SystemRoot\System32\vulkan-1.dll" }
 Probe "replays"  { (Get-ChildItem "$repo\tests\replays\*.rep" -ErrorAction SilentlyContinue | Measure-Object).Count }
-Probe "baselines"{ (Get-ChildItem "$repo\tests\baseline\*.crc" -ErrorAction SilentlyContinue | Measure-Object).Count }
+Probe "lastverify"{ (Get-ChildItem "$repo\tests\out\verify-*" -Directory | sort Name -Desc | select -First 1).Name }
 Probe "lastrun"  { (Get-ChildItem "$repo\tests\out\run-*" -Directory | sort Name -Desc | select -First 1).Name }
