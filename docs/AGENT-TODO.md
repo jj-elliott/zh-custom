@@ -27,12 +27,14 @@ These need the actual source tree or a Windows machine, so bootstrap.ps1 left th
 - [ ] **8. First feature:** Phase 4 step 2 (jitter-aware run-ahead), behind verify.ps1.
 
 Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setup had that we must keep):
-- [ ] **9. Camera height/pitch scale.** Client-only (`W3DView.cpp`, `getCameraOffsetZ` / `setDefaultView`): baked default (tune by play-test,
-      start 1.5×), `Options.ini` override honoured in skirmish/replay, ignored when `TheNetwork != nullptr` so both machines match online.
-      Branch `render/camera-height`. verify.ps1 before/after (must be a no-op for CRC).
-- [ ] **10. Add-ons in the release zip.** Control Bar Pro/HD `.big`s fetched at build time in `release.yml` (pin a URL + sha256), launcher passes
-      `-forcefullviewport`. Confirm licence/source first. Then map packs synced into `Documents\...\Maps` by the launcher. Regenerate `assets.sha256`
-      from the staged set. Also confirm borderless 3840×2160 windowed mode and pin it via launcher args.
+- [~] **9. Camera height scale** — built 2026-10-21 on `render/camera-height`: `Core/GameEngine/Include/Common/CameraHeightScale.h` (+cpp),
+      `DefaultScale = 1.5` (310 → 465) for everyone in network games, `Options.ini` `CameraHeightScale` honoured offline. CRC-verified no-op.
+      **Open:** human play-test of the feel; the 1.5 assumes GenTool pinned retail 310 in multiplayer (unconfirmed). Pitch left at retail 37.5
+      (GenTool's 37 was the same). Merge to `main` after the play-test.
+- [~] **10. Add-ons in the release zip** — done 2026-10-21 (`addons/addons.json`, `fetch-addons.ps1`, `stage-install.ps1`, `release.yml`;
+      Control Bar Pro bundles `GenTool/fullviewport.dat`, so no launcher flag). Human-verified in a replay. Map pack: `make-map-pack.ps1` +
+      launcher `MapPack` done; publishing needs the Phase 2 repo. **Open:** pin download URLs in `addons.json` (CI currently warns and skips);
+      test `310_ExpandedLANLobbyMenu` against upstream's lobby; confirm borderless 3840×2160 and pin launcher args.
 - [ ] **11. Shared defaults.** `ArchiveReplays=yes`, FPS limit, overlay font sizes (FPS/clock/timer/ping/money), `CursorCaptureMode` — set via
       code defaults or a launcher-merged `config/` snippet so both machines match without touching menus. Optional: map + player names in the
       archived replay filename.
