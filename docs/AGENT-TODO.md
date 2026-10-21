@@ -9,15 +9,36 @@ These need the actual source tree or a Windows machine, so bootstrap.ps1 left th
 - [ ] **2. Make `scripts/verify.ps1` real.** Find upstream's headless/replay-test mechanism (wiki: `replay_testing`, `crcdiff`; search source for
       headless, `-replay`, CRC logging flags). Implement the invocation, make sure a CRC-per-frame log lands at the path the script expects,
       record one baseline from a short skirmish replay in `tests/replays/`. Add it as a second job in `.github/workflows/release.yml`.
-- [ ] **2b. Smoke-test `scripts/run.ps1`** with `-TimeoutSec 30 -Screenshot 20 -Args "-win"`; confirm it harvests the game's own log
-      (find where the engine writes its debug log; add that path to the harvest list) and that the screenshot shows the main menu.
-- [ ] **3. Confirm the Release build emits a PDB** (`generalszh.pdb` next to the exe). If not, add `/Zi` + `/DEBUG` for Release in the preset or CMake.
+- [x] **2b. Smoke-test `scripts/run.ps1`** — done 2026-10-21: 30 s windowed run survives, screenshot at 20 s shows the intro movie rendering
+      (use `-Args "-win -quickstart"` to skip to the menu). Harvest now covers the Documents user-data folder (DebugLogFile*, ReleaseCrashInfo.txt,
+      CrashM*.dmp) and auto-runs `postmortem.ps1` when a run produced a dump. Release builds don't write DebugLogFile; that needs a `-releaselog`-style preset.
+- [x] **3. PDB confirmed:** `build\win32\GeneralsMD\Release\generalszh.pdb` (54 MB) is emitted by the stock `win32` preset; `stage-install.ps1` copies it beside the exe.
 - [ ] **4. Check whether upstream already decoupled render from the 30 Hz sim** (changelog, search for interpolation / frame-rate uncap).
       Record the finding in `docs/PLAN.md` Phase 5 step 2.
-- [ ] **5. Crash dump writer.** Unhandled-exception filter calling `MiniDumpWriteDump` to `crashdumps\<timestamp>.dmp` in the game dir.
-      The launcher already looks there.
+- [x] **5. Crash dump writer** — already upstream (see findings below). Our side done 2026-10-21: launcher surfaces dumps from the Documents
+      CrashDumps folder too; `scripts/postmortem.ps1` turns the newest dump into a verdict. First use: GenTool's `d3d8.dll` crash.
 - [ ] **6. `-netlog <path>` flag** writing the Phase 4 instrumentation (run-ahead, stall ms, RTT, jitter, CRC mismatch frame). Launcher passes it when `Debug: true`.
 - [ ] **7. `/LARGEADDRESSAWARE`** on the exe if not already set (needed before the texture pack).
 - [ ] **8. First feature:** Phase 4 step 2 (jitter-aware run-ahead), behind verify.ps1.
+
+## Findings from source inspection (2026-10-21, before first build) — read before starting the items above
+
+- **#2 verify.ps1:** upstream's mechanism is `generalszh.exe -jobs N -headless -replay <glob-or-name>`. Replays are resolved relative to
+  `%USERPROFILE%\Documents\Command and Conquer Generals Zero Hour Data\Replays\`. The replay file *is* the baseline: it embeds a CRC every
+  `REPLAY_CRC_INTERVAL` (=100) logic frames, playback compares and prints `CRC Mismatch in Frame N` to stdout, exit code 1 on any mismatch
+  (`Core/GameEngine/Source/Common/ReplaySimulation.cpp`, `GeneralsMD/.../Common/Recorder.cpp` `handleCRCMessage`). So no separate `.crc` log is
+  needed: `tests/replays/*.rep` recorded with a known-good build + exit code + stdout grep. Caveats: (a) CI only validates retail replays on
+  VC6 presets, so the VS2022 `win32` build may not pass upstream's `GeneralsReplays` submodule (1.8 MB, not initialised by bootstrap; try it once);
+  (b) every deliberate sim change (Phase 7) and every upstream merge that touches sim invalidates baselines → re-record. `-replayCRCInterval`
+  only exists under `DEBUG_CRC`; exposing it in release would give per-frame granularity for our own baselines.
+- **#2b run.ps1:** add `%USERPROFILE%\Documents\Command and Conquer Generals Zero Hour Data\` to the harvest list (DebugLogFile*.txt, CrashDumps\, Replays\LastReplay.rep).
+- **#3 PDB:** `win32` inherits `default` → `CMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded` (/Z7) and `cmake/compilers.cmake` adds `/DEBUG` to
+  Release link flags, so a `generalszh.pdb` should appear beside the exe. Confirm after the first build.
+- **#4 done upstream** — see PLAN.md Phase 5 step 2.
+- **#5 crash dumps: already upstream.** `Core/Libraries/Source/MiniDumper/` behind `RTS_CRASHDUMP_ENABLE` (ON by default), hooked in `WinMain.cpp`
+  `UnHandledExceptionFilter`, writes minimal+full dumps to `<user data dir>\CrashDumps\` (Documents folder, **not** the game dir). Remaining work is
+  only on our side: point the launcher's dump lookup and `run.ps1`'s harvest at that folder. Don't write a second dumper.
+- **#7 LAA:** no `LARGEADDRESSAWARE` anywhere in upstream CMake; still ours to add (`target_link_options(... /LARGEADDRESSAWARE)` on `z_generals`).
+- Upstream has an `AI_POLICY.md`: autonomous agents may not open PRs or comments there. Our fork is private, but anything upstreamed must be hand-written by the human.
 
 Done items: move them down here with the commit hash.

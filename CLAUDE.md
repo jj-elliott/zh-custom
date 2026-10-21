@@ -20,7 +20,9 @@ decoupled/uncapped render rate, then visual and movement upgrades. Full plan: `d
 | `.\scripts\build.ps1 [-Clean]` | compiler output on stdout; nonzero exit on failure |
 | `.\scripts\run.ps1 [-Args ..] [-TimeoutSec N] [-Screenshot N]` | launches the game, harvests stdout, exit code, game logs, new crash dumps, optional screenshot into `tests\out\run-*\`; prints `OUTPUT_DIR=`. `-TimeoutSec 30` = smoke test ("still alive after 30 s" is a pass). |
 | `.\scripts\verify.ps1` | build + headless replay + CRC diff vs baseline (scaffold until AGENT-TODO #2) |
-| `.\scripts\symbolize.ps1 <dmp>` | crash dump → stack trace with file:line, using the build's PDB |
+| `.\scripts\postmortem.ps1 [-Dump x.dmp]` | **crash? run this first.** Newest minidump → exception, faulting module (+ ours/windows/third-party verdict), symbolized stack, logs, all in `tests\out\crash-*\summary.txt`. `run.ps1` calls it automatically when a run produced a dump. |
+| `.\scripts\symbolize.ps1 <dmp>` | raw cdb output for a dump (used by postmortem) |
+| `.\scripts\stage-install.ps1` | re-stage `gameDir` from the Steam folder: vanilla files only (strips GenTool/GenPatcher add-ons), our exe + PDB, regenerates `assets.sha256`. The way back to a known state. |
 | `.\scripts\net-sim.ps1 -Loss 5 -DelayMs 80 -JitterMs 30` / `-Off` | inject packet loss/latency on UDP for solo netcode testing (two game instances over loopback) |
 | `dotnet publish launcher\ZHLauncher.csproj -c Release -r win-x64` | builds the launcher |
 
@@ -35,6 +37,10 @@ Things only a human can do: play an actual skirmish and say how it *feels*, and 
 - **Render changes go through the device layer** (`DX8Wrapper` / `DX8Renderer` in `WW3D2`). Never call D3D from gameplay or UI code.
 - **Don't fight upstream.** Keep changes in small, separable commits so `git merge upstream/main` stays cheap. Prefer adding files to editing hot ones.
 - DXVK (`d3d8.dll`/`d3d9.dll` in the game folder) is the reference renderer. If a visual bug appears, bisect with DXVK removed before blaming engine code.
+- **No GenTool, no GenPatcher** in `gameDir` or on the second machine. GenTool's `d3d8.dll` hooks the retail exe at fixed addresses and crashes
+  any rebuilt exe (first crash of this project, 2026-10-21). GenPatcher alters `.big` files, including INI rules, which breaks lockstep unless both
+  sides match exactly. Baseline is a vanilla Steam install; add-ons we want go through the release zip deliberately. `stage-install.ps1` enforces this.
+- Crash dumps land in `%USERPROFILE%\Documents\Command and Conquer Generals Zero Hour Data\CrashDumps\` (upstream's MiniDumper), not the game dir.
 
 ## Branches
 `main` releasable only. Work on `net/*`, `render/*`, `move/*`, `backend/bgfx`. Tag only from `main`.

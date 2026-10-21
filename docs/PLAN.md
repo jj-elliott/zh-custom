@@ -61,6 +61,9 @@ Keep your own work on branches off `main`; tag from `main`.
 ## Phase 3 — dad's machine (one-time, ~10 min)
 
 1. Copy his Steam Zero Hour folder to e.g. `C:\Games\ZeroHour-Dev` (Steam's copy stays untouched as a fallback).
+   **It must be vanilla:** no GenTool (`d3d8.dll` crashes rebuilt exes), no GenPatcher (changes `.big`/INI content → desync against a vanilla
+   peer). If he ever installed them, run Steam's "Verify integrity" and delete the leftovers (`d3d8.*`, `GenTool*`, numbered `NNN_*.big`,
+   `CustomContentMaps.big`, `EdgeScroller.exe`, `launcher\`). The launcher's `assets.sha256` check will refuse to start otherwise.
 2. Drop `ZHLauncher.exe` and `launcher.json` into that folder.
 3. In `launcher.json` set `Repo` and a **fine-grained PAT**: GitHub → Settings → Developer settings → Fine-grained tokens → repository access = `zh-custom` only, permission = Contents: Read. Set a long expiry. (Private repo assets need auth; this token can do nothing except read that one repo. If you'd rather, make the repo public and leave `Token` empty.)
 4. Shortcut to `ZHLauncher.exe` on the desktop. Done. From now on he just double-clicks it.
@@ -89,7 +92,12 @@ Explicitly skipped: GGPO-style rollback. Needs per-tick snapshot/restore of the 
 Reality check: every ZH fork is x86 (inline asm) and D3D8 fixed-function. No fork has D3D11. Visual wins come from the layers *around* the D3D8 path, not from replacing it yet.
 
 1. **DXVK (zero engine code).** `release.yml` now bundles DXVK's `d3d8.dll` + `d3d9.dll` (native D3D8 support, no d3d8to9 shim) and a `dxvk.conf` forcing 16× AF and swapchain MSAA. Modern Vulkan path on both machines, pinned version, ships in the zip. Requires a Vulkan-capable GPU on your dad's side; check.
-2. **Decouple render from the 30 Hz sim.** If upstream hasn't, port Reforged's commits (CHANGELOG.md, "rules on their own clock"). Interpolate `Drawable` transforms between logic frames. Needed for Phase 4 step 5 *and* Phase 6.
+2. **Decouple render from the 30 Hz sim.** ~~If upstream hasn't, port Reforged's commits.~~ **Already upstream (checked 2026-10-21):**
+   `Core/GameEngine/Source/Common/FramePacer.cpp` owns the render clock; `GameEngine::canUpdateRegularGameLogic` steps logic from a
+   time accumulator (xezon, 2025-08-06); `FramePacer::getLogicFramePhase()` gives the sub-frame fraction, and `Drawable::applyPhysicsXform`
+   (bobtista, 2026-09-14) plus `ParticleSys.cpp` lerp with it. Uncapped FPS is `FramesPerSecondLimit=0` / `-fps` / `RenderFpsPreset::UncappedFpsValue`.
+   What is *not* interpolated yet: the drawable's base position/orientation (only the locomotor bob/pitch/roll and particles). Catch-up mode
+   (Phase 4 step 5) can build on `setLogicTimeScaleFps`. Skip the port; just verify smoothness in-game and extend interpolation if needed.
 3. **Textures.** AI-upscale the `.dds` in the `.big` archives (ESRGAN on the 5090), re-export with mipmaps into a higher-priority `.big`. Reforged ships 481 originals at 4× as reference. Set the exe LAA flag (`/LARGEADDRESSAWARE`) for 4 GB address space; x64 is not needed for this.
 4. **Native D3D9 in `DX8Wrapper`.** Contained change, removes the translation layer, unlocks Shader Model 3 for normal maps and a post pass without touching fixed-function code. Optional if Phase 6 is going to happen anyway.
 5. Models: pilot one static building through an image-to-3D generator before touching any animated unit.
