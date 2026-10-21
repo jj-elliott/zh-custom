@@ -26,6 +26,19 @@ These need the actual source tree or a Windows machine, so bootstrap.ps1 left th
 - [ ] **7. `/LARGEADDRESSAWARE`** on the exe if not already set (needed before the texture pack).
 - [ ] **8. First feature:** Phase 4 step 2 (jitter-aware run-ahead), behind verify.ps1.
 
+Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setup had that we must keep):
+- [ ] **9. Camera height/pitch scale.** Client-only (`W3DView.cpp`, `getCameraOffsetZ` / `setDefaultView`): baked default (tune by play-test,
+      start 1.5×), `Options.ini` override honoured in skirmish/replay, ignored when `TheNetwork != nullptr` so both machines match online.
+      Branch `render/camera-height`. verify.ps1 before/after (must be a no-op for CRC).
+- [ ] **10. Add-ons in the release zip.** Control Bar Pro/HD `.big`s fetched at build time in `release.yml` (pin a URL + sha256), launcher passes
+      `-forcefullviewport`. Confirm licence/source first. Then map packs synced into `Documents\...\Maps` by the launcher. Regenerate `assets.sha256`
+      from the staged set. Also confirm borderless 3840×2160 windowed mode and pin it via launcher args.
+- [ ] **11. Shared defaults.** `ArchiveReplays=yes`, FPS limit, overlay font sizes (FPS/clock/timer/ping/money), `CursorCaptureMode` — set via
+      code defaults or a launcher-merged `config/` snippet so both machines match without touching menus. Optional: map + player names in the
+      archived replay filename.
+- [ ] **12. Netcode test flags already exist** in debug builds: `-packetloss`, `-latAvg`, `-latAmp`, `-latPeriod`, `-latNoise` (`CommandLine.cpp`).
+      Expose them in release (or use a `win32-profile` build) and make `net-sim.ps1` prefer them over clumsy.
+
 ## Findings from source inspection (2026-10-21, before first build) — read before starting the items above
 
 - **#2 verify.ps1:** upstream's mechanism is `generalszh.exe -jobs N -headless -replay <glob-or-name>`. Replays are resolved relative to

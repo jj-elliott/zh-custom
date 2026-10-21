@@ -72,6 +72,13 @@ Launcher behaviour: compares `BUILD_VERSION.txt` to `releases/latest`; downloads
 
 Because you both always run the tagged exe, every setting you bake into code is identical on both ends, so lockstep config drift can't happen.
 
+## Phase 3b — parity with the GenTool/GenPatcher setup (see `docs/FEATURE-PARITY.md`)
+
+The game played on 2026-10-20 was already upstream's engine (weekly-2026-10-02) under GenTool 7.6 with GenPatcher add-ons. Engine
+features carry over; the rest is: Control Bar Pro/HD and other add-on `.big`s shipped deliberately in the release zip with
+`-forcefullviewport`, a camera height/pitch scale enforced in network games, map-pack sync in the launcher, and shared overlay/replay/FPS
+defaults. GenTool itself stays out (crashes rebuilt exes; its unique features are small to add). AGENT-TODO #9–#11.
+
 ## Phase 4 — netcode (first feature)
 
 Read first: `GeneralsMD/Code/GameEngine/Source/GameNetwork/` (FrameData, NetworkInterface, ConnectionManager, FrameDataManager). The wiki's `crcdiff` page is the desync tooling.
