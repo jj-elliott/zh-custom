@@ -27,10 +27,9 @@ These need the actual source tree or a Windows machine, so bootstrap.ps1 left th
 - [ ] **8. First feature:** Phase 4 step 2 (jitter-aware run-ahead), behind verify.ps1.
 
 Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setup had that we must keep):
-- [~] **9. Camera height scale** — built 2026-10-21 on `render/camera-height`: `Core/GameEngine/Include/Common/CameraHeightScale.h` (+cpp),
-      `DefaultScale = 1.5` (310 → 465) for everyone in network games, `Options.ini` `CameraHeightScale` honoured offline. CRC-verified no-op.
-      **Open:** human play-test of the feel; the 1.5 assumes GenTool pinned retail 310 in multiplayer (unconfirmed). Pitch left at retail 37.5
-      (GenTool's 37 was the same). Merge to `main` after the play-test.
+- [x] **9. Camera height scale** — done 2026-10-21, merged to `main` (3a417b362): `Core/GameEngine/Include/Common/CameraHeightScale.h` (+cpp),
+      `DefaultScale = 1.5` (310 → 465) for everyone in network games, `Options.ini` `CameraHeightScale` honoured offline. CRC-verified no-op;
+      human play-tested: "feels right". Pitch left at retail 37.5 (GenTool's 37 was the same).
 - [~] **10. Add-ons in the release zip** — done 2026-10-21 (`addons/addons.json`, `fetch-addons.ps1`, `stage-install.ps1`, `release.yml`;
       Control Bar Pro bundles `GenTool/fullviewport.dat`, so no launcher flag). Human-verified in a replay. Map pack: `make-map-pack.ps1` +
       launcher `MapPack` done; publishing needs the Phase 2 repo. **Open:** pin download URLs in `addons.json` (CI currently warns and skips);

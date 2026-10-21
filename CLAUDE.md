@@ -8,8 +8,9 @@ decoupled/uncapped render rate, then visual and movement upgrades. Full plan: `d
 - Windows, x86 **only**. The engine has inline asm; never attempt an x64 build.
 - Build: `.\scripts\build.ps1` (Release/Win32 via CMake preset `win32`, output under `build\`). `-Clean` for a full rebuild.
 - Playable install: path in `.zh-local.json` → `gameDir` (a copy of the Steam folder; the Steam copy is never touched).
-- Verify loop: `.\scripts\verify.ps1` builds, copies the exe to `gameDir`, runs headless replays, diffs CRC against `tests\baseline`.
-  Until AGENT-TODO #2 is done it will throw; do that first if you touch sim code.
+- Verify loop: `.\scripts\verify.ps1` builds, then re-simulates every replay in `tests\replays` headless with the built exe; the replay's
+  embedded CRCs are the baseline, any divergence fails. `-Import -Name x` promotes the last played game to a new baseline. Run it before
+  and after every sim change; a deliberate sim change must come with re-recorded baselines.
 - Launcher (C#, for the second player): `launcher\`. `dotnet publish launcher\ZHLauncher.csproj -c Release -r win-x64`.
 - Releases: push a tag `v*` → `.github\workflows\release.yml` builds and publishes `zh-game-<tag>.zip`, `zh-launcher-<tag>.zip`, `zh-symbols-<tag>.pdb`.
 
@@ -19,7 +20,7 @@ decoupled/uncapped render rate, then visual and movement upgrades. Full plan: `d
 | `.\scripts\status.ps1` | environment report: branch, build age, toolchain, replay/baseline counts. Run first each session. |
 | `.\scripts\build.ps1 [-Clean]` | compiler output on stdout; nonzero exit on failure |
 | `.\scripts\run.ps1 [-Args ..] [-TimeoutSec N] [-Screenshot N]` | launches the game, harvests stdout, exit code, game logs, new crash dumps, optional screenshot into `tests\out\run-*\`; prints `OUTPUT_DIR=`. `-TimeoutSec 30` = smoke test ("still alive after 30 s" is a pass). |
-| `.\scripts\verify.ps1` | build + headless replay + CRC diff vs baseline (scaffold until AGENT-TODO #2) |
+| `.\scripts\verify.ps1 [-SkipBuild] [-Replay x.rep] [-Import -Name x]` | build + headless replay CRC check of `tests\replays\*.rep`; per-replay verdicts, exit code = failures, auto-postmortem on crash |
 | `.\scripts\postmortem.ps1 [-Dump x.dmp]` | **crash? run this first.** Newest minidump → exception, faulting module (+ ours/windows/third-party verdict), symbolized stack, logs, all in `tests\out\crash-*\summary.txt`. `run.ps1` calls it automatically when a run produced a dump. |
 | `.\scripts\symbolize.ps1 <dmp>` | raw cdb output for a dump (used by postmortem) |
 | `.\scripts\stage-install.ps1` | re-stage `gameDir` from the Steam folder: vanilla files, then our verified add-ons (`addons\addons.json`), our exe + PDB, regenerates `assets.sha256`. The way back to a known state. |
@@ -46,9 +47,10 @@ Things only a human can do: play an actual skirmish and say how it *feels*, and 
 ## Branches
 `main` releasable only. Work on `net/*`, `render/*`, `move/*`, `backend/bgfx`. Tag only from `main`.
 
-## Where things live (fill in `docs/CODE-MAP.md` on first session — AGENT-TODO #1)
-Rough starting points: engine core `Core/`, Zero Hour game `GeneralsMD/Code/`, W3D renderer `Core/Libraries/Source/WWVegas/WW3D2/`,
-network `GeneralsMD/Code/GameEngine/Source/GameNetwork/`, logic/AI `GeneralsMD/Code/GameEngine/Source/GameLogic/`. Verify against the tree; upstream moves things.
+## Where things live
+`docs/CODE-MAP.md`: 22 verified entries with entry-point functions and which plan phase touches each. Shared code was hoisted by upstream
+into `Core/` (network layer, pathfinder, view, device layer live there now); Zero Hour specifics in `GeneralsMD/Code/`. Ignore `Generals/`.
+`docs/FEATURE-PARITY.md`: what the GenTool/GenPatcher setup had, where each piece came from, and what we ship instead.
 
 ## Working style
 - Before any sim or net change: read `docs/PLAN.md` for the phase, then the relevant part of `docs/CODE-MAP.md`.
