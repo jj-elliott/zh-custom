@@ -3,6 +3,7 @@
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text.Json;
 
@@ -95,12 +96,18 @@ if (File.Exists(manifest))
 }
 else Log("No assets.sha256 in folder; skipping asset check.");
 
-// Surface the last crash dump so it gets sent instead of forgotten.
-var dumps = Path.Combine(dir, "crashdumps");
-Directory.CreateDirectory(dumps);
-var lastDump = new DirectoryInfo(dumps).GetFiles("*.dmp").OrderByDescending(f => f.LastWriteTime).FirstOrDefault();
+// Surface the last crash dump so it gets sent instead of forgotten. The engine's own MiniDumper writes
+// CrashM*/CrashF*.dmp to the user-data folder under Documents; the game-dir folder is kept for anything else.
+var dumpDirs = new[]
+{
+    Path.Combine(dir, "crashdumps"),
+    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Command and Conquer Generals Zero Hour Data", "CrashDumps"),
+};
+var lastDump = dumpDirs.Where(Directory.Exists)
+    .SelectMany(d => new DirectoryInfo(d).GetFiles("*.dmp"))
+    .OrderByDescending(f => f.LastWriteTime).FirstOrDefault();
 if (lastDump is not null && lastDump.LastWriteTime > DateTime.Now.AddDays(-2))
-    Log($"NOTE: crash dump from last session at {lastDump.FullName}. Send it along with BUILD_VERSION.txt.");
+    Log($"NOTE: crash dump from last session at {lastDump.FullName}. Send the CrashM*.dmp (small) along with BUILD_VERSION.txt.");
 
 if (problems.Count > 0)
 {
@@ -110,15 +117,15 @@ if (problems.Count > 0)
 }
 
 // ---- Launch ----------------------------------------------------------------
-var args = cfg.Args;
+var gameArgs = cfg.Args;   // not "args": that is the top-level-statements command-line parameter
 if (cfg.Debug)
 {
     Directory.CreateDirectory(Path.Combine(dir, "logs"));
-    args += $" -netlog \"logs/{DateTime.Now:yyyyMMdd-HHmmss}.log\"";   // flag added in Phase 4 instrumentation
+    gameArgs += $" -netlog \"logs/{DateTime.Now:yyyyMMdd-HHmmss}.log\"";   // flag added in Phase 4 instrumentation
 }
 
-Log($"Launching {cfg.Executable} {args}");
-Process.Start(new ProcessStartInfo(target, args) { WorkingDirectory = dir, UseShellExecute = true });
+Log($"Launching {cfg.Executable} {gameArgs}");
+Process.Start(new ProcessStartInfo(target, gameArgs) { WorkingDirectory = dir, UseShellExecute = true });
 return 0;
 
 static void Log(string s) => Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] {s}");

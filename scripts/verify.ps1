@@ -32,9 +32,9 @@ foreach ($r in $replays) {
 
   $base = "$repo\tests\baseline\$name.crc"
   if ($Baseline) { New-Item -ItemType Directory -Force "$repo\tests\baseline" | Out-Null; Copy-Item $crcOut $base -Force; Write-Host "baseline recorded: $name"; continue }
-  if (-not (Test-Path $base)) { Write-Warning "$name: no baseline; run with -Baseline"; continue }
+  if (-not (Test-Path $base)) { Write-Warning "${name}: no baseline; run with -Baseline"; continue }
   $diff = Compare-Object (Get-Content $base) (Get-Content $crcOut)
-  if ($diff) { Write-Host "FAIL $name: first divergence at line $(( $diff | select -First 1 ).InputObject)" -ForegroundColor Red; $fail++ }
-  else { Write-Host "ok   $name" -ForegroundColor Green }
+  if ($diff) { Write-Host "FAIL ${name}: first divergence at line $(( $diff | select -First 1 ).InputObject)" -ForegroundColor Red; $fail++ }
+  else { Write-Host "ok   ${name}" -ForegroundColor Green }
 }
 exit $fail

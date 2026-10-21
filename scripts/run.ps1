@@ -5,7 +5,9 @@
 #   .\scripts\run.ps1 -Screenshot 20           # screenshot the game window after N seconds (needs windowed mode)
 # Output: tests\out\run-<timestamp>\ with stdout.txt, exitcode.txt, any new crashdump, screenshot.png, and a copy of
 # the game's own log files written during the run. The folder path is printed last so the agent can read it.
-param([string]$Args = "-win", [int]$TimeoutSec = 0, [int]$Screenshot = 0, [switch]$NoCopyExe)
+# NOTE: the parameter is $GameArgs, not $Args: $Args is a PowerShell automatic variable and a parameter of that name
+# binds unreliably (Start-Process saw it as empty). The -Args alias keeps the documented command line working.
+param([Alias("Args")][string]$GameArgs = "-win", [int]$TimeoutSec = 0, [int]$Screenshot = 0, [switch]$NoCopyExe)
 $ErrorActionPreference = "Stop"
 $repo = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $local = Get-Content "$repo\.zh-local.json" | ConvertFrom-Json
@@ -17,10 +19,10 @@ if (-not $NoCopyExe) {
   $exe = Get-ChildItem "$repo\build" -Recurse -Include generalszh.exe | ? FullName -match Release | select -First 1
   if ($exe) { Copy-Item $exe.FullName "$game\generalszh.exe" -Force }
 }
-$before = Get-ChildItem "$game\crashdumps\*.dmp" -ErrorAction SilentlyContinue | % FullName
+$before = Get-ChildItem "$game\crashdumps\*.dmp","$env:USERPROFILE\Documents\Command and Conquer Generals Zero Hour Data\CrashDumps\*.dmp" -ErrorAction SilentlyContinue | % FullName
 $startTime = Get-Date
 
-$p = Start-Process -FilePath "$game\generalszh.exe" -ArgumentList $Args -WorkingDirectory $game -PassThru `
+$p = Start-Process -FilePath "$game\generalszh.exe" -ArgumentList $GameArgs -WorkingDirectory $game -PassThru `
        -RedirectStandardOutput "$out\stdout.txt" -RedirectStandardError "$out\stderr.txt"
 
 if ($Screenshot -gt 0) {
@@ -37,11 +39,19 @@ if ($TimeoutSec -gt 0) {
   else { Set-Content "$out\exitcode.txt" $p.ExitCode }
 } else { $p.WaitForExit(); Set-Content "$out\exitcode.txt" $p.ExitCode }
 
-# Harvest: new crash dumps, and any log the game wrote during the run
-Get-ChildItem "$game\crashdumps\*.dmp" -ErrorAction SilentlyContinue | ? { $_.FullName -notin $before } | Copy-Item -Destination $out
-Get-ChildItem $game,"$game\logs","$env:USERPROFILE\Documents\Command and Conquer Generals Zero Hour Data" -Include *.log,*.txt -Recurse -ErrorAction SilentlyContinue |
+# Harvest: new crash dumps, and any log the game wrote during the run.
+# Upstream's MiniDumper writes to the user-data folder (Documents), not the game dir; minidumps (CrashM*) are small, full dumps (CrashF*) ~700 MB.
+$userData = "$env:USERPROFILE\Documents\Command and Conquer Generals Zero Hour Data"
+$newDumps = Get-ChildItem "$game\crashdumps\*.dmp","$userData\CrashDumps\CrashM*.dmp" -ErrorAction SilentlyContinue | ? { $_.FullName -notin $before -and $_.LastWriteTime -gt $startTime }
+$newDumps | Copy-Item -Destination $out
+Get-ChildItem $game,"$game\logs",$userData -Include *.log,*.txt -Recurse -ErrorAction SilentlyContinue |
   ? { $_.LastWriteTime -gt $startTime -and $_.Name -ne "BUILD_VERSION.txt" } | Copy-Item -Destination $out -ErrorAction SilentlyContinue
 
 Write-Host "exit: $(Get-Content "$out\exitcode.txt")"
 Get-ChildItem $out | % { Write-Host "  $($_.Name) ($($_.Length) B)" }
+if ($newDumps) {
+  # It crashed: run the postmortem right away so the verdict is in this output.
+  Write-Host "CRASHED: $($newDumps.Count) new dump(s); running postmortem" -ForegroundColor Red
+  & "$PSScriptRoot\postmortem.ps1" -Dump ($newDumps | sort LastWriteTime -Desc | select -First 1).FullName
+}
 Write-Host "OUTPUT_DIR=$out"

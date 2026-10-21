@@ -4,10 +4,17 @@
 param([Parameter(Mandatory)][string]$Dump)
 $ErrorActionPreference = "Stop"
 $repo = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$cdb = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\Debuggers\x86\cdb.exe" -ErrorAction SilentlyContinue | select -First 1
+# cdb comes from the SDK "Debugging Tools" feature or from the Store WinDbg package (winget Microsoft.WinDbg), whose
+# app-execution alias is cdbX86.exe. The game is a 32-bit process, so prefer the x86 debugger.
+function Find-Cdb {
+  Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\Debuggers\x86\cdb.exe",
+                "$env:LOCALAPPDATA\Microsoft\WindowsApps\cdbX86.exe",
+                "$env:LOCALAPPDATA\Microsoft\WindowsApps\cdb.exe" -ErrorAction SilentlyContinue | select -First 1
+}
+$cdb = Find-Cdb
 if (-not $cdb) {
   winget install --id Microsoft.WinDbg -e --accept-source-agreements --accept-package-agreements | Out-Null
-  $cdb = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\Debuggers\x86\cdb.exe","$env:LOCALAPPDATA\Microsoft\WindowsApps\cdb.exe" -ErrorAction SilentlyContinue | select -First 1
+  $cdb = Find-Cdb
   if (-not $cdb) { throw "cdb.exe not found; install 'Debugging Tools for Windows' from the Windows SDK installer" }
 }
 $pdbDirs = (Get-ChildItem "$repo\build" -Recurse -Include generalszh.pdb -ErrorAction SilentlyContinue | % DirectoryName | select -Unique) -join ";"

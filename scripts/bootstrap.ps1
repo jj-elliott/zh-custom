@@ -87,7 +87,7 @@ if (-not $hasCommits) {
   # Our local-only bits. Upstream's .gitignore ignores /CLAUDE.md and may lack a trailing newline, so write a
   # self-contained block (leading newline) and un-ignore our briefing file.
   if (-not (Select-String -Path .gitignore -Pattern "zh-pipeline overlay" -Quiet -ErrorAction SilentlyContinue)) {
-    Add-Content .gitignore "`n## zh-pipeline overlay (local-only paths, and un-ignore our agent briefing)`n!/CLAUDE.md`n.zh-local.json`nlogs/`ncrashdumps/`nout/"
+    Add-Content .gitignore "`n## zh-pipeline overlay (local-only paths, and un-ignore our agent briefing)`n!/CLAUDE.md`n.zh-local.json`nlogs/`ncrashdumps/`nout/`nlauncher/bin/`nlauncher/obj/`ntests/out/"
   }
   git add -A
   git commit -q -m "Overlay: pipeline, launcher, docs, CLAUDE.md on top of upstream $UpstreamBranch"
@@ -120,18 +120,11 @@ if (-not $SteamZHPath) {
   if (-not $SteamZHPath) { throw "Could not find the Steam Zero Hour folder. Re-run with -SteamZHPath '<folder containing generals.exe>'" }
 }
 $dev = Join-Path $DevRoot "ZeroHour-Dev"
-if (-not (Test-Path $dev)) {
-  Write-Host "Copying Steam install to $dev (one-time, a few GB)"
-  New-Item -ItemType Directory -Force $DevRoot | Out-Null
-  robocopy $SteamZHPath $dev /E /NFL /NDL /NJH /NJS /NP | Out-Null
-}
-Copy-Item $exe.FullName (Join-Path $dev $exe.Name) -Force
-Set-Content (Join-Path $dev "BUILD_VERSION.txt") ("dev-local " + (git rev-parse --short HEAD) + " " + (Get-Date -Format s))
-@{ gameDir = $dev; steamDir = $SteamZHPath; exe = $exe.Name; buildDir = (Join-Path $repo "build") } |
-  ConvertTo-Json | Set-Content ".zh-local.json"
-if (-not (Test-Path "assets.sha256")) {
-  & (Join-Path $PSScriptRoot "make-asset-manifest.ps1") -GamePath $dev -Out "assets.sha256"
-  git add assets.sha256; git commit -q -m "Add asset manifest from local install"
+# stage-install.ps1 mirrors the Steam folder minus third-party add-ons (GenTool, GenPatcher), drops in the exe,
+# writes .zh-local.json and regenerates assets.sha256. Re-run it any time to get back to a known state.
+& (Join-Path $PSScriptRoot "stage-install.ps1") -SteamZHPath $SteamZHPath -DevDir $dev
+if (git status --porcelain -- assets.sha256) {
+  git add assets.sha256; git commit -q -m "Update asset manifest from local install"
 }
 Write-Host "Dev install ready: $dev\$($exe.Name)" -ForegroundColor Green
 

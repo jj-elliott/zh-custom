@@ -74,3 +74,6 @@ __pycache__/
 logs/
 crashdumps/
 out/
+launcher/bin/
+launcher/obj/
+tests/out/
