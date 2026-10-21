@@ -4,5 +4,6 @@
   "Executable": "generalszh.exe",
   "Args": "-win",
   "Debug": false,
-  "AllowMismatch": false
+  "AllowMismatch": false,
+  "MapPack": ""
 }

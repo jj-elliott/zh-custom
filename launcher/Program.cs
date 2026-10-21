@@ -62,6 +62,49 @@ catch (Exception ex)
     Log($"Update check skipped: {ex.Message}");
 }
 
+// ---- Map pack ------------------------------------------------------------
+// Custom maps live in the user's Documents folder, not the game folder, so the game zip can't carry them. A versioned
+// pack (scripts/make-map-pack.ps1 -Publish) is a release asset zh-maps-<MapPack>.zip; both machines install the same one.
+if (!string.IsNullOrWhiteSpace(cfg.MapPack))
+{
+    try
+    {
+        var mapsDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                                   "Command and Conquer Generals Zero Hour Data", "Maps");
+        var marker = Path.Combine(mapsDir, ".zh-mappack");
+        var installed = File.Exists(marker) ? File.ReadAllText(marker).Trim() : "(none)";
+        if (installed == cfg.MapPack) Log($"Map pack {cfg.MapPack} already installed.");
+        else
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("ZHLauncher/1.0");
+            http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+            if (!string.IsNullOrWhiteSpace(cfg.Token))
+                http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", cfg.Token);
+            var rel = await http.GetFromJsonAsync<Release>($"https://api.github.com/repos/{cfg.Repo}/releases/tags/{cfg.MapPack}")
+                      ?? throw new Exception($"no release tagged {cfg.MapPack}");
+            var asset = rel.assets.FirstOrDefault(a => a.name.Equals($"zh-maps-{cfg.MapPack}.zip", StringComparison.OrdinalIgnoreCase))
+                        ?? throw new Exception($"release {cfg.MapPack} has no zh-maps-{cfg.MapPack}.zip");
+            Log($"Installing map pack {cfg.MapPack} ({asset.size / 1024 / 1024} MB) over {installed}...");
+            using var req = new HttpRequestMessage(HttpMethod.Get, asset.url);
+            req.Headers.Accept.Clear();
+            req.Headers.Accept.ParseAdd("application/octet-stream");
+            using var resp = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
+            resp.EnsureSuccessStatusCode();
+            var tmp = Path.Combine(Path.GetTempPath(), asset.name);
+            await using (var fs = File.Create(tmp)) await resp.Content.CopyToAsync(fs);
+            Directory.CreateDirectory(mapsDir);
+            ZipFile.ExtractToDirectory(tmp, mapsDir, overwriteFiles: true);   // adds/overwrites; never deletes the player's own maps
+            File.Delete(tmp);
+            Log($"Map pack {cfg.MapPack} installed to {mapsDir}");
+        }
+    }
+    catch (Exception ex)
+    {
+        Log($"Map pack check skipped: {ex.Message}");
+    }
+}
+
 var target = Path.Combine(dir, cfg.Executable);
 if (!File.Exists(target))
 {
@@ -138,6 +181,7 @@ record Config
     public string Args { get; init; } = "-win";       // e.g. "-win -xres 2560 -yres 1440"
     public bool Debug { get; init; } = false;         // true = pass -netlog, write logs/<timestamp>.log
     public bool AllowMismatch { get; init; } = false; // true = launch even if assets.sha256 doesn't match
+    public string MapPack { get; init; } = "";        // release tag of the map pack to install into Documents\...\Maps (e.g. "maps-v1"); empty = skip
 }
 record Release(string tag_name, Asset[] assets);
 record Asset(string name, string url, long size);
