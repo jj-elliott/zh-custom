@@ -29,6 +29,13 @@ foreach ($a in $cfg.addons) {
     if ($ImportFrom) {
       $src = Join-Path $ImportFrom $f.name
       if (Test-Path $src) { Copy-Item $src $dst -Force }
+    } elseif ((Verify $dst $f) -ne "ok" -and $a.release) {
+      # Hosted as an asset of a release in OUR repo (private is fine: gh authenticates; CI gets GH_TOKEN). Set "release" per add-on.
+      $gh = Get-Command gh -ErrorAction SilentlyContinue; if (-not $gh) { $gh = Get-Item "C:\Program Files\GitHub CLI\gh.exe" -ErrorAction SilentlyContinue }
+      $repoArg = @(); if ($cfg.repo) { $repoArg = @("-R", $cfg.repo) }
+      if (-not $Quiet) { Write-Host "   gh release download $($a.release) $($f.name)" }
+      if ($gh) { & $gh.Source release download $a.release @repoArg -p $f.name -D $cache --clobber 2>&1 | ForEach-Object { if (-not $Quiet) { "   $_" } } }
+      else { Write-Warning "   gh not found; cannot download release asset" }
     } elseif ((Verify $dst $f) -ne "ok" -and $a.url) {
       $u = "$($a.url.TrimEnd('/'))/$($f.name)"
       if (-not $Quiet) { Write-Host "   downloading $u" }

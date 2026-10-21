@@ -54,12 +54,15 @@ jobs:
 
       - name: Fetch add-ons (Control Bar Pro/HD, ...)
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}   # lets gh download assets of this repo's own releases (private repo)
         run: |
-          # Downloads each enabled add-on from its pinned url in addons/addons.json and verifies size + sha256.
-          # Add-ons whose url is still null are skipped with a warning; the release still builds.
+          # Downloads each enabled add-on (release asset in this repo, or pinned url) per addons/addons.json and verifies size + sha256.
+          # The launcher refuses to start when assets.sha256 lists a file the zip lacks, so a missing add-on fails the release.
           New-Item -ItemType Directory -Force out/game | Out-Null
           & scripts/fetch-addons.ps1 -Out out/game
-          if ($LASTEXITCODE -ne 0) { Write-Warning "add-ons incomplete in this release; pin urls in addons/addons.json" }
+          if ($LASTEXITCODE -ne 0) { throw "add-ons missing or failed verification; see addons/addons.json" }
+          exit 0
 
       - name: Package
         shell: pwsh

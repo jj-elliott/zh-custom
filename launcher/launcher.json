@@ -1,5 +1,5 @@
 {
-  "Repo": "YOUR_GITHUB_USER/zh-custom",
+  "Repo": "jj-elliott/zh-custom",
   "Token": "github_pat_XXXX_read_only_contents_on_this_repo",
   "Executable": "generalszh.exe",
   "Args": "-win",
