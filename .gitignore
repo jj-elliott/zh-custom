@@ -66,4 +66,7 @@ build.ninja
 
 ## Python
 __pycache__/
-*.pyc
+*.pyc.zh-local.json
+logs/
+crashdumps/
+out/
