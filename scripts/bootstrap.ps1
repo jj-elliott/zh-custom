@@ -72,11 +72,22 @@ if (-not $hasCommits) {
   foreach ($o in $overlay) { if (Test-Path $o) { Move-Item $o (Join-Path $park $o) -Force } }
   # On an unborn 'main', reset --hard makes main point at upstream and checks out its tree.
   git reset -q --hard "upstream/$UpstreamBranch"; if ($LASTEXITCODE -ne 0) { throw "git reset --hard upstream/$UpstreamBranch failed (overlay parked at $park)" }
-  foreach ($o in Get-ChildItem $park -Force) { Copy-Item $o.FullName (Join-Path $repo $o.Name) -Recurse -Force }
+  # Merge the overlay back. Upstream already has scripts/ and .github/, and Copy-Item of a directory onto an existing
+  # directory nests it (scripts\scripts\), so copy directory *contents* into the destination instead.
+  foreach ($o in Get-ChildItem $park -Force) {
+    $dst = Join-Path $repo $o.Name
+    if ($o.PSIsContainer) {
+      New-Item -ItemType Directory -Force $dst | Out-Null
+      Copy-Item (Join-Path $o.FullName "*") $dst -Recurse -Force
+    } else {
+      Copy-Item $o.FullName $dst -Force
+    }
+  }
   Remove-Item $park -Recurse -Force
-  # Our local-only bits
-  foreach ($ig in ".zh-local.json","logs/","crashdumps/","out/") {
-    if (-not (Select-String -Path .gitignore -Pattern ([regex]::Escape($ig)) -Quiet -ErrorAction SilentlyContinue)) { Add-Content .gitignore $ig }
+  # Our local-only bits. Upstream's .gitignore ignores /CLAUDE.md and may lack a trailing newline, so write a
+  # self-contained block (leading newline) and un-ignore our briefing file.
+  if (-not (Select-String -Path .gitignore -Pattern "zh-pipeline overlay" -Quiet -ErrorAction SilentlyContinue)) {
+    Add-Content .gitignore "`n## zh-pipeline overlay (local-only paths, and un-ignore our agent briefing)`n!/CLAUDE.md`n.zh-local.json`nlogs/`ncrashdumps/`nout/"
   }
   git add -A
   git commit -q -m "Overlay: pipeline, launcher, docs, CLAUDE.md on top of upstream $UpstreamBranch"

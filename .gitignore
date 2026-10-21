@@ -66,7 +66,11 @@ build.ninja
 
 ## Python
 __pycache__/
-*.pyc.zh-local.json
+*.pyc
+
+## zh-pipeline overlay (local-only paths, and un-ignore our agent briefing)
+!/CLAUDE.md
+.zh-local.json
 logs/
 crashdumps/
 out/
