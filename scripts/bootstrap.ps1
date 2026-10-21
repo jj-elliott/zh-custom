@@ -133,8 +133,13 @@ if ($CreateRepo) {
   Step "Creating private GitHub repo '$RepoName'"
   & { $ErrorActionPreference = "Continue"; gh auth status 2>$null | Out-Null }   # gh writes status to stderr
   if ($LASTEXITCODE -ne 0) { gh auth login }
+  # git/gh print push progress on stderr; under Stop that would abort after a successful push, so judge by exit code.
+  $ErrorActionPreference = "Continue"
   if (git remote | Select-String -Quiet "^origin$") { Write-Host "origin already exists; pushing"; git push -u origin main }
   else { gh repo create $RepoName --private --source . --remote origin --push }
+  if ($LASTEXITCODE -ne 0) { throw "repo create/push failed (exit $LASTEXITCODE)" }
+  git branch -u origin/main main 2>&1 | Out-Null
+  $ErrorActionPreference = "Stop"
   Write-Host "Tag a release with:  git tag v0.1.0 && git push origin v0.1.0" -ForegroundColor Green
 }
 
