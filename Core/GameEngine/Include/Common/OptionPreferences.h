@@ -68,6 +68,7 @@ public:
 	void setLANIPAddress(UnsignedInt IP);
 	void setOnlineIPAddress(UnsignedInt IP);
 	Bool getArchiveReplaysEnabled() const;
+	Real getCameraHeightScale() const;	///< zh-pipeline: Options.ini "CameraHeightScale" (e.g. 1.5); 0 = not set. Ignored in network games.
 	Bool getAlternateMouseModeEnabled();
 	Bool getRightMouseScrollWithAlternateMouseEnabled() const;
 	Bool getRetaliationModeEnabled();

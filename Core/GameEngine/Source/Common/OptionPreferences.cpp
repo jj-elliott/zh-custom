@@ -192,6 +192,21 @@ Bool OptionPreferences::getArchiveReplaysEnabled() const
 	return FALSE;
 }
 
+Real OptionPreferences::getCameraHeightScale() const
+{
+	// zh-pipeline: per-machine override of the baked camera height scale, for skirmish and replays only.
+	OptionPreferences::const_iterator it = find("CameraHeightScale");
+	if (it == end())
+		return 0.0f;
+
+	Real scale = (Real)atof(it->second.str());
+	if (scale <= 0.0f)
+		return 0.0f;
+	if (scale < 0.5f) scale = 0.5f;
+	if (scale > 4.0f) scale = 4.0f;
+	return scale;
+}
+
 Bool OptionPreferences::getAlternateMouseModeEnabled()
 {
 	OptionPreferences::const_iterator it = find("UseAlternateMouse");

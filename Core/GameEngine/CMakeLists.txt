@@ -2,6 +2,7 @@ set(GAMEENGINE_SRC
     Include/Common/AcademyStats.h
 #    Include/Common/ActionManager.h
     Include/Common/AddonCompat.h
+    Include/Common/CameraHeightScale.h
     Include/Common/ArchiveFile.h
     Include/Common/ArchiveFileSystem.h
     Include/Common/AsciiString.h
@@ -629,6 +630,7 @@ set(GAMEENGINE_SRC
     Source/Common/MiniLog.cpp
 #    Source/Common/MultiplayerSettings.cpp
 #    Source/Common/NameKeyGenerator.cpp
+    Source/Common/CameraHeightScale.cpp
     Source/Common/OptionPreferences.cpp
 #    Source/Common/PartitionSolver.cpp
     Source/Common/PerfTimer.cpp

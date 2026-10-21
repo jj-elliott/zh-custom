@@ -28,7 +28,9 @@
 
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
+#include "Common/CameraHeightScale.h"
 #include "Common/GameEngine.h"
+#include "Common/OptionPreferences.h"
 #include "Common/Xfer.h"
 #include "GameClient/Drawable.h"
 #include "GameClient/GameClient.h"
@@ -96,7 +98,12 @@ void View::init()
 	m_zoomLimited = TRUE;
 
 	m_zoom = 1.0f;
-	m_maxHeightAboveGround = TheGlobalData->m_maxCameraHeight;
+	{
+		// zh-pipeline: per-machine camera ceiling override from Options.ini (ignored in network games, see CameraHeightScale.h)
+		OptionPreferences optionPref;
+		CameraHeightScale::SetUserScale(optionPref.getCameraHeightScale());
+	}
+	m_maxHeightAboveGround = CameraHeightScale::GetMaxCameraHeight();	// zh-pipeline: scaled ceiling
 	m_minHeightAboveGround = TheGlobalData->m_minCameraHeight;
 	m_okToAdjustHeight = FALSE;
 

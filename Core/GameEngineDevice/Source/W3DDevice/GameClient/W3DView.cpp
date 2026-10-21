@@ -42,6 +42,7 @@
 #include "Common/BuildAssistant.h"
 #include "Common/FramePacer.h"
 #include "Common/GameUtility.h"
+#include "Common/CameraHeightScale.h"
 #include "Common/GlobalData.h"
 #include "Common/Module.h"
 #include "Common/Radar.h"
@@ -669,7 +670,7 @@ Real W3DView::getCameraOffsetZ() const
 	}
 #endif
 
-	return m_pos.z + TheGlobalData->m_maxCameraHeight;
+	return m_pos.z + CameraHeightScale::GetMaxCameraHeight();	// zh-pipeline: scaled ceiling
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -2233,7 +2234,7 @@ void W3DView::setDefaultView(Real pitch, Real angle, Real maxHeight)
 	// MDC - we no longer want to rotate maps (design made all of them right to begin with)
 	//	m_defaultAngle = angle * WWMATH_PI/180.0f;
 	setDefaultPitch(pitch);
-	m_maxHeightAboveGround = TheGlobalData->m_maxCameraHeight*maxHeight;
+	m_maxHeightAboveGround = CameraHeightScale::GetMaxCameraHeight()*maxHeight;	// zh-pipeline: scaled ceiling
 	if (m_minHeightAboveGround > m_maxHeightAboveGround)
 		m_maxHeightAboveGround = m_minHeightAboveGround;
 }
