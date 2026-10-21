@@ -16,6 +16,7 @@ param(
   [string]$SteamZHPath = "",
   [string]$DevDir = "",
   [switch]$NoManifest,
+  [switch]$NoAddons,              # skip layering the verified add-ons from addons\addons.json (Control Bar Pro/HD, ...)
   [string[]]$ExcludeFiles = @(
     "d3d8.dll", "d3d8.cfg", "d3d9.dll", "dxvk.conf",          # GenTool proxy / any wrapper left in the Steam folder
     "GenToolUpdater.exe", "game.dat-VISION.log", "EdgeScroller.exe",
@@ -57,6 +58,14 @@ $removed = @()
 foreach ($pat in $ExcludeFiles) { Get-ChildItem $DevDir -File -Filter $pat -ErrorAction SilentlyContinue | ForEach-Object { $removed += $_.Name; Remove-Item $_.FullName -Force } }
 foreach ($d in $ExcludeDirs) { $p = Join-Path $DevDir $d; if (Test-Path $p) { $removed += "$d\"; Remove-Item $p -Recurse -Force } }
 if ($removed) { Write-Host "Removed from dev copy: $($removed -join ', ')" }
+
+# Layer our deliberate add-ons on top of vanilla (the /XF list above strips any copies that came with the Steam folder).
+# They only get here after sha256 verification, so the dev copy matches what the release zip will carry.
+if (-not $NoAddons) {
+  & (Join-Path $PSScriptRoot "fetch-addons.ps1") -Out $DevDir -Quiet
+  if ($LASTEXITCODE -ne 0) { Write-Warning "some add-ons are not in the cache; dev copy is missing them (see fetch-addons.ps1)" }
+  else { Write-Host "Add-ons applied: $((Get-ChildItem $DevDir -File | Where-Object Name -match '^\d{3}_.*\.big$' | ForEach-Object Name) -join ', ')" }
+}
 
 Copy-Item $exe.FullName (Join-Path $DevDir "generalszh.exe") -Force
 $pdb = Join-Path $exe.DirectoryName "generalszh.pdb"

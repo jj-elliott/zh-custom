@@ -1,0 +1,58 @@
+{
+  "_comment": [
+    "Add-on archives we ship deliberately on top of a vanilla Zero Hour install. Binaries are never committed; this file pins",
+    "name, size and sha256 so scripts/fetch-addons.ps1 can verify whatever it downloads or imports, and so both machines end",
+    "up with the identical set (assets.sha256 then proves it). Load order: the engine loads *.big alphabetically and the",
+    "FIRST archive to provide a file wins, so the numeric prefix is the priority (310_ beats 340_ beats 400_ beats AudioZH...).",
+    "Control Bar Pro bundles GenTool/fullviewport.dat, which upstream's AddonCompat.cpp honours, so no -forcefullviewport is needed.",
+    "Confirmed working on our build 2026-10-21 (human-verified in a replay)."
+  ],
+  "cacheDir": "C:\\Games\\ZH\\addons",
+  "addons": [
+    {
+      "name": "Control Bar Pro (2160p)",
+      "enabled": true,
+      "licence": "MIT (TheSuperHackers/GeneralsControlBar); authors EA Games, FAS, xezon",
+      "source": "https://github.com/TheSuperHackers/GeneralsControlBar",
+      "url": null,
+      "_url_note": "Original download page per the archive's embedded ControlBarPro.txt: http://gentool.net/download/controlbarpro (file names not yet pinned). Until a URL is pinned, fetch-addons.ps1 -ImportFrom <folder> seeds the cache from a GenPatcher-installed copy.",
+      "files": [
+        { "name": "340_ControlBarProZH.big",         "size": 376,      "sha256": "10837c0d269605d4" },
+        { "name": "340_ControlBarPro2160ZH.big",     "size": 5278820,  "sha256": "993d47bccda9975d" },
+        { "name": "340_ControlBarProArt2160ZH.big",  "size": 38800780, "sha256": "6c822b4347ce79a3" },
+        { "name": "340_ControlBarProData2160ZH.big", "size": 1292452,  "sha256": "02482459b910ed3c" }
+      ]
+    },
+    {
+      "name": "Control Bar HD (English)",
+      "enabled": true,
+      "licence": "MIT (TheSuperHackers/GeneralsControlBar); author xezon",
+      "source": "https://github.com/TheSuperHackers/GeneralsControlBar",
+      "url": null,
+      "files": [
+        { "name": "400_ControlBarHDEnglishZH.big", "size": 47868005, "sha256": "507fa85469da609b" }
+      ]
+    },
+    {
+      "name": "Decals (GenPatcher 'restore decal quality')",
+      "enabled": true,
+      "licence": "unverified (GenPatcher distribution)",
+      "source": "GenPatcher",
+      "url": null,
+      "files": [
+        { "name": "990_DecalsZH.big", "size": 7519527, "sha256": "b9cdd0445b5724ae" }
+      ]
+    },
+    {
+      "name": "Expanded LAN Lobby Menu",
+      "enabled": false,
+      "_why_disabled": "Window-layout mod; upstream has its own LAN lobby fixes and this may conflict. Enable after a test.",
+      "licence": "unverified (GenPatcher distribution)",
+      "source": "GenPatcher",
+      "url": null,
+      "files": [
+        { "name": "310_ExpandedLANLobbyMenu.big", "size": 138731, "sha256": "24129733cbce56bb" }
+      ]
+    }
+  ]
+}

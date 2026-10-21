@@ -28,6 +28,10 @@ $p = Start-Process -FilePath "$game\generalszh.exe" -ArgumentList $GameArgs -Wor
 if ($Screenshot -gt 0) {
   Start-Sleep $Screenshot
   Add-Type -AssemblyName System.Windows.Forms,System.Drawing
+  # Without DPI awareness, a scaled desktop (e.g. 4K at 150%) reports scaled bounds and CopyFromScreen grabs only the top-left
+  # part of the physical screen, cropping the bottom/right of the game window.
+  Add-Type -Namespace Native -Name Dpi -MemberDefinition '[DllImport("user32.dll")] public static extern bool SetProcessDPIAware();'
+  [Native.Dpi]::SetProcessDPIAware() | Out-Null
   $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
   $bmp = New-Object System.Drawing.Bitmap $b.Width,$b.Height
   [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location,[System.Drawing.Point]::Empty,$b.Size)

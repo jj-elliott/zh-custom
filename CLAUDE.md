@@ -22,7 +22,8 @@ decoupled/uncapped render rate, then visual and movement upgrades. Full plan: `d
 | `.\scripts\verify.ps1` | build + headless replay + CRC diff vs baseline (scaffold until AGENT-TODO #2) |
 | `.\scripts\postmortem.ps1 [-Dump x.dmp]` | **crash? run this first.** Newest minidump → exception, faulting module (+ ours/windows/third-party verdict), symbolized stack, logs, all in `tests\out\crash-*\summary.txt`. `run.ps1` calls it automatically when a run produced a dump. |
 | `.\scripts\symbolize.ps1 <dmp>` | raw cdb output for a dump (used by postmortem) |
-| `.\scripts\stage-install.ps1` | re-stage `gameDir` from the Steam folder: vanilla files only (strips GenTool/GenPatcher add-ons), our exe + PDB, regenerates `assets.sha256`. The way back to a known state. |
+| `.\scripts\stage-install.ps1` | re-stage `gameDir` from the Steam folder: vanilla files, then our verified add-ons (`addons\addons.json`), our exe + PDB, regenerates `assets.sha256`. The way back to a known state. |
+| `.\scripts\fetch-addons.ps1 [-ImportFrom dir]` | fills/verifies the add-on cache (`C:\Games\ZH\addons`) against pinned sha256s; CI uses it to put the same files in the release zip |
 | `.\scripts\net-sim.ps1 -Loss 5 -DelayMs 80 -JitterMs 30` / `-Off` | inject packet loss/latency on UDP for solo netcode testing (two game instances over loopback) |
 | `dotnet publish launcher\ZHLauncher.csproj -c Release -r win-x64` | builds the launcher |
 
