@@ -27,7 +27,9 @@ These need the actual source tree or a Windows machine, so bootstrap.ps1 left th
       `ConnectionManager.cpp` (run-ahead computed with its inputs), `Connection.cpp` (ack latency samples, retries), `Transport.cpp`
       (packets/bytes per second), `DisconnectManager.cpp`. One `sec` line per second plus `stall`/`runahead`/`crc`/`event` records.
       Launcher passes it when `release.json` `NetLog` is true (shipped on) or `launcher.json` `Debug`; files land in `gameDir\logs\net-*.log`,
-      last 20 kept. **Open:** read a real two-machine session log; decide Phase 4 step 2 (jitter term) from it. Not in the CRC.
+      last 20 kept. Shipped in **v0.2.0** (2026-10-21) together with windowed edge scrolling. **Open:** read a real two-machine session log;
+      decide Phase 4 step 2 (jitter term) from it. Not in the CRC. Launch args are now `-win -nologo` (skip logo + intro movie, keep the
+      animated shell map); the human prefers that over `-quickstart`.
 - [ ] **7. `/LARGEADDRESSAWARE`** on the exe if not already set (needed before the texture pack).
 - [ ] **8. First feature:** Phase 4 step 2 (jitter-aware run-ahead), behind verify.ps1.
 
