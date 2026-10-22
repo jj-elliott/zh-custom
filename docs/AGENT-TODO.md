@@ -39,7 +39,10 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       machine: dev-local → v0.1.0 → v0.1.1 → v0.1.2 updates, manifest check, map-pack install, DXVK 2.5.3 active. **v0.1.2 (camera 2.0x)
       makes the kit send-once:** the launcher self-updates (proven: a v0.0.0-stamped launcher replaced itself with v0.1.2 and restarted) and
       takes `MapPack`/`Args` from `release.json` shipped in the game zip (`config/release.json`). Dad kit `out/zh-dad-kit-v0.1.2.zip` handed
-      to the human; it is the last kit that ever needs sending. **Open:** the second-machine test (human only).
+      to the human; it is the last kit that ever needs sending. **v0.1.3: first-run setup** — run from any folder, the launcher finds the Steam
+      install (registry, then Steam library folders), copies it to `C:\Games\ZeroHour-Custom` minus GenTool/GenPatcher leftovers, drops itself
+      in, makes a desktop shortcut and hands over (tested from an empty folder: ~3 s copy on NVMe, then update + launch). Setup instructions
+      are now "unzip anywhere, double-click". **Open:** the second-machine test (human only).
 - [ ] **11. Shared defaults.** `ArchiveReplays=yes`, FPS limit, overlay font sizes (FPS/clock/timer/ping/money), `CursorCaptureMode` — set via
       code defaults or a launcher-merged `config/` snippet so both machines match without touching menus. Optional: map + player names in the
       archived replay filename.

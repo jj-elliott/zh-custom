@@ -1,31 +1,22 @@
-ZERO HOUR CUSTOM BUILD - ONE-TIME SETUP (about 10 minutes)
-===========================================================
+ZERO HOUR CUSTOM BUILD - SETUP
+==============================
 
 You need: Command & Conquer Generals Zero Hour installed from Steam (English), 64-bit Windows 10/11,
 and a graphics driver with Vulkan (any NVIDIA/AMD/Intel driver from the last few years).
 
-1. Make a copy of the game folder. Steam's own copy stays untouched as a fallback.
-   - In Steam: right-click Zero Hour > Manage > Browse local files. That opens the game folder.
-   - Copy that whole folder to, for example:  C:\Games\ZeroHour-Custom
+1. Unzip this kit anywhere (your Downloads folder is fine).
+2. Double-click ZHLauncher.exe.
 
-2. IMPORTANT: the copy must be plain Steam files. If GenTool or GenPatcher was ever installed:
-   - In Steam: right-click Zero Hour > Properties > Installed Files > Verify integrity of game files.
-   - Then in your copy delete, if present: d3d8.dll, d3d8.cfg, GenToolUpdater.exe, EdgeScroller.exe,
-     CustomContentMaps.big, any file starting with three digits and an underscore (e.g. 340_ControlBarPro...),
-     and the folder named "launcher".
-   (GenTool crashes this build; GenPatcher changes game rules, which breaks playing together.)
+That's it. On the first run it:
+- finds your Steam copy of Zero Hour and makes a clean copy at C:\Games\ZeroHour-Custom
+  (Steam's own files are never touched; the copy takes a couple of minutes),
+- puts a "Zero Hour (custom)" shortcut on your desktop - use that from now on,
+- downloads the newest build (about 45 MB) and the shared custom maps, checks everything matches, and starts the game.
 
-3. Put the two files from this kit into that copy:  ZHLauncher.exe  and  launcher.json
+Every later run checks for updates, updates itself if needed (it may restart once; that is normal), and starts the game.
+You never need a new copy of these files.
 
-4. Make a desktop shortcut to ZHLauncher.exe. From now on, always start the game from that shortcut.
-
-What the launcher does every time:
-- checks GitHub for the newest build and installs it (first time: about 45 MB download)
-- updates itself when a release carries a newer launcher (it restarts once; that is normal)
-- checks that your game files match the release exactly (if not, it tells you what differs and stops)
-- installs the shared custom maps pack and the shared game settings that come with the release
-- starts the game
-You never need a new copy of these files; everything arrives through the launcher.
-
-If it ever says "Not launching" read the lines above it; that is the reason. If the game crashes, the launcher
-will mention a crash dump file next time; send the small CrashM*.dmp file plus BUILD_VERSION.txt.
+If it says "Not launching": read the lines above it, they name the exact file that differs. The usual cause is a game
+file changed by GenTool/GenPatcher. Fix: in Steam, right-click Zero Hour > Properties > Installed Files > Verify integrity
+of game files, then run the desktop shortcut again. If the game crashes, the launcher mentions a crash dump next time;
+send the small CrashM*.dmp file plus BUILD_VERSION.txt.

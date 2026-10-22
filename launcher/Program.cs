@@ -26,6 +26,50 @@ var cfg = File.Exists(cfgPath)
     ? JsonSerializer.Deserialize<Config>(File.ReadAllText(cfgPath)) ?? new Config()
     : new Config();
 
+// ---- First-run setup --------------------------------------------------------
+// If this exe is not sitting inside a Zero Hour folder (no INIZH.big beside it), build one: locate the Steam install,
+// copy it to SetupTarget minus GenTool/GenPatcher/GenLauncher leftovers (Steam's own files are never touched), put this
+// launcher and launcher.json in the copy, make a desktop shortcut, and hand over to the copy. "Unzip anywhere, double-click."
+if (!File.Exists(Path.Combine(dir, "INIZH.big")) || args.Contains("-setup"))
+{
+    try
+    {
+        var steam = FindSteamZeroHour() ?? throw new Exception("Steam's Zero Hour folder was not found. Install Zero Hour from Steam first.");
+        var setupDir = string.IsNullOrWhiteSpace(cfg.SetupTarget) ? @"C:\Games\ZeroHour-Custom" : cfg.SetupTarget;
+        Log($"First-run setup: Steam install at {steam}");
+        Log($"Creating a clean copy at {setupDir} (a few GB, a couple of minutes)...");
+        var copied = CopyGameFolder(steam, setupDir);
+        Log($"Copied {copied} files.");
+        foreach (var f in new[] { Path.GetFileName(selfPath), "launcher.json", "README-SETUP.txt" })
+        {
+            var src = Path.Combine(dir, f);
+            if (File.Exists(src)) File.Copy(src, Path.Combine(setupDir, f), overwrite: true);
+        }
+        try
+        {
+            var lnk = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "Zero Hour (custom).lnk");
+            dynamic shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;
+            var sc = shell.CreateShortcut(lnk);
+            sc.TargetPath = Path.Combine(setupDir, Path.GetFileName(selfPath));
+            sc.WorkingDirectory = setupDir;
+            sc.IconLocation = Path.Combine(setupDir, "GeneralsZH.ico");
+            sc.Save();
+            Log($"Desktop shortcut created: {lnk}");
+        }
+        catch (Exception ex) { Log($"Could not create a desktop shortcut ({ex.Message}); start {setupDir}\\{Path.GetFileName(selfPath)} directly."); }
+        Log("Setup done. Continuing from the new folder...");
+        Process.Start(new ProcessStartInfo(Path.Combine(setupDir, Path.GetFileName(selfPath))) { WorkingDirectory = setupDir, UseShellExecute = true });
+        return 0;
+    }
+    catch (Exception ex)
+    {
+        Log($"SETUP FAILED: {ex.Message}");
+        Log("Fix the above (or copy the Steam game folder by hand and put this exe inside it). Press any key.");
+        Console.ReadKey();
+        return 3;
+    }
+}
+
 string? localTag = File.Exists(versionPath) ? File.ReadAllText(versionPath).Split(' ')[0].Trim() : null;
 Log($"Launcher {selfVersion}; installed build: {localTag ?? "(none)"}");
 
@@ -220,6 +264,63 @@ return 0;
 
 static void Log(string s) => Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] {s}");
 
+// Steam writes the game's registry key (installScript.vdf); fall back to scanning the Steam library folders.
+static string? FindSteamZeroHour()
+{
+    static bool IsZh(string? p) => p is not null && File.Exists(Path.Combine(p, "INIZH.big")) && File.Exists(Path.Combine(p, "generals.exe"));
+    foreach (var key in new[] { @"SOFTWARE\WOW6432Node\Electronic Arts\EA Games\Command and Conquer Generals Zero Hour",
+                                @"SOFTWARE\Electronic Arts\EA Games\Command and Conquer Generals Zero Hour" })
+    {
+        var p = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(key)?.GetValue("InstallPath") as string;
+        if (IsZh(p)) return Path.TrimEndingDirectorySeparator(p!);
+    }
+    var libs = new List<string>();
+    var steamRoot = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WOW6432Node\Valve\Steam")?.GetValue("InstallPath") as string
+                    ?? @"C:\Program Files (x86)\Steam";
+    libs.Add(steamRoot);
+    var vdf = Path.Combine(steamRoot, "steamapps", "libraryfolders.vdf");
+    if (File.Exists(vdf))
+        foreach (var line in File.ReadLines(vdf))
+        {
+            var t = line.Trim();
+            if (t.StartsWith("\"path\"")) libs.Add(t.Split('"', StringSplitOptions.RemoveEmptyEntries).Last().Replace(@"\\", @"\"));
+        }
+    foreach (var lib in libs.Distinct())
+        foreach (var name in new[] { "Command & Conquer Generals - Zero Hour",
+                                     @"Command and Conquer Generals - Zero Hour\Command and Conquer Generals Zero Hour",
+                                     "Command and Conquer Generals - Zero Hour" })
+        {
+            var p = Path.Combine(lib, "steamapps", "common", name);
+            if (IsZh(p)) return p;
+        }
+    return null;
+}
+
+// Copy the Steam folder minus third-party leftovers (GenTool proxy, GenPatcher add-ons/backups, GenLauncher, a stale rebuilt exe).
+// Same list as scripts/stage-install.ps1. Idempotent: existing identical files are skipped.
+static int CopyGameFolder(string src, string dst)
+{
+    var skipFile = new System.Text.RegularExpressions.Regex(
+        @"^(\d{3}_.*\.big|d3d8\.dll|d3d8\.cfg|d3d9\.dll|dxvk\.conf|GenToolUpdater\.exe|game\.dat-VISION\.log|EdgeScroller\.exe|CustomContentMaps\.big|generalszh\.exe|.*\.bak)$",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    var skipDir = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "launcher", "crashdumps", "logs" };
+    int n = 0;
+    foreach (var file in Directory.EnumerateFiles(src, "*", SearchOption.AllDirectories))
+    {
+        var rel = Path.GetRelativePath(src, file);
+        var top = rel.Split(Path.DirectorySeparatorChar)[0];
+        if (skipDir.Contains(top) && rel.Contains(Path.DirectorySeparatorChar)) continue;
+        if (skipFile.IsMatch(Path.GetFileName(file)) && !rel.Contains(Path.DirectorySeparatorChar)) continue;   // top level only; Data\INI\INIZH.big stays (engine ignores it)
+        var to = Path.Combine(dst, rel);
+        Directory.CreateDirectory(Path.GetDirectoryName(to)!);
+        var si = new FileInfo(file);
+        var di = new FileInfo(to);
+        if (!di.Exists || di.Length != si.Length || di.LastWriteTimeUtc != si.LastWriteTimeUtc) File.Copy(file, to, overwrite: true);
+        if (++n % 100 == 0) Log($"  ... {n} files");
+    }
+    return n;
+}
+
 static async Task<string> Download(HttpClient http, Asset asset)
 {
     // The API asset URL with Accept: application/octet-stream works for public and private repos alike.
@@ -243,6 +344,7 @@ record Config
     public bool Debug { get; init; } = false;         // true = pass -netlog, write logs/<timestamp>.log
     public bool AllowMismatch { get; init; } = false; // true = launch even if assets.sha256 doesn't match
     public string MapPack { get; init; } = "";        // fallback only; release.json wins
+    public string SetupTarget { get; init; } = "";    // first-run setup copies the Steam install here (default C:\Games\ZeroHour-Custom)
 }
 record Shipped
 {
