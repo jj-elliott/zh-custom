@@ -21,9 +21,11 @@ and a graphics driver with Vulkan (any NVIDIA/AMD/Intel driver from the last few
 
 What the launcher does every time:
 - checks GitHub for the newest build and installs it (first time: about 45 MB download)
+- updates itself when a release carries a newer launcher (it restarts once; that is normal)
 - checks that your game files match the release exactly (if not, it tells you what differs and stops)
-- installs the shared custom maps pack
+- installs the shared custom maps pack and the shared game settings that come with the release
 - starts the game
+You never need a new copy of these files; everything arrives through the launcher.
 
 If it ever says "Not launching" read the lines above it; that is the reason. If the game crashes, the launcher
 will mention a crash dump file next time; send the small CrashM*.dmp file plus BUILD_VERSION.txt.

@@ -25,7 +25,8 @@ param(
     "0??_*.big", "1??_*.big", "2??_*.big", "3??_*.big", "4??_*.big",
     "5??_*.big", "6??_*.big", "7??_*.big", "8??_*.big", "9??_*.big"   # GenPatcher's priority-numbered add-on archives
   ),
-  [string[]]$ExcludeDirs = @("launcher", "crashdumps", "logs")   # GenLauncher residue; our own runtime folders
+  [string[]]$ExcludeDirs = @("launcher", "crashdumps", "logs"),  # GenLauncher residue; our own runtime folders
+  [string[]]$PreserveFiles = @("ZHLauncher.exe", "ZHLauncher.exe.old", "launcher.json", "generalszh.exe.prev", "*.log")  # ours in the dev copy: never mirrored from Steam, never purged
 )
 $ErrorActionPreference = "Stop"
 $repo = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -52,7 +53,8 @@ Write-Host "Staging $DevDir`n  from  $SteamZHPath`n  exe   $($exe.FullName)"
 New-Item -ItemType Directory -Force $DevDir | Out-Null
 
 # Mirror. Excluded names are neither copied nor deleted by /MIR, so purge them from the destination explicitly below.
-$rcArgs = @($SteamZHPath, $DevDir, "/MIR", "/NFL", "/NDL", "/NJH", "/NJS", "/NP", "/R:2", "/W:2", "/XF") + $ExcludeFiles + @("/XD") + $ExcludeDirs
+# /XF names are neither copied nor deleted by /MIR: ExcludeFiles are purged explicitly below, PreserveFiles are left alone.
+$rcArgs = @($SteamZHPath, $DevDir, "/MIR", "/NFL", "/NDL", "/NJH", "/NJS", "/NP", "/R:2", "/W:2", "/XF") + $ExcludeFiles + $PreserveFiles + @("/XD") + $ExcludeDirs
 & robocopy @rcArgs | Out-Null
 if ($LASTEXITCODE -ge 8) { throw "robocopy failed with exit code $LASTEXITCODE" }   # 0-7 = success variants
 $removed = @()
