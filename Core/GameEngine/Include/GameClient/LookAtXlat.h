@@ -38,7 +38,10 @@ enum ScreenEdgeScrollMode_ CPP_11(: ScreenEdgeScrollMode)
 	ScreenEdgeScrollMode_EnabledInWindowedApp = 1<<0, // Scroll when touching the edge while the app is windowed
 	ScreenEdgeScrollMode_EnabledInFullscreenApp = 1<<1, // Scroll when touching the edge while the app is fullscreen
 
-	ScreenEdgeScrollMode_Default = ScreenEdgeScrollMode_EnabledInFullscreenApp, // Default based on original game behavior
+	// zh-pipeline @tweak 2026-10-21 Edge scrolling on in windowed mode too (we always play windowed; GenPatcher's EdgeScroller.exe
+	// existed only to restore this). Options.ini ScreenEdgeScrollEnabledInWindowedApp=no turns it back off per machine.
+	// Upstream default was ScreenEdgeScrollMode_EnabledInFullscreenApp (original game behavior).
+	ScreenEdgeScrollMode_Default = ScreenEdgeScrollMode_EnabledInWindowedApp | ScreenEdgeScrollMode_EnabledInFullscreenApp,
 };
 
 //-----------------------------------------------------------------------------
