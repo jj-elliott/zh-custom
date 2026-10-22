@@ -28,7 +28,8 @@ $sha = git rev-parse HEAD
 # Gate: build + every baseline replay must reproduce.
 if ($SkipVerify) { if (-not $SkipBuild) { & "$PSScriptRoot\build.ps1"; if ($LASTEXITCODE -ne 0) { throw "build failed" } } }
 else {
-  $vargs = @(); if ($SkipBuild) { $vargs += "-SkipBuild" }
+  # Hashtable splat: an array splat would pass "-SkipBuild" positionally (as the -Replay name).
+  $vargs = @{}; if ($SkipBuild) { $vargs.SkipBuild = $true }
   & "$PSScriptRoot\verify.ps1" @vargs
   if ($LASTEXITCODE -ne 0) { throw "verify.ps1 reported $LASTEXITCODE failing replay(s); not releasing" }
 }
