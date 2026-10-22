@@ -58,7 +58,7 @@ Pull community fixes any time: `git fetch upstream && git merge upstream/main`.
 
 Keep your own work on branches off `main`; tag from `main`.
 
-## Phase 3 — dad's machine (one-time, ~10 min)
+## Phase 3 — dad's machine (done 2026-10-21: kit = unzip + double-click; first two-machine session played. Tailscale needs Direct Connect, see AGENT-TODO #13; hitches observed → Phase 4)
 
 1. Copy his Steam Zero Hour folder to e.g. `C:\Games\ZeroHour-Dev` (Steam's copy stays untouched as a fallback).
    **It must be vanilla:** no GenTool (`d3d8.dll` crashes rebuilt exes), no GenPatcher (changes `.big`/INI content → desync against a vanilla

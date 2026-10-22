@@ -42,7 +42,13 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       to the human; it is the last kit that ever needs sending. **v0.1.3: first-run setup** — run from any folder, the launcher finds the Steam
       install (registry, then Steam library folders), copies it to `C:\Games\ZeroHour-Custom` minus GenTool/GenPatcher leftovers, drops itself
       in, makes a desktop shortcut and hands over (tested from an empty folder: ~3 s copy on NVMe, then update + launch). Setup instructions
-      are now "unzip anywhere, double-click". **Open:** the second-machine test (human only).
+      are now "unzip anywhere, double-click". **Second-machine test passed 2026-10-21:** the human and their dad played end to end via
+      the kit. Observations: (a) over Tailscale the LAN lobby did not discover the peer; they used Direct Connect (by IP), which works →
+      #13; (b) periodic hitches during play → Phase 4 is worth it, start with #6 instrumentation.
+- [ ] **13. LAN discovery over Tailscale.** The LAN lobby finds games by UDP broadcast, which a tailnet does not carry. Direct Connect works.
+      Option: a `LANPeers` list (in `release.json`, both machines) that the LAN layer also unicasts its announce/scan packets to
+      (`Core/GameEngine/Source/GameNetwork/LANAPI*.cpp`, look for the broadcast send). Client/lobby code only, not sim. Low priority:
+      Direct Connect is an acceptable workaround.
 - [ ] **11. Shared defaults.** `ArchiveReplays=yes`, FPS limit, overlay font sizes (FPS/clock/timer/ping/money), `CursorCaptureMode` — set via
       code defaults or a launcher-merged `config/` snippet so both machines match without touching menus. Optional: map + player names in the
       archived replay filename.
