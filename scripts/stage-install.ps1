@@ -25,8 +25,9 @@ param(
     "0??_*.big", "1??_*.big", "2??_*.big", "3??_*.big", "4??_*.big",
     "5??_*.big", "6??_*.big", "7??_*.big", "8??_*.big", "9??_*.big"   # GenPatcher's priority-numbered add-on archives
   ),
-  [string[]]$ExcludeDirs = @("launcher", "crashdumps", "logs"),  # GenLauncher residue; our own runtime folders
-  [string[]]$PreserveFiles = @("ZHLauncher.exe", "ZHLauncher.exe.old", "launcher.json", "generalszh.exe.prev", "*.log")  # ours in the dev copy: never mirrored from Steam, never purged
+  [string[]]$ExcludeDirs = @("launcher"),                        # GenLauncher residue: never copied, purged from the dev copy
+  [string[]]$PreserveDirs = @("logs", "crashdumps"),             # ours in the dev copy (netlogs!): never mirrored from Steam, never purged
+  [string[]]$PreserveFiles = @("ZHLauncher.exe", "ZHLauncher.exe.old", "launcher.json", "generalszh.exe.prev", "*.log")  # same, files
 )
 $ErrorActionPreference = "Stop"
 $repo = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -54,7 +55,7 @@ New-Item -ItemType Directory -Force $DevDir | Out-Null
 
 # Mirror. Excluded names are neither copied nor deleted by /MIR, so purge them from the destination explicitly below.
 # /XF names are neither copied nor deleted by /MIR: ExcludeFiles are purged explicitly below, PreserveFiles are left alone.
-$rcArgs = @($SteamZHPath, $DevDir, "/MIR", "/NFL", "/NDL", "/NJH", "/NJS", "/NP", "/R:2", "/W:2", "/XF") + $ExcludeFiles + $PreserveFiles + @("/XD") + $ExcludeDirs
+$rcArgs = @($SteamZHPath, $DevDir, "/MIR", "/NFL", "/NDL", "/NJH", "/NJS", "/NP", "/R:2", "/W:2", "/XF") + $ExcludeFiles + $PreserveFiles + @("/XD") + $ExcludeDirs + $PreserveDirs
 & robocopy @rcArgs | Out-Null
 if ($LASTEXITCODE -ge 8) { throw "robocopy failed with exit code $LASTEXITCODE" }   # 0-7 = success variants
 $removed = @()
@@ -87,7 +88,8 @@ Set-Content (Join-Path $DevDir "BUILD_VERSION.txt") ("dev-local " + $hash + " " 
 # Anything third-party still lurking? Flag DLL/EXE names that are not part of a vanilla install.
 # Top level only: MSS\ holds Miles Sound System plugins (*.m3d, *.flt, *.asi) and RedistInstallers\ an EA helper, all vanilla.
 $vanillaBins = "BINKW32.DLL","DebugWindow.dll","P2XDLL.DLL","ParticleEditor.dll","mss32.dll","patchw32.dll","steam_api.dll",
-               "generals.exe","generalszh.exe","WorldBuilder.exe"
+               "generals.exe","generalszh.exe","WorldBuilder.exe",
+               "d3d8.dll","d3d9.dll","ZHLauncher.exe","ZHLauncher.exe.old"   # ours: DXVK and the launcher
 $suspects = Get-ChildItem $DevDir -File | Where-Object { $_.Extension -in ".dll",".exe",".asi" -and $vanillaBins -notcontains $_.Name } | Select-Object -ExpandProperty Name
 if ($suspects) { Write-Warning "Non-vanilla binaries in dev copy: $($suspects -join ', ')" }
 
