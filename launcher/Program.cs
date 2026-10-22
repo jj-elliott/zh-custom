@@ -252,10 +252,17 @@ if (problems.Count > 0)
 }
 
 // ---- Launch ----------------------------------------------------------------
-if (cfg.Debug)
+// Network session log (engine flag -netlog, Phase 4). On when the release says so (release.json NetLog) or launcher.json
+// Debug is set. One file per start under logs\; the engine only creates it when a network game is played. Keep the last 20.
+if (shipped.NetLog || cfg.Debug)
 {
-    Directory.CreateDirectory(Path.Combine(dir, "logs"));
-    gameArgs += $" -netlog \"logs/{DateTime.Now:yyyyMMdd-HHmmss}.log\"";   // flag added in Phase 4 instrumentation
+    var logs = Path.Combine(dir, "logs");
+    Directory.CreateDirectory(logs);
+    foreach (var stale in new DirectoryInfo(logs).GetFiles("net-*.log").OrderByDescending(f => f.LastWriteTime).Skip(20))
+        try { stale.Delete(); } catch { }
+    gameArgs += $" -netlog \"logs/net-{DateTime.Now:yyyyMMdd-HHmmss}.log\"";
+    var lastLog = new DirectoryInfo(logs).GetFiles("net-*.log").OrderByDescending(f => f.LastWriteTime).FirstOrDefault();
+    if (lastLog is not null) Log($"Last network session log: {lastLog.FullName} ({lastLog.Length / 1024} KB)");
 }
 
 Log($"Launching {cfg.Executable} {gameArgs}");
@@ -350,6 +357,7 @@ record Shipped
 {
     public string MapPack { get; init; } = "";        // release tag of the map pack both machines install (e.g. "maps-v1")
     public string Args { get; init; } = "";           // game arguments both machines use (e.g. "-win")
+    public bool NetLog { get; init; } = false;        // write a network session log (logs\net-*.log) on both machines
 }
 record Release(string tag_name, Asset[] assets, bool prerelease = false, bool draft = false);
 record Asset(string name, string url, long size);

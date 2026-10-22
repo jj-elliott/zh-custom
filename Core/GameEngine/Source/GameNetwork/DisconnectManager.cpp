@@ -29,7 +29,8 @@
 #include "GameClient/DisconnectMenu.h"
 #include "GameClient/InGameUI.h"
 #include "GameLogic/GameLogic.h"
-#include "GameNetwork/DisconnectManager.h"
+#include "GameNetwork/DisconnectManager.h"
+#include "GameNetwork/NetLog.h"	// zh-pipeline netlog
 #include "GameNetwork/NetworkInterface.h"
 #include "GameNetwork/networkutil.h"
 #include "GameNetwork/GameSpy/PingThread.h"
@@ -564,6 +565,7 @@ void DisconnectManager::turnOnScreen(ConnectionManager *conMgr) {
 
 void DisconnectManager::disconnectPlayer(Int slot, ConnectionManager *conMgr) {
 	DEBUG_LOG(("DisconnectManager::disconnectPlayer - Disconnecting slot number %d on frame %d", slot, TheGameLogic->getFrame()));
+	NetLog::Event("disconnect slot=%d frame=%u", slot, TheGameLogic->getFrame());	// zh-pipeline netlog
 	DEBUG_ASSERTCRASH((slot >= 0) && (slot < MAX_SLOTS), ("Attempting to disconnect an invalid slot number"));
 	if ((slot < 0) || (slot >= (MAX_SLOTS))) {
 		return;

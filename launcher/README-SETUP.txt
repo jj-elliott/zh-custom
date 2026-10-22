@@ -20,3 +20,6 @@ If it says "Not launching": read the lines above it, they name the exact file th
 file changed by GenTool/GenPatcher. Fix: in Steam, right-click Zero Hour > Properties > Installed Files > Verify integrity
 of game files, then run the desktop shortcut again. If the game crashes, the launcher mentions a crash dump next time;
 send the small CrashM*.dmp file plus BUILD_VERSION.txt.
+
+After a laggy or stuttery online game: the launcher window shows "Last network session log: ..." on the next start.
+Send that file (logs\net-....log, a few hundred KB at most); it records what the network was doing second by second.

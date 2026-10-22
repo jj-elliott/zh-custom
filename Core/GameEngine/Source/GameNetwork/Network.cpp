@@ -37,6 +37,7 @@
 #include "Common/Player.h"
 #include "Common/PlayerList.h"
 #include "GameNetwork/NetworkInterface.h"
+#include "GameNetwork/NetLog.h"	// zh-pipeline netlog
 #include "GameNetwork/udp.h"
 #include "GameNetwork/Transport.h"
 #include "WWLib/strtok_r.h"
@@ -365,6 +366,7 @@ void Network::init()
 void Network::setSawCRCMismatch()
 {
 	m_sawCRCMismatch = TRUE;
+	NetLog::CRCMismatch(TheGameLogic->getFrame());	// zh-pipeline netlog
 
 	TheScriptActions->closeWindows( TRUE );
 	m_messageWindow = TheWindowManager->winCreateFromScript("Menus/CRCMismatch.wnd");
@@ -501,6 +503,8 @@ Bool Network::processCommand(GameMessage *msg)
 			// Idealy this shouldn't be necessary, but I don't think its hurting anything by being here.
 			if (TheGameLogic->getFrame() == 1) {
 				m_localStatus = NETLOCALSTATUS_INGAME;
+				if (m_conMgr != nullptr)	// zh-pipeline netlog
+					NetLog::GameStart(m_conMgr->getLocalPlayerID(), m_conMgr->getPacketRouterSlot(), m_conMgr->getNumPlayers(), m_runAhead, m_frameRate);
 				NetCommandList *netcmdlist = m_conMgr->getFrameCommandList(0); // clear out frame 0 since we skipped it
 				deleteInstance(netcmdlist);
 			} else {
@@ -643,6 +647,7 @@ void Network::processFrameSynchronizedNetCommand(NetCommandRef *msg) {
 void Network::processRunAheadCommand(NetRunAheadCommandMsg *msg) {
 	m_runAhead = msg->getRunAhead();
 	m_frameRate = msg->getFrameRate();
+	NetLog::RunAheadApplied(m_runAhead, m_frameRate, TheGameLogic->getFrame());	// zh-pipeline netlog
 	time_t frameGrouping = (1000 * m_runAhead) / m_frameRate; // number of miliseconds between packet sends
 	frameGrouping = frameGrouping / 2; // since we only want the latency for one way to be a factor.
 //	DEBUG_LOG(("Network::processRunAheadCommand - trying to set frame grouping to %d.  run ahead = %d, m_frameRate = %d", frameGrouping, m_runAhead, m_frameRate));
@@ -732,6 +737,11 @@ void Network::update()
 		QueryPerformanceCounter((LARGE_INTEGER *)&curTime);
 		m_isStalling = curTime >= m_nextFrameTime;
 	}
+
+	// zh-pipeline netlog: observer only; reads state, writes text.
+	if (NetLog::IsEnabled() && m_conMgr != nullptr && m_localStatus == NETLOCALSTATUS_INGAME)
+		NetLog::Update(TheGameLogic->getFrame(), m_runAhead, m_frameRate, m_frameDataReady, m_isStalling,
+			m_conMgr->getMinimumCushion(), m_conMgr->getMaximumLatency());
 }
 
 void Network::liteupdate() {

@@ -22,7 +22,12 @@ These need the actual source tree or a Windows machine, so bootstrap.ps1 left th
       Record the finding in `docs/PLAN.md` Phase 5 step 2.
 - [x] **5. Crash dump writer** — already upstream (see findings below). Our side done 2026-10-21: launcher surfaces dumps from the Documents
       CrashDumps folder too; `scripts/postmortem.ps1` turns the newest dump into a verdict. First use: GenTool's `d3d8.dll` crash.
-- [ ] **6. `-netlog <path>` flag** writing the Phase 4 instrumentation (run-ahead, stall ms, RTT, jitter, CRC mismatch frame). Launcher passes it when `Debug: true`.
+- [~] **6. `-netlog <path>` flag** — implemented 2026-10-21 on `net/instrumentation`: `Core/GameEngine/Include/GameNetwork/NetLog.h` (+cpp), a
+      pure observer with one-line hooks in `Network.cpp` (start, per-update stall/ready state, run-ahead applied, CRC mismatch),
+      `ConnectionManager.cpp` (run-ahead computed with its inputs), `Connection.cpp` (ack latency samples, retries), `Transport.cpp`
+      (packets/bytes per second), `DisconnectManager.cpp`. One `sec` line per second plus `stall`/`runahead`/`crc`/`event` records.
+      Launcher passes it when `release.json` `NetLog` is true (shipped on) or `launcher.json` `Debug`; files land in `gameDir\logs\net-*.log`,
+      last 20 kept. **Open:** read a real two-machine session log; decide Phase 4 step 2 (jitter term) from it. Not in the CRC.
 - [ ] **7. `/LARGEADDRESSAWARE`** on the exe if not already set (needed before the texture pack).
 - [ ] **8. First feature:** Phase 4 step 2 (jitter-aware run-ahead), behind verify.ps1.
 

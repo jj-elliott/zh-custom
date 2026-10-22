@@ -42,7 +42,8 @@
 #include "GameClient/Diplomacy.h"
 #include "GameClient/GameText.h"
 #include "GameClient/MessageBox.h"
-#include "GameNetwork/ConnectionManager.h"
+#include "GameNetwork/ConnectionManager.h"
+#include "GameNetwork/NetLog.h"	// zh-pipeline netlog
 #include "GameNetwork/LANAPICallbacks.h"
 #include "GameNetwork/NAT.h"
 #include "GameNetwork/NetCommandWrapperList.h"
@@ -1391,6 +1392,10 @@ void ConnectionManager::updateRunAhead(Int oldRunAhead, Int frameRate, Bool didS
 			// TheSuperHackers @info if the runahead goes below 3 logic frames it can start to introduce stutter
 			// We also limit the upper range of the runahead to prevent it getting out of hand
 			newRunAhead = clamp<Int>(MIN_RUNAHEAD, newRunAhead, MAX_FRAMES_AHEAD / 2);
+
+			// zh-pipeline netlog: the inputs of the run-ahead decision (Phase 4 step 2 will add a jitter term here).
+			NetLog::RunAheadComputed(oldRunAhead, newRunAhead, getMaximumLatency(), minFps, frameRate,
+				(nextExecutionFrame > (TheGameLogic->getFrame() + oldRunAhead)) ? nextExecutionFrame : TheGameLogic->getFrame() + oldRunAhead);
 
 			NetRunAheadCommandMsg *msg = newInstance(NetRunAheadCommandMsg);
 			msg->setPlayerID(m_localSlot);

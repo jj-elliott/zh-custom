@@ -26,6 +26,7 @@
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
 #include "GameNetwork/Connection.h"
+#include "GameNetwork/NetLog.h"	// zh-pipeline netlog
 #include "GameNetwork/networkutil.h"
 #include "GameLogic/GameLogic.h"
 
@@ -267,6 +268,7 @@ UnsignedInt Connection::doSend() {
 					if (CommandRequiresAck(msg->getCommand())) {
 						if (timeLastSent != -1) {
 							++m_numRetries;
+							NetLog::Retry();	// zh-pipeline netlog
 						}
 						doRetryMetrics();
 						msg->setTimeLastSent(curtime);
@@ -347,6 +349,7 @@ NetCommandRef * Connection::processAck(UnsignedShort commandID, UnsignedByte ori
 	Real lat = timeGetTime() - temp->getTimeLastSent();
 	m_averageLatency += lat / CONNECTION_LATENCY_HISTORY_LENGTH;
 	m_latencies[index] = lat;
+	NetLog::LatencySample(lat);	// zh-pipeline netlog
 
 #if defined(RTS_DEBUG)
 	if (doDebug == TRUE) {

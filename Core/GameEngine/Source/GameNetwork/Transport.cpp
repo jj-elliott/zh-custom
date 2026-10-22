@@ -26,7 +26,8 @@
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
 #include "Common/crc.h"
-#include "GameNetwork/Transport.h"
+#include "GameNetwork/Transport.h"
+#include "GameNetwork/NetLog.h"	// zh-pipeline netlog
 #include "GameNetwork/NetworkInterface.h"
 
 
@@ -201,6 +202,9 @@ Bool Transport::doSend() {
 	if (m_lastSecond + 1000 < now)
 	{
 		m_lastSecond = now;
+		// zh-pipeline netlog: the second that just closed.
+		NetLog::TransportSecond(m_incomingPackets[m_statisticsSlot], m_incomingBytes[m_statisticsSlot],
+			m_outgoingPackets[m_statisticsSlot], m_outgoingBytes[m_statisticsSlot], m_unknownPackets[m_statisticsSlot]);
 		m_statisticsSlot = (m_statisticsSlot + 1) % MAX_TRANSPORT_STATISTICS_SECONDS;
 		m_outgoingPackets[m_statisticsSlot] = 0;
 		m_outgoingBytes[m_statisticsSlot] = 0;

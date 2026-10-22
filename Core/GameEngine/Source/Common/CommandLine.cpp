@@ -25,7 +25,8 @@
 
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
-#include "Common/ArchiveFileSystem.h"
+#include "Common/ArchiveFileSystem.h"
+#include "GameNetwork/NetLog.h"	// zh-pipeline netlog
 #include "Common/CommandLine.h"
 #include "Common/CRCDebug.h"
 #include "Common/LocalFileSystem.h"
@@ -452,6 +453,18 @@ Int parseJobs(char *args[], int num)
 			printf("Invalid number of jobs: %d\n", TheGlobalData->m_simulateReplayJobs);
 			exit(1);
 		}
+		return 2;
+	}
+	return 1;
+}
+
+Int parseNetLog(char *args[], int num)
+{
+	// -netlog <path>: relative paths resolve against the working directory (the game folder once WinMain sets it);
+	// the file is only created when a network game starts.
+	if (num > 1)
+	{
+		NetLog::SetPath(args[1]);
 		return 2;
 	}
 	return 1;
@@ -1187,6 +1200,9 @@ static CommandLineParam paramsForStartup[] =
 	// The last successful selection wins; otherwise use the executable directory.
 	{ "-setCwd", parseSetCwd },
 	{ "-useCwd", parseUseCwd },
+
+	// zh-pipeline @feature 2026-10-21 Network session log (PLAN.md Phase 4 step 1). The launcher passes it.
+	{ "-netlog", parseNetLog },
 };
 
 // These Params are parsed during Engine Init before INI data is loaded
