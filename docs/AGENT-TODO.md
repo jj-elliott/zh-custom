@@ -36,8 +36,10 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       launcher args.
 - [x] **Phase 2/3 (2026-10-21):** repo `jj-elliott/zh-custom` public; releases `v0.1.0`, `v0.1.1` (launcher fix), `addons-v1`, `maps-v1`
       (prereleases). Attended release path `scripts/release.ps1` proven; `release.yml` is a dispatch-only fallback. Launcher verified on this
-      machine: dev-local → v0.1.0 → v0.1.1 self-update, manifest check, map-pack install, DXVK 2.5.3 active. Dad kit `out/zh-dad-kit-v0.1.1.zip`
-      handed to the human. **Open:** the second-machine test (human only).
+      machine: dev-local → v0.1.0 → v0.1.1 → v0.1.2 updates, manifest check, map-pack install, DXVK 2.5.3 active. **v0.1.2 (camera 2.0x)
+      makes the kit send-once:** the launcher self-updates (proven: a v0.0.0-stamped launcher replaced itself with v0.1.2 and restarted) and
+      takes `MapPack`/`Args` from `release.json` shipped in the game zip (`config/release.json`). Dad kit `out/zh-dad-kit-v0.1.2.zip` handed
+      to the human; it is the last kit that ever needs sending. **Open:** the second-machine test (human only).
 - [ ] **11. Shared defaults.** `ArchiveReplays=yes`, FPS limit, overlay font sizes (FPS/clock/timer/ping/money), `CursorCaptureMode` — set via
       code defaults or a launcher-merged `config/` snippet so both machines match without touching menus. Optional: map + player names in the
       archived replay filename.
