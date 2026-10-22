@@ -43,34 +43,18 @@ if (Test-Path $manifest) { Copy-Item $manifest $game } else { Write-Warning "ass
 $config = Join-Path $repo "config"
 if (Test-Path $config) { Copy-Item (Join-Path $config "*") $game -Recurse -Force }
 
-# DXVK: reference renderer, pinned, identical on both machines. Game is 32-bit -> x32 DLLs; d3d8.dll = native D3D8 (DXVK >= 2.4).
-if (-not $NoDxvk) {
-  $cache = Join-Path $env:LOCALAPPDATA "zh-dxvk\dxvk-$DxvkVersion"
-  if (-not (Test-Path (Join-Path $cache "x32\d3d8.dll"))) {
-    New-Item -ItemType Directory -Force (Split-Path $cache) | Out-Null
-    $tgz = Join-Path (Split-Path $cache) "dxvk-$DxvkVersion.tar.gz"
-    $url = "https://github.com/doitsujin/dxvk/releases/download/v$DxvkVersion/dxvk-$DxvkVersion.tar.gz"
-    Write-Host "dxvk:   downloading $url"
-    Invoke-WebRequest $url -OutFile $tgz -UseBasicParsing
-    tar -xzf $tgz -C (Split-Path $cache)
-    if ($LASTEXITCODE -ne 0) { throw "tar failed extracting $tgz" }
-  }
-  Copy-Item (Join-Path $cache "x32\d3d8.dll"), (Join-Path $cache "x32\d3d9.dll") $game
-  @"
-# DXVK config shipped with every release; identical on both machines.
-d3d9.samplerAnisotropy = 16
-d3d9.forceSwapchainMSAA = 4
-d3d9.maxFrameLatency = 1
-"@ | Set-Content (Join-Path $game "dxvk.conf")
-}
+# DXVK: reference renderer, pinned, identical on both machines (shared with stage-install.ps1).
+if (-not $NoDxvk) { & (Join-Path $PSScriptRoot "fetch-dxvk.ps1") -Out $game -Version $DxvkVersion }
 
 Set-Content (Join-Path $game "BUILD_VERSION.txt") "$Tag $Sha"
 
 # Launcher
 if (-not $SkipLauncher) {
   $launcherOut = Join-Path $OutDir "launcher"
+  # The tag is stamped into the exe (InformationalVersion) so the launcher can tell when a release carries a newer launcher.
   dotnet publish (Join-Path $repo "launcher\ZHLauncher.csproj") -c Release -r win-x64 --nologo -v q `
-    -p:PublishSingleFile=true -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -o $launcherOut | Out-Null
+    -p:PublishSingleFile=true -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true `
+    -p:InformationalVersion=$Tag -o $launcherOut | Out-Null
   if ($LASTEXITCODE -ne 0) { throw "launcher publish failed" }
   $lz = Join-Path $OutDir "zh-launcher-$Tag.zip"; if (Test-Path $lz) { Remove-Item $lz -Force }
   Compress-Archive -Path (Join-Path $launcherOut "ZHLauncher.exe") -DestinationPath $lz

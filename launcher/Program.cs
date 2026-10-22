@@ -1,57 +1,59 @@
 // ZHLauncher — one double-click: fetch newest build, swap it in, start the game.
-// Lives inside the game folder next to generalszh.exe. Reads launcher.json beside it.
+// Lives inside the game folder next to generalszh.exe. Sent to the second machine ONCE: it updates the game, the map pack,
+// the shipped settings (release.json inside the game zip) and itself.
+//
+// Per-machine settings:  launcher.json beside this exe (Repo, Debug, AllowMismatch, ExtraArgs; MapPack/Args only as fallbacks).
+// Shipped settings:      release.json, delivered inside every zh-game-<tag>.zip (MapPack, Args). Wins over launcher.json.
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
 
 var dir = AppContext.BaseDirectory;
 var cfgPath = Path.Combine(dir, "launcher.json");
 var versionPath = Path.Combine(dir, "BUILD_VERSION.txt");
+var selfPath = Environment.ProcessPath ?? Path.Combine(dir, "ZHLauncher.exe");
+var selfVersion = (Assembly.GetEntryAssembly()?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "dev")
+                  .Split('+')[0];   // the SDK appends +<git sha>
+
+// Leftover from a previous self-update (the running exe could only be renamed, not deleted).
+try { var old = selfPath + ".old"; if (File.Exists(old)) File.Delete(old); } catch { }
 
 var cfg = File.Exists(cfgPath)
     ? JsonSerializer.Deserialize<Config>(File.ReadAllText(cfgPath)) ?? new Config()
     : new Config();
 
 string? localTag = File.Exists(versionPath) ? File.ReadAllText(versionPath).Split(' ')[0].Trim() : null;
-Log($"Installed build: {localTag ?? "(none)"}");
+Log($"Launcher {selfVersion}; installed build: {localTag ?? "(none)"}");
 
+using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+http.DefaultRequestHeaders.UserAgent.ParseAdd("ZHLauncher/1.0");
+http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+if (!string.IsNullOrWhiteSpace(cfg.Token))
+    http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", cfg.Token);
+
+Release? gameRel = null;
 try
 {
-    using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
-    http.DefaultRequestHeaders.UserAgent.ParseAdd("ZHLauncher/1.0");
-    http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
-    if (!string.IsNullOrWhiteSpace(cfg.Token))
-        http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", cfg.Token);
-
     // Not /releases/latest: that is simply the newest non-prerelease by date, and the repo also publishes add-on and
-    // map-pack releases (addons-v1, maps-v1). Pick the newest release that is a game release: tag "v*", not a
-    // prerelease/draft, and carrying a zh-game-*.zip asset.
+    // map-pack releases (addons-v1, maps-v1) as prereleases. Pick the newest release that is a game release: tag "v*",
+    // not a prerelease/draft, and carrying a zh-game-*.zip asset.
     var rels = await http.GetFromJsonAsync<Release[]>($"https://api.github.com/repos/{cfg.Repo}/releases?per_page=30")
                ?? throw new Exception("no releases returned");
-    var rel = rels.FirstOrDefault(r => r.tag_name.StartsWith("v", StringComparison.OrdinalIgnoreCase)
+    gameRel = rels.FirstOrDefault(r => r.tag_name.StartsWith("v", StringComparison.OrdinalIgnoreCase)
                                        && !r.prerelease && !r.draft
                                        && r.assets.Any(a => a.name.StartsWith("zh-game-", StringComparison.OrdinalIgnoreCase)))
               ?? throw new Exception("no game release (tag v*, with zh-game-*.zip) found");
-    Log($"Latest release:  {rel.tag_name}");
+    Log($"Latest release:  {gameRel.tag_name}");
 
-    if (rel.tag_name != localTag)
+    if (gameRel.tag_name != localTag)
     {
-        var asset = rel.assets.FirstOrDefault(a => a.name.StartsWith("zh-game-", StringComparison.OrdinalIgnoreCase))
-                    ?? throw new Exception("release has no zh-game-*.zip asset");
-
+        var asset = gameRel.assets.First(a => a.name.StartsWith("zh-game-", StringComparison.OrdinalIgnoreCase));
         Log($"Downloading {asset.name} ({asset.size / 1024 / 1024} MB)...");
-        // Private repos must use the API asset URL with Accept: application/octet-stream
-        using var req = new HttpRequestMessage(HttpMethod.Get, asset.url);
-        req.Headers.Accept.Clear();
-        req.Headers.Accept.ParseAdd("application/octet-stream");
-        using var resp = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
-        resp.EnsureSuccessStatusCode();
-
-        var tmp = Path.Combine(Path.GetTempPath(), asset.name);
-        await using (var fs = File.Create(tmp)) await resp.Content.CopyToAsync(fs);
+        var tmp = await Download(http, asset);
 
         // Keep one backup of the previous exe in case a build is broken
         var exe = Path.Combine(dir, cfg.Executable);
@@ -59,20 +61,70 @@ try
 
         ZipFile.ExtractToDirectory(tmp, dir, overwriteFiles: true);
         File.Delete(tmp);
-        Log($"Updated to {rel.tag_name}");
+        Log($"Updated to {gameRel.tag_name}");
     }
     else Log("Already up to date.");
 }
 catch (Exception ex)
 {
-    // Offline, token expired, GitHub down: just play whatever is installed.
+    // Offline, GitHub down: just play whatever is installed.
     Log($"Update check skipped: {ex.Message}");
 }
+
+// ---- Launcher self-update ----------------------------------------------------
+// The release carries zh-launcher-<tag>.zip built from the same commit. If this exe's embedded version differs, swap it:
+// a running exe cannot be overwritten or deleted on Windows, but it can be renamed, so: rename self -> .old, drop the new
+// exe in place, start it, exit. ZHLAUNCHER_UPDATED guards against a loop if versions could never agree.
+if (gameRel is not null && gameRel.tag_name != selfVersion && Environment.GetEnvironmentVariable("ZHLAUNCHER_UPDATED") is null)
+{
+    try
+    {
+        var asset = gameRel.assets.FirstOrDefault(a => a.name.Equals($"zh-launcher-{gameRel.tag_name}.zip", StringComparison.OrdinalIgnoreCase));
+        if (asset is null) Log($"Launcher {selfVersion} != release {gameRel.tag_name}, but the release has no launcher zip; keeping this one.");
+        else
+        {
+            Log($"Updating launcher {selfVersion} -> {gameRel.tag_name}...");
+            var tmp = await Download(http, asset);
+            var stage = Path.Combine(Path.GetTempPath(), "zh-launcher-" + gameRel.tag_name);
+            if (Directory.Exists(stage)) Directory.Delete(stage, recursive: true);
+            ZipFile.ExtractToDirectory(tmp, stage);
+            File.Delete(tmp);
+            var fresh = Path.Combine(stage, Path.GetFileName(selfPath));
+            if (!File.Exists(fresh)) throw new Exception($"{Path.GetFileName(selfPath)} not in launcher zip");
+            var old = selfPath + ".old";
+            if (File.Exists(old)) File.Delete(old);
+            File.Move(selfPath, old);
+            File.Copy(fresh, selfPath);
+            Directory.Delete(stage, recursive: true);
+            Log("Launcher updated; restarting.");
+            var psi = new ProcessStartInfo(selfPath) { WorkingDirectory = dir, UseShellExecute = false };
+            psi.Environment["ZHLAUNCHER_UPDATED"] = "1";
+            Process.Start(psi);
+            return 0;
+        }
+    }
+    catch (Exception ex)
+    {
+        Log($"Launcher self-update skipped: {ex.Message}");
+    }
+}
+
+// ---- Shipped settings (release.json from the game zip) overrule launcher.json fallbacks -------------------------------
+var shipped = new Shipped();
+var shippedPath = Path.Combine(dir, "release.json");
+if (File.Exists(shippedPath))
+{
+    try { shipped = JsonSerializer.Deserialize<Shipped>(File.ReadAllText(shippedPath)) ?? shipped; }
+    catch (Exception ex) { Log($"release.json unreadable ({ex.Message}); using launcher.json values."); }
+}
+var mapPack = string.IsNullOrWhiteSpace(shipped.MapPack) ? cfg.MapPack : shipped.MapPack;
+var gameArgs = string.IsNullOrWhiteSpace(shipped.Args) ? cfg.Args : shipped.Args;
+if (!string.IsNullOrWhiteSpace(cfg.ExtraArgs)) gameArgs += " " + cfg.ExtraArgs.Trim();
 
 // ---- Map pack ------------------------------------------------------------
 // Custom maps live in the user's Documents folder, not the game folder, so the game zip can't carry them. A versioned
 // pack (scripts/make-map-pack.ps1 -Publish) is a release asset zh-maps-<MapPack>.zip; both machines install the same one.
-if (!string.IsNullOrWhiteSpace(cfg.MapPack))
+if (!string.IsNullOrWhiteSpace(mapPack))
 {
     try
     {
@@ -80,30 +132,19 @@ if (!string.IsNullOrWhiteSpace(cfg.MapPack))
                                    "Command and Conquer Generals Zero Hour Data", "Maps");
         var marker = Path.Combine(mapsDir, ".zh-mappack");
         var installed = File.Exists(marker) ? File.ReadAllText(marker).Trim() : "(none)";
-        if (installed == cfg.MapPack) Log($"Map pack {cfg.MapPack} already installed.");
+        if (installed == mapPack) Log($"Map pack {mapPack} already installed.");
         else
         {
-            using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("ZHLauncher/1.0");
-            http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
-            if (!string.IsNullOrWhiteSpace(cfg.Token))
-                http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", cfg.Token);
-            var rel = await http.GetFromJsonAsync<Release>($"https://api.github.com/repos/{cfg.Repo}/releases/tags/{cfg.MapPack}")
-                      ?? throw new Exception($"no release tagged {cfg.MapPack}");
-            var asset = rel.assets.FirstOrDefault(a => a.name.Equals($"zh-maps-{cfg.MapPack}.zip", StringComparison.OrdinalIgnoreCase))
-                        ?? throw new Exception($"release {cfg.MapPack} has no zh-maps-{cfg.MapPack}.zip");
-            Log($"Installing map pack {cfg.MapPack} ({asset.size / 1024 / 1024} MB) over {installed}...");
-            using var req = new HttpRequestMessage(HttpMethod.Get, asset.url);
-            req.Headers.Accept.Clear();
-            req.Headers.Accept.ParseAdd("application/octet-stream");
-            using var resp = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
-            resp.EnsureSuccessStatusCode();
-            var tmp = Path.Combine(Path.GetTempPath(), asset.name);
-            await using (var fs = File.Create(tmp)) await resp.Content.CopyToAsync(fs);
+            var rel = await http.GetFromJsonAsync<Release>($"https://api.github.com/repos/{cfg.Repo}/releases/tags/{mapPack}")
+                      ?? throw new Exception($"no release tagged {mapPack}");
+            var asset = rel.assets.FirstOrDefault(a => a.name.Equals($"zh-maps-{mapPack}.zip", StringComparison.OrdinalIgnoreCase))
+                        ?? throw new Exception($"release {mapPack} has no zh-maps-{mapPack}.zip");
+            Log($"Installing map pack {mapPack} ({asset.size / 1024 / 1024} MB) over {installed}...");
+            var tmp = await Download(http, asset);
             Directory.CreateDirectory(mapsDir);
             ZipFile.ExtractToDirectory(tmp, mapsDir, overwriteFiles: true);   // adds/overwrites; never deletes the player's own maps
             File.Delete(tmp);
-            Log($"Map pack {cfg.MapPack} installed to {mapsDir}");
+            Log($"Map pack {mapPack} installed to {mapsDir}");
         }
     }
     catch (Exception ex)
@@ -167,7 +208,6 @@ if (problems.Count > 0)
 }
 
 // ---- Launch ----------------------------------------------------------------
-var gameArgs = cfg.Args;   // not "args": that is the top-level-statements command-line parameter
 if (cfg.Debug)
 {
     Directory.CreateDirectory(Path.Combine(dir, "logs"));
@@ -180,15 +220,34 @@ return 0;
 
 static void Log(string s) => Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] {s}");
 
+static async Task<string> Download(HttpClient http, Asset asset)
+{
+    // The API asset URL with Accept: application/octet-stream works for public and private repos alike.
+    using var req = new HttpRequestMessage(HttpMethod.Get, asset.url);
+    req.Headers.Accept.Clear();
+    req.Headers.Accept.ParseAdd("application/octet-stream");
+    using var resp = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
+    resp.EnsureSuccessStatusCode();
+    var tmp = Path.Combine(Path.GetTempPath(), asset.name);
+    await using (var fs = File.Create(tmp)) await resp.Content.CopyToAsync(fs);
+    return tmp;
+}
+
 record Config
 {
-    public string Repo { get; init; } = "YOUR_GITHUB_USER/zh-custom";
-    public string Token { get; init; } = "";          // fine-grained PAT, read-only on this repo's Contents
+    public string Repo { get; init; } = "jj-elliott/zh-custom";
+    public string Token { get; init; } = "";          // only needed for a private repo (fine-grained PAT, Contents: Read)
     public string Executable { get; init; } = "generalszh.exe";
-    public string Args { get; init; } = "-win";       // e.g. "-win -xres 2560 -yres 1440"
+    public string Args { get; init; } = "-win";       // fallback only; release.json (shipped in the game zip) wins
+    public string ExtraArgs { get; init; } = "";      // per-machine additions, e.g. "-xres 2560 -yres 1440"
     public bool Debug { get; init; } = false;         // true = pass -netlog, write logs/<timestamp>.log
     public bool AllowMismatch { get; init; } = false; // true = launch even if assets.sha256 doesn't match
-    public string MapPack { get; init; } = "";        // release tag of the map pack to install into Documents\...\Maps (e.g. "maps-v1"); empty = skip
+    public string MapPack { get; init; } = "";        // fallback only; release.json wins
+}
+record Shipped
+{
+    public string MapPack { get; init; } = "";        // release tag of the map pack both machines install (e.g. "maps-v1")
+    public string Args { get; init; } = "";           // game arguments both machines use (e.g. "-win")
 }
 record Release(string tag_name, Asset[] assets, bool prerelease = false, bool draft = false);
 record Asset(string name, string url, long size);

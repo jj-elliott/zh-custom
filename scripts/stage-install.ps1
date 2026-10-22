@@ -17,6 +17,7 @@ param(
   [string]$DevDir = "",
   [switch]$NoManifest,
   [switch]$NoAddons,              # skip layering the verified add-ons from addons\addons.json (Control Bar Pro/HD, ...)
+  [switch]$NoDxvk,                # skip DXVK + dxvk.conf (releases ship it; the dev copy should match unless bisecting a visual bug)
   [string[]]$ExcludeFiles = @(
     "d3d8.dll", "d3d8.cfg", "d3d9.dll", "dxvk.conf",          # GenTool proxy / any wrapper left in the Steam folder
     "GenToolUpdater.exe", "game.dat-VISION.log", "EdgeScroller.exe",
@@ -66,6 +67,11 @@ if (-not $NoAddons) {
   if ($LASTEXITCODE -ne 0) { Write-Warning "some add-ons are not in the cache; dev copy is missing them (see fetch-addons.ps1)" }
   else { Write-Host "Add-ons applied: $((Get-ChildItem $DevDir -File | Where-Object Name -match '^\d{3}_.*\.big$' | ForEach-Object Name) -join ', ')" }
 }
+
+# Same renderer and shipped settings as a release (the /XF list strips any stale copies first).
+if (-not $NoDxvk) { & (Join-Path $PSScriptRoot "fetch-dxvk.ps1") -Out $DevDir }
+$config = Join-Path $repo "config"
+if (Test-Path $config) { Copy-Item (Join-Path $config "*") $DevDir -Recurse -Force }
 
 Copy-Item $exe.FullName (Join-Path $DevDir "generalszh.exe") -Force
 $pdb = Join-Path $exe.DirectoryName "generalszh.pdb"

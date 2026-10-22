@@ -1,0 +1,5 @@
+{
+  "_comment": "Shipped inside every zh-game-<tag>.zip (package.ps1 copies config\\* into the game root). The launcher reads it after updating, so changing these here and releasing updates both machines; nothing to resend. Per-machine settings stay in launcher.json.",
+  "MapPack": "maps-v1",
+  "Args": "-win"
+}
