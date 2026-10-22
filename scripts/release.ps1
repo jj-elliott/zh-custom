@@ -46,8 +46,10 @@ $ErrorActionPreference = "Continue"   # git/gh write progress to stderr
 git push -q origin $Tag
 if ($LASTEXITCODE -ne 0) { throw "tag push failed" }
 $pre = @(); if ($Prerelease) { $pre = @("--prerelease") }
-& $gh.Source release create $Tag @assets --title $Tag --notes $Notes --verify-tag @pre
+# Always name the repo: with both 'origin' and 'upstream' remotes gh may otherwise pick upstream (TheSuperHackers).
+$originRepo = ((git remote get-url origin) -replace '^.*github\.com[:/]', '' -replace '\.git$', '')
+& $gh.Source release create $Tag -R $originRepo @assets --title $Tag --notes $Notes --verify-tag @pre
 if ($LASTEXITCODE -ne 0) { throw "gh release create failed" }
 $ErrorActionPreference = "Stop"
-Write-Host "released ${Tag}: $(& $gh.Source release view $Tag --json url --jq .url)" -ForegroundColor Green
+Write-Host "released ${Tag}: $(& $gh.Source release view $Tag -R $originRepo --json url --jq .url)" -ForegroundColor Green
 Write-Host "Both launchers will pick it up on next start (releases/latest)."

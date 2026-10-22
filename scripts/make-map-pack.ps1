@@ -46,9 +46,11 @@ if ($Publish) {
   if ($LASTEXITCODE -ne 0) { throw "tag push failed" }
   # A just-pushed tag can take a moment to become visible to the API, so retry briefly and show gh's own message.
   $ok = $false
+  # Always name the repo: with both 'origin' and 'upstream' remotes gh may otherwise pick upstream (TheSuperHackers).
+  $originRepo = ((git -C $repo remote get-url origin) -replace '^.*github\.com[:/]', '' -replace '\.git$', '')
   foreach ($try in 1..4) {
     # --prerelease: keeps asset-only releases out of GitHub's /releases/latest, which must stay the newest game release.
-    $msg = & $gh.Source release create $Version $zip "$zip.sha256" --verify-tag --prerelease --title "Map pack $Version" --notes "$($maps.Count) custom maps, $size MB. Installed by ZHLauncher when launcher.json MapPack = $Version." 2>&1 | Out-String
+    $msg = & $gh.Source release create $Version -R $originRepo $zip "$zip.sha256" --verify-tag --prerelease --title "Map pack $Version" --notes "$($maps.Count) custom maps, $size MB. Installed by ZHLauncher when launcher.json MapPack = $Version." 2>&1 | Out-String
     if ($LASTEXITCODE -eq 0) { $ok = $true; Write-Host $msg.Trim(); break }
     Write-Host "gh release create (attempt $try): $($msg.Trim())"; Start-Sleep 5
   }
