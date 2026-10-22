@@ -31,7 +31,13 @@ These need the actual source tree or a Windows machine, so bootstrap.ps1 left th
       decide Phase 4 step 2 (jitter term) from it. Not in the CRC. Launch args are now `-win -nologo` (skip logo + intro movie, keep the
       animated shell map); the human prefers that over `-quickstart`.
 - [ ] **7. `/LARGEADDRESSAWARE`** on the exe if not already set (needed before the texture pack).
-- [ ] **8. First feature:** Phase 4 step 2 (jitter-aware run-ahead), behind verify.ps1.
+- [ ] **8. First netcode fix: adaptive retry timer** (replaces jitter-aware run-ahead; see PLAN.md Phase 4 "First real log"). `Connection.cpp`:
+      `m_retryTime` 2000 ms → derived from `m_averageLatency` (≈1.25×, floor 60, cap 500, backoff per retry), default ~200 ms before the
+      first ack. Measure before/after with `scripts/netlog-summary.py` on the solo rig (#15) with injected loss, then a real session.
+- [ ] **15. Solo netcode rig.** Two instances on one machine: a flag allowing a second instance (today only `-replay` does) and a port
+      offset for the LAN lobby/game socket (`LANAPI.cpp` `lobbyPort` 8086, `Transport`), plus expose upstream's `-packetloss`/`-latAvg`/
+      `-latAmp`/`-latPeriod`/`-latNoise` in release (`CommandLine.cpp`, currently `RTS_DEBUG`) so loss/jitter are reproducible without clumsy.
+      `net-sim.ps1` then launches both instances with those flags.
 
 Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setup had that we must keep):
 - [x] **9. Camera height scale** — done 2026-10-21, merged to `main` (3a417b362): `Core/GameEngine/Include/Common/CameraHeightScale.h` (+cpp),

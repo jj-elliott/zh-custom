@@ -28,6 +28,7 @@ decoupled/uncapped render rate, then visual and movement upgrades. Full plan: `d
 | `.\scripts\stage-install.ps1` | re-stage `gameDir` from the Steam folder: vanilla files, then our verified add-ons (`addons\addons.json`), our exe + PDB, regenerates `assets.sha256`. The way back to a known state. |
 | `.\scripts\fetch-addons.ps1 [-ImportFrom dir]` | fills/verifies the add-on cache (`C:\Games\ZH\addons`) against pinned sha256s; CI uses it to put the same files in the release zip |
 | `.\scripts\net-sim.ps1 -Loss 5 -DelayMs 80 -JitterMs 30` / `-Off` | inject packet loss/latency on UDP for solo netcode testing (two game instances over loopback) |
+| `python -I scripts\netlog-summary.py host.log peer.log` | digest of `-netlog` session logs (`gameDir\logs\net-*.log`): stalls, latency, jitter, run-ahead, retries, stall↔retry correlation. Reference logs: `tests\netlogs\` |
 | `dotnet publish launcher\ZHLauncher.csproj -c Release -r win-x64` | builds the launcher |
 
 Prefer these over ad-hoc commands so output lands in predictable places. If a script is wrong, fix the script; that is part of the job.

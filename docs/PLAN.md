@@ -89,7 +89,17 @@ Context: StarCraft II, AoE4, Factorio and Stormgate are all still deterministic 
 0. **Transport first (no code).** Hamachi adds a relay hop and jitter. Swap to Tailscale (WireGuard, direct peer-to-peer) or a plain port-forward before measuring anything.
 1. **Instrument, don't guess.** Log: negotiated frame delay (run-ahead), per-frame stall time waiting on the peer, RTT *and* jitter, and the CRC mismatch frame + which subsystem's CRC diverged. Play one real session and read the log.
    **Done 2026-10-21 (v0.2.0):** `-netlog`, `Core/GameEngine/.../NetLog.cpp`, on by default on both machines; the launcher shows the last log's path. Next: read a real session log.
-2. **Jitter-aware run-ahead.** ZH derives run-ahead from latency only. Pad it to cover the measured jitter envelope (p95 inter-packet gap), with a sane floor for the 2-player case. Bake it in code so both ends match automatically.
+   **First real log, 2026-10-21 (`tests/netlogs/2026-10-21-session1-*.log`, `scripts/netlog-summary.py`):** 11 minutes, 40 stalls on each
+   side, **11% of the game frozen**. 37 of 40 stalls last 1.7–2.0 s; median gap 12 s. Round trip 90–120 ms, jitter 4–33 ms, run-ahead
+   settles at 5–7 frames (≈200 ms) — all healthy. Retries: 61 of 5741 packets on one side (≈1%), 102 of 2490 on the other (≈4%).
+   **Every long stall on the peer coincides with a retry on the host** (40/40, frame-aligned). Cause: `Connection::m_retryTime` is
+   hard-coded to **2000 ms** (`Connection.cpp`), so a single lost command packet freezes both players for ~2 s. Jitter is not the problem.
+2. ~~Jitter-aware run-ahead.~~ **Adaptive retry (replaces this step, same slot).** Resend an unacked command after ≈1.25× the measured round
+   trip (floor ~60 ms, cap ~500 ms, mild backoff) instead of 2 s, and use ~200 ms before any sample exists. With run-ahead ≈200 ms a
+   one-RTT resend lands inside the buffer, so a lost packet costs no visible stall at all. Bandwidth is ~25 packets/s, so extra resends
+   are free. Transport-level only: duplicates are already dropped by command ID (upstream fix #3564); the simulation is untouched.
+   Validate with the solo loopback rig at 2–5% injected loss, then one real session. Jitter-aware run-ahead stays as a later option if
+   logs ever show stalls with latency spikes rather than retries.
 3. **State resync instead of termination (Factorio model).** On CRC mismatch: host serialises game state (the save-game path already exists), ships it, guest loads and rejoins at that frame. ~2-second hitch, no more dead games. Host is the source of truth; this is already how Factorio handles desync.
 4. **Local input acknowledgment (the SC2 trick).** Respond to the player's input *immediately* on the UI layer: selection highlight, unit voice bark, order marker, start of turn animation. The actual command still executes N ticks later in lockstep. This is why SC2 feels responsive at the same real latency, and ZH currently gives zero feedback until the command clears the wait. Cheap, pure presentation layer, biggest *felt* improvement.
 5. **Catch-up instead of stall (Factorio).** When a client falls behind, run the sim at 2–3× until caught up rather than freezing. With the decoupled render loop from Phase 5, a hitch becomes a brief fast-forward.
