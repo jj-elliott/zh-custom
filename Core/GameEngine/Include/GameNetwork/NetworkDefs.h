@@ -120,7 +120,13 @@ struct TransportMessage
 };
 #pragma pack(pop)
 
-#if defined(RTS_DEBUG)
+// zh-pipeline: keep the packet loss / latency simulation in release builds (Transport.cpp; it only acts when
+// -packetloss/-lat* are given). Defined here because this is the first network header everything includes.
+#ifndef RTS_NETSIM
+#define RTS_NETSIM 1
+#endif
+
+#if defined(RTS_DEBUG) || defined(RTS_NETSIM)
 #pragma pack(push, 1)
 struct DelayedTransportMessage
 {

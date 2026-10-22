@@ -31,13 +31,15 @@ These need the actual source tree or a Windows machine, so bootstrap.ps1 left th
       decide Phase 4 step 2 (jitter term) from it. Not in the CRC. Launch args are now `-win -nologo` (skip logo + intro movie, keep the
       animated shell map); the human prefers that over `-quickstart`.
 - [ ] **7. `/LARGEADDRESSAWARE`** on the exe if not already set (needed before the texture pack).
-- [ ] **8. First netcode fix: adaptive retry timer** (replaces jitter-aware run-ahead; see PLAN.md Phase 4 "First real log"). `Connection.cpp`:
-      `m_retryTime` 2000 ms → derived from `m_averageLatency` (≈1.25×, floor 60, cap 500, backoff per retry), default ~200 ms before the
-      first ack. Measure before/after with `scripts/netlog-summary.py` on the solo rig (#15) with injected loss, then a real session.
-- [ ] **15. Solo netcode rig.** Two instances on one machine: a flag allowing a second instance (today only `-replay` does) and a port
-      offset for the LAN lobby/game socket (`LANAPI.cpp` `lobbyPort` 8086, `Transport`), plus expose upstream's `-packetloss`/`-latAvg`/
-      `-latAmp`/`-latPeriod`/`-latNoise` in release (`CommandLine.cpp`, currently `RTS_DEBUG`) so loss/jitter are reproducible without clumsy.
-      `net-sim.ps1` then launches both instances with those flags.
+- [~] **8. First netcode fix: adaptive retry timer** — implemented 2026-10-21 on `net/retry` (`Connection.cpp` `processAck`): retry after
+      1.5× max(current sample, running average), floor 80 ms, cap 500 ms; 250 ms before the first ack (was a fixed 2000 ms). No backoff yet.
+      The netlog `sec` line now carries `retry_ms`. **Open:** measure on the solo rig with `-Loss 4`, then a real session; compare against
+      `Tests/netlogs/2026-10-21-session1-*` (11% frozen, ~1.9 s stalls).
+- [~] **15. Solo netcode rig** — built 2026-10-21 on `net/retry`: `scripts/solo-net.ps1` starts two instances (`-multiinstance`; the second
+      gets `Options_Instance02.ini`) bound to 127.0.0.1 / 127.0.0.2 via `-lanip` (no port offset needed: each binds its own loopback IP),
+      discovering each other through `-lanpeer`, with upstream's loss/latency simulation now compiled in release (`Transport.h`
+      `RTS_NETSIM`; `-packetloss`/`-latAvg`/`-latAmp`/`-latPeriod`/`-latNoise`) applied to instance B. Each writes `logs\net-solo-A/B.log`.
+      **Open:** the lobby/host/join clicks are human; first run pending. `net-sim.ps1` (clumsy) is now the fallback.
 
 Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setup had that we must keep):
 - [x] **9. Camera height scale** — done 2026-10-21, merged to `main` (3a417b362): `Core/GameEngine/Include/Common/CameraHeightScale.h` (+cpp),
@@ -61,10 +63,10 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
 - [ ] **14. Code-sign the launcher and the exe (low priority).** The second machine runs Windows 11 Smart App Control, which blocked the
       self-updated (unsigned) launcher; the workaround is turning SAC off (documented in `launcher/README-SETUP.txt`). Signing (e.g.
       Azure Trusted Signing, ~$10/month, identity-verified) in `package.ps1` would remove the need. Only if the workaround is unacceptable.
-- [ ] **13. LAN discovery over Tailscale.** The LAN lobby finds games by UDP broadcast, which a tailnet does not carry. Direct Connect works.
-      Option: a `LANPeers` list (in `release.json`, both machines) that the LAN layer also unicasts its announce/scan packets to
-      (`Core/GameEngine/Source/GameNetwork/LANAPI*.cpp`, look for the broadcast send). Client/lobby code only, not sim. Low priority:
-      Direct Connect is an acceptable workaround.
+- [~] **13. LAN discovery over Tailscale** — implemented 2026-10-21 on `net/retry`: `-lanpeer <ip>` (repeatable) makes `LANAPI::sendMessage`
+      unicast every lobby broadcast to those addresses too; the launcher passes `release.json` `LanPeers` (both tailnet IPs:
+      vision-1 100.66.50.86, admiral 100.91.103.10). **Open:** confirm on the next real session that the game shows up in the LAN list
+      without Direct Connect.
 - [ ] **11. Shared defaults.** `ArchiveReplays=yes`, FPS limit, overlay font sizes (FPS/clock/timer/ping/money), `CursorCaptureMode` — set via
       code defaults or a launcher-merged `config/` snippet so both machines match without touching menus. Optional: map + player names in the
       archived replay filename.

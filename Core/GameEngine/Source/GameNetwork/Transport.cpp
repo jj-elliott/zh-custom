@@ -28,6 +28,17 @@
 #include "Common/crc.h"
 #include "GameNetwork/Transport.h"
 #include "GameNetwork/NetLog.h"	// zh-pipeline netlog
+#include "GameNetwork/NetSim.h"	// zh-pipeline
+
+// zh-pipeline: link impairment settings (see NetSim.h); zero = off.
+namespace NetSim
+{
+	Int latencyAverage = 0;
+	Int latencyAmplitude = 0;
+	Int latencyPeriod = 0;
+	Int latencyNoise = 0;
+	Int packetLoss = 0;
+}
 #include "GameNetwork/NetworkInterface.h"
 
 
@@ -131,7 +142,7 @@ Bool Transport::init( UnsignedInt ip, UnsignedShort port )
 	{
 		m_outBuffer[i].length = 0;
 		m_inBuffer[i].length = 0;
-#if defined(RTS_DEBUG)
+#if defined(RTS_DEBUG) || defined(RTS_NETSIM)
 		m_delayedInBuffer[i].message.length = 0;
 #endif
 	}
@@ -149,11 +160,11 @@ Bool Transport::init( UnsignedInt ip, UnsignedShort port )
 
 	m_port = port;
 
-#if defined(RTS_DEBUG)
-	if (TheGlobalData->m_latencyAverage > 0 || TheGlobalData->m_latencyNoise)
+#if defined(RTS_DEBUG) || defined(RTS_NETSIM)
+	if (NetSim::latencyAverage > 0 || NetSim::latencyNoise)
 		m_useLatency = true;
 
-	if (TheGlobalData->m_packetLoss)
+	if (NetSim::packetLoss)
 		m_usePacketLoss = true;
 #endif
 
@@ -248,7 +259,7 @@ Bool Transport::doSend() {
 		}
 	}
 
-#if defined(RTS_DEBUG)
+#if defined(RTS_DEBUG) || defined(RTS_NETSIM)
 	// Latency simulation - deliver anything we're holding on to that is ready
 	if (m_useLatency)
 	{
@@ -288,7 +299,7 @@ Bool Transport::doRecv()
 
 	// Read in anything on our socket
 	sockaddr_in from;
-#if defined(RTS_DEBUG)
+#if defined(RTS_DEBUG) || defined(RTS_NETSIM)
 	UnsignedInt now = timeGetTime();
 #endif
 	// TheSuperHackers @info The handling of data sizing of the payload within a UDP packet is confusing due to the current networking implementation
@@ -302,11 +313,11 @@ Bool Transport::doRecv()
 //	DEBUG_LOG(("Transport::doRecv - checking"));
 	while ( (len=m_udpsock->Read(buf, MAX_NETWORK_MESSAGE_LEN, &from)) > 0 )
 	{
-#if defined(RTS_DEBUG)
+#if defined(RTS_DEBUG) || defined(RTS_NETSIM)
 		// Packet loss simulation
 		if (m_usePacketLoss)
 		{
-			if ( TheGlobalData->m_packetLoss >= GameClientRandomValue(0, 100) )
+			if ( NetSim::packetLoss >= GameClientRandomValue(0, 100) )
 			{
 				continue;
 			}
@@ -339,7 +350,7 @@ Bool Transport::doRecv()
 
 		DEBUG_ASSERTCRASH(bufferIndex < MAX_MESSAGES, ("Message lost!"));
 
-#if defined(RTS_DEBUG)
+#if defined(RTS_DEBUG) || defined(RTS_NETSIM)
 		// Latency simulation
 		if (m_useLatency)
 		{
@@ -349,9 +360,9 @@ Bool Transport::doRecv()
 				{
 					// Empty slot; use it
 					m_delayedInBuffer[bufferIndex].deliveryTime =
-						now + TheGlobalData->m_latencyAverage +
-						(Int)(TheGlobalData->m_latencyAmplitude * sin(now * TheGlobalData->m_latencyPeriod)) +
-						GameClientRandomValue(-TheGlobalData->m_latencyNoise, TheGlobalData->m_latencyNoise);
+						now + NetSim::latencyAverage +
+						(Int)(NetSim::latencyAmplitude * sin(now * NetSim::latencyPeriod)) +
+						GameClientRandomValue(-NetSim::latencyNoise, NetSim::latencyNoise);
 					m_delayedInBuffer[bufferIndex].message.length = incomingMessage.length;
 					m_delayedInBuffer[bufferIndex].message.addr = ntohl(from.sin_addr.S_un.S_addr);
 					m_delayedInBuffer[bufferIndex].message.port = ntohs(from.sin_port);

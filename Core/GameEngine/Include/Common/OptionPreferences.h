@@ -62,6 +62,7 @@ public:
 	TextureFilterClass::TextureFilterMode getTextureFilterMode() const;
 	TextureFilterClass::AnisotropicFilterMode getTextureAnisotropyLevel() const;
 	UnsignedInt getLANIPAddress();
+	static void setLANIPAddressOverride(const char* dottedQuad);	///< zh-pipeline: -lanip; wins over Options.ini IPAddress, no adapter check
 	UnsignedInt getOnlineIPAddress();
 	void setLANIPAddress(AsciiString IP);
 	void setOnlineIPAddress(AsciiString IP);

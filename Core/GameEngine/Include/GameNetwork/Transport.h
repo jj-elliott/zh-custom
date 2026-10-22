@@ -28,6 +28,8 @@
 
 #pragma once
 
+// zh-pipeline: the packet loss / latency simulation is kept in release builds; RTS_NETSIM is defined in NetworkDefs.h.
+
 #include "GameNetwork/udp.h"
 #include "GameNetwork/NetworkDefs.h"
 
@@ -73,7 +75,7 @@ public:
 	TransportMessage m_outBuffer[MAX_MESSAGES];
 	TransportMessage m_inBuffer[MAX_MESSAGES];
 
-#if defined(RTS_DEBUG)
+#if defined(RTS_DEBUG) || defined(RTS_NETSIM)
 	DelayedTransportMessage m_delayedInBuffer[MAX_MESSAGES];
 #endif
 

@@ -124,8 +124,21 @@ void OptionPreferences::setCampaignDifficulty(Int diff)
 	(*this)["CampaignDifficulty"] = prefString;
 }
 
+// zh-pipeline: -lanip override. Parsed as a dotted quad into the engine's host-order IP int; no adapter enumeration,
+// so loopback aliases (127.0.0.2) work for the solo rig.
+static UnsignedInt s_lanIpOverride = 0;
+void OptionPreferences::setLANIPAddressOverride(const char* dottedQuad)
+{
+	int a = 0, b = 0, c = 0, d = 0;
+	if (dottedQuad != nullptr && sscanf(dottedQuad, "%d.%d.%d.%d", &a, &b, &c, &d) == 4)
+		s_lanIpOverride = ((UnsignedInt)a << 24) | ((UnsignedInt)b << 16) | ((UnsignedInt)c << 8) | (UnsignedInt)d;
+}
+
 UnsignedInt OptionPreferences::getLANIPAddress()
 {
+	if (s_lanIpOverride != 0)
+		return s_lanIpOverride;
+
 	AsciiString selectedIP = (*this)["IPAddress"];
 	IPEnumeration IPs;
 	EnumeratedIP *IPlist = IPs.getAddresses();

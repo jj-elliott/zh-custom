@@ -45,7 +45,7 @@ namespace NetLog
 	/// Once per Network::update (i.e. every client frame while in a network game).
 	void Update(UnsignedInt logicFrame, Int runAhead, Int frameRate, Bool frameDataReady, Bool isStalling, Real minCushion, Real maxLatencySeconds);
 	void LatencySample(Real latencyMs);        ///< One command->ack round trip measured locally.
-	void Retry();                              ///< A command was re-sent because its ack did not arrive in time.
+	void Retry(UnsignedInt retryTimerMs = 0);  ///< A command was re-sent because its ack did not arrive within retryTimerMs.
 	void RunAheadComputed(Int oldRunAhead, Int newRunAhead, Real maxLatencySeconds, Int minFps, Int oldFrameRate, UnsignedInt executionFrame);
 	void RunAheadApplied(Int runAhead, Int frameRate, UnsignedInt logicFrame);
 	void TransportSecond(UnsignedInt inPackets, UnsignedInt inBytes, UnsignedInt outPackets, UnsignedInt outBytes, UnsignedInt unknownPackets);

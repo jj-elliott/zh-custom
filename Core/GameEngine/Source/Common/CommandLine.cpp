@@ -25,8 +25,11 @@
 
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
-#include "Common/ArchiveFileSystem.h"
+#include "Common/ArchiveFileSystem.h"
 #include "GameNetwork/NetLog.h"	// zh-pipeline netlog
+#include "GameNetwork/NetSim.h"	// zh-pipeline
+#include "Common/OptionPreferences.h"	// zh-pipeline
+#include "GameNetwork/LANAPI.h"	// zh-pipeline
 #include "Common/CommandLine.h"
 #include "Common/CRCDebug.h"
 #include "Common/LocalFileSystem.h"
@@ -470,6 +473,34 @@ Int parseNetLog(char *args[], int num)
 	return 1;
 }
 
+Int parseMultiInstance(char *[], int)
+{
+	// Unlike -replay this keeps the primary instance: the first copy stays instance 1 (normal Options.ini),
+	// the second becomes instance 2 (Options_Instance02.ini), so each can have its own LAN IP.
+	rts::ClientInstance::setMultiInstance(TRUE);
+	return 1;
+}
+
+Int parseLanIp(char *args[], int num)
+{
+	if (num > 1)
+	{
+		OptionPreferences::setLANIPAddressOverride(args[1]);
+		return 2;
+	}
+	return 1;
+}
+
+Int parseLanPeer(char *args[], int num)
+{
+	if (num > 1)
+	{
+		LANAPI::addPeerAddress(args[1]);
+		return 2;
+	}
+	return 1;
+}
+
 Int parseUseCwd(char *[], int)
 {
 	// -useCwd restores the startup working directory.
@@ -511,11 +542,13 @@ Int parseYRes(char *args[], int num)
 #if defined(RTS_DEBUG)
 //=============================================================================
 //=============================================================================
+#endif // RTS_DEBUG
+// zh-pipeline: available in all builds for the solo netcode rig (Transport.cpp RTS_NETSIM)
 Int parseLatencyAverage(char *args[], int num)
 {
 	if (num > 1)
 	{
-		TheWritableGlobalData->m_latencyAverage = atoi(args[1]);
+		NetSim::latencyAverage = atoi(args[1]);
 	}
 	return 2;
 }
@@ -526,7 +559,7 @@ Int parseLatencyAmplitude(char *args[], int num)
 {
 	if (num > 1)
 	{
-		TheWritableGlobalData->m_latencyAmplitude = atoi(args[1]);
+		NetSim::latencyAmplitude = atoi(args[1]);
 	}
 	return 2;
 }
@@ -537,7 +570,7 @@ Int parseLatencyPeriod(char *args[], int num)
 {
 	if (num > 1)
 	{
-		TheWritableGlobalData->m_latencyPeriod = atoi(args[1]);
+		NetSim::latencyPeriod = atoi(args[1]);
 	}
 	return 2;
 }
@@ -548,7 +581,7 @@ Int parseLatencyNoise(char *args[], int num)
 {
 	if (num > 1)
 	{
-		TheWritableGlobalData->m_latencyNoise = atoi(args[1]);
+		NetSim::latencyNoise = atoi(args[1]);
 	}
 	return 2;
 }
@@ -559,10 +592,11 @@ Int parsePacketLoss(char *args[], int num)
 {
 	if (num > 1)
 	{
-		TheWritableGlobalData->m_packetLoss = atoi(args[1]);
+		NetSim::packetLoss = atoi(args[1]);
 	}
 	return 2;
 }
+#if defined(RTS_DEBUG)
 
 //=============================================================================
 //=============================================================================
@@ -1203,6 +1237,22 @@ static CommandLineParam paramsForStartup[] =
 
 	// zh-pipeline @feature 2026-10-21 Network session log (PLAN.md Phase 4 step 1). The launcher passes it.
 	{ "-netlog", parseNetLog },
+
+	// zh-pipeline @feature 2026-10-21 Solo netcode rig and LAN-over-tailnet:
+	//  -multiinstance  allow a second copy on this machine (it gets Options_Instance02.ini)
+	//  -lanip <ip>     the LAN lobby binds this local IP (e.g. 127.0.0.2) instead of Options.ini IPAddress
+	//  -lanpeer <ip>   (repeatable) also unicast LAN lobby announcements/scans to this address; broadcasts don't
+	//                  cross a Tailscale tunnel, so the launcher passes both machines' tailnet IPs from release.json
+	{ "-multiinstance", parseMultiInstance },
+	{ "-lanip", parseLanIp },
+	{ "-lanpeer", parseLanPeer },
+
+	// zh-pipeline: loss/latency simulation flags, formerly debug-only (see Transport.h RTS_NETSIM)
+	{ "-packetloss", parsePacketLoss },
+	{ "-latAvg", parseLatencyAverage },
+	{ "-latAmp", parseLatencyAmplitude },
+	{ "-latPeriod", parseLatencyPeriod },
+	{ "-latNoise", parseLatencyNoise },
 };
 
 // These Params are parsed during Engine Init before INI data is loaded
@@ -1303,11 +1353,6 @@ static CommandLineParam paramsForEngineInit[] =
 	{ "-nofade", parseNoFade },
 	{ "-nomovecamera", parseNoMoveCamera },
 	{ "-nocinematic", parseNoCinematic },
-	{ "-packetloss", parsePacketLoss },
-	{ "-latAvg", parseLatencyAverage },
-	{ "-latAmp", parseLatencyAmplitude },
-	{ "-latPeriod", parseLatencyPeriod },
-	{ "-latNoise", parseLatencyNoise },
 	{ "-noViewLimit", parseNoViewLimit },
 	{ "-lowDetail", parseLowDetail },
 	{ "-noDynamicLOD", parseNoDynamicLOD },

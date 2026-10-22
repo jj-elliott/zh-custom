@@ -42,6 +42,7 @@ namespace NetLog
 	static UnsignedInt s_stallStart = 0;
 	static UnsignedInt s_stallFrame = 0;
 	static UnsignedInt s_retries = 0;
+	static UnsignedInt s_retryTimerMs = 0;
 	static UnsignedInt s_latN = 0;
 	static Real s_latSum = 0.0f, s_latMax = 0.0f, s_latLast = -1.0f, s_jitterSum = 0.0f;
 	static UnsignedInt s_jitterN = 0;
@@ -118,9 +119,9 @@ namespace NetLog
 		{
 			const Real latMean = s_latN ? s_latSum / (Real)s_latN : 0.0f;
 			const Real jitter = s_jitterN ? s_jitterSum / (Real)s_jitterN : 0.0f;
-			fprintf(s_file, "sec t=%u frame=%u ra=%d fps=%d stall_ms=%u stalls=%u cushion=%.1f lat_max_peer=%.0f lat_n=%u lat_mean=%.0f lat_max=%.0f jitter=%.0f retries=%u in_pps=%u in_bps=%u out_pps=%u out_bps=%u unk_pps=%u\n",
+			fprintf(s_file, "sec t=%u frame=%u ra=%d fps=%d stall_ms=%u stalls=%u cushion=%.1f lat_max_peer=%.0f lat_n=%u lat_mean=%.0f lat_max=%.0f jitter=%.0f retries=%u retry_ms=%u in_pps=%u in_bps=%u out_pps=%u out_bps=%u unk_pps=%u\n",
 				rel(t), logicFrame, runAhead, frameRate, s_stallMs, s_stalls, minCushion, maxLatencySeconds * 1000.0f,
-				s_latN, latMean, s_latMax, jitter, s_retries,
+				s_latN, latMean, s_latMax, jitter, s_retries, s_retryTimerMs,
 				s_inP, s_inB, s_outP, s_outB, s_unkP);
 			fflush(s_file);
 			s_secStart = t;
@@ -141,10 +142,11 @@ namespace NetLog
 		s_latLast = latencyMs;
 	}
 
-	void Retry()
+	void Retry(UnsignedInt retryTimerMs)
 	{
 		if (!IsEnabled()) return;
 		++s_retries;
+		s_retryTimerMs = retryTimerMs;
 	}
 
 	void RunAheadComputed(Int oldRunAhead, Int newRunAhead, Real maxLatencySeconds, Int minFps, Int oldFrameRate, UnsignedInt executionFrame)

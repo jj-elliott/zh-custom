@@ -174,6 +174,9 @@ if (File.Exists(shippedPath))
 }
 var mapPack = string.IsNullOrWhiteSpace(shipped.MapPack) ? cfg.MapPack : shipped.MapPack;
 var gameArgs = string.IsNullOrWhiteSpace(shipped.Args) ? cfg.Args : shipped.Args;
+// LAN discovery over the tailnet: the lobby also unicasts to these peers (broadcasts don't cross a Tailscale tunnel).
+foreach (var peer in shipped.LanPeers ?? Array.Empty<string>())
+    if (!string.IsNullOrWhiteSpace(peer)) gameArgs += $" -lanpeer {peer.Trim()}";
 if (!string.IsNullOrWhiteSpace(cfg.ExtraArgs)) gameArgs += " " + cfg.ExtraArgs.Trim();
 
 // ---- Map pack ------------------------------------------------------------
@@ -374,6 +377,7 @@ record Shipped
     public string MapPack { get; init; } = "";        // release tag of the map pack both machines install (e.g. "maps-v1")
     public string Args { get; init; } = "";           // game arguments both machines use (e.g. "-win")
     public bool NetLog { get; init; } = false;        // write a network session log (logs\net-*.log) on both machines
+    public string[]? LanPeers { get; init; }          // tailnet IPs the LAN lobby unicasts to (-lanpeer each)
 }
 record Release(string tag_name, Asset[] assets, bool prerelease = false, bool draft = false);
 record Asset(string name, string url, long size);

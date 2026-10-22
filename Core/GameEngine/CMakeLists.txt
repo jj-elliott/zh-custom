@@ -561,8 +561,9 @@ set(GAMEENGINE_SRC
     Include/GameNetwork/NetCommandWrapperList.h
     Include/GameNetwork/NetPacket.h
     Include/GameNetwork/NetPacketStructs.h
-    Include/GameNetwork/NetworkDefs.h
+    Include/GameNetwork/NetworkDefs.h
     Include/GameNetwork/NetLog.h
+    Include/GameNetwork/NetSim.h
     Include/GameNetwork/NetworkInterface.h
     Include/GameNetwork/networkutil.h
     Include/GameNetwork/RankPointValue.h
@@ -1171,7 +1172,7 @@ set(GAMEENGINE_SRC
     Source/GameNetwork/NetMessageStream.cpp
     Source/GameNetwork/NetPacket.cpp
     Source/GameNetwork/NetPacketStructs.cpp
-    Source/GameNetwork/Network.cpp
+    Source/GameNetwork/Network.cpp
     Source/GameNetwork/NetLog.cpp
     Source/GameNetwork/NetworkUtil.cpp
     Source/GameNetwork/Transport.cpp

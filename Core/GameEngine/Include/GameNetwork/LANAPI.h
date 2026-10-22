@@ -334,6 +334,7 @@ public:
 	virtual LANGameInfo * LookupGameByHost( UnsignedInt hostIP ) override;													///< return a pointer to the most recent game associated to the host IP address
 	virtual LANPlayer * LookupPlayer( UnsignedInt playerIP );													///< return a pointer to a player we know about
 	virtual Bool SetLocalIP( UnsignedInt localIP ) override;																		///< For multiple NIC machines
+	static void addPeerAddress( const char* dottedQuad );	///< zh-pipeline: -lanpeer; lobby broadcasts are also unicast to these (tailnets carry no broadcasts)
 	virtual void SetLocalIP( AsciiString localIP ) override;																		///< For multiple NIC machines
 	virtual Bool AmIHost() override;																											///< Am I hosting a game?
 	virtual UnicodeString GetMyName() override { return m_name; }                 ///< What's my name?

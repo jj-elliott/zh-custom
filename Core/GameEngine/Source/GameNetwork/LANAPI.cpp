@@ -24,6 +24,9 @@
 
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
+#include <algorithm>	// zh-pipeline: peer address list
+#include <vector>
+
 #include "Common/crc.h"
 #include "Common/GameState.h"
 #include "Common/Registry.h"
@@ -177,6 +180,22 @@ void LANAPI::reset()
 
 }
 
+// zh-pipeline @feature 2026-10-21 LAN discovery across a Tailscale tunnel (and the solo loopback rig): a tailnet is point-to-point and
+// drops broadcasts, so every broadcast the lobby sends (announce, scan, chat) is also unicast to each -lanpeer address. The peer's
+// replies come back unicast as usual. Host-order IPs, like the rest of LANAPI.
+static std::vector<UnsignedInt> s_peerAddresses;
+
+void LANAPI::addPeerAddress(const char* dottedQuad)
+{
+	int a = 0, b = 0, c = 0, d = 0;
+	if (dottedQuad != nullptr && sscanf(dottedQuad, "%d.%d.%d.%d", &a, &b, &c, &d) == 4)
+	{
+		const UnsignedInt ip = ((UnsignedInt)a << 24) | ((UnsignedInt)b << 16) | ((UnsignedInt)c << 8) | (UnsignedInt)d;
+		if (std::find(s_peerAddresses.begin(), s_peerAddresses.end(), ip) == s_peerAddresses.end())
+			s_peerAddresses.push_back(ip);
+	}
+}
+
 void LANAPI::sendMessage(LANMessage *msg, UnsignedInt ip /* = 0 */)
 {
 	if (ip != 0)
@@ -199,6 +218,12 @@ void LANAPI::sendMessage(LANMessage *msg, UnsignedInt ip /* = 0 */)
 	else
 	{
 		m_transport->queueSend(m_broadcastAddr, lobbyPort, (unsigned char *)msg, sizeof(LANMessage) /*, 0, 0 */);
+		// zh-pipeline: and to each configured peer that is not us.
+		for (std::vector<UnsignedInt>::const_iterator it = s_peerAddresses.begin(); it != s_peerAddresses.end(); ++it)
+		{
+			if (*it != m_localIP)
+				m_transport->queueSend(*it, lobbyPort, (unsigned char *)msg, sizeof(LANMessage) /*, 0, 0 */);
+		}
 	}
 }
 

@@ -39,7 +39,7 @@ Connection::Connection() {
 	m_transport = nullptr;
 	m_user = nullptr;
 	m_netCommandList = nullptr;
-	m_retryTime = 2000; // set retry time to 2 seconds.
+	m_retryTime = 250; // zh-pipeline: was 2000 ms; adaptive after the first ack (see processAck). 250 ms until then.
 	m_lastTimeSent = 0;
 	m_frameGrouping = 1;
 	m_isQuitting = false;
@@ -268,7 +268,7 @@ UnsignedInt Connection::doSend() {
 					if (CommandRequiresAck(msg->getCommand())) {
 						if (timeLastSent != -1) {
 							++m_numRetries;
-							NetLog::Retry();	// zh-pipeline netlog
+							NetLog::Retry((UnsignedInt)m_retryTime);	// zh-pipeline netlog
 						}
 						doRetryMetrics();
 						msg->setTimeLastSent(curtime);
@@ -350,6 +350,18 @@ NetCommandRef * Connection::processAck(UnsignedShort commandID, UnsignedByte ori
 	m_averageLatency += lat / CONNECTION_LATENCY_HISTORY_LENGTH;
 	m_latencies[index] = lat;
 	NetLog::LatencySample(lat);	// zh-pipeline netlog
+
+	// zh-pipeline @feature 2026-10-21 Adaptive retry (PLAN.md Phase 4 step 2). The retry timer was a fixed 2000 ms, so every
+	// lost command packet froze both players for ~2 s (tests/netlogs/2026-10-21-session1-*). Resend after 1.5x the measured
+	// round trip instead, floor 80 ms, cap 500 ms. m_averageLatency starts from zeros and ramps over 100 samples, so the
+	// current sample is used as a lower bound while it warms up. Transport only: the receiver drops duplicate command IDs.
+	{
+		const Real base = (lat > m_averageLatency) ? lat : m_averageLatency;
+		Real retry = base * 1.5f;
+		if (retry < 80.0f) retry = 80.0f;
+		if (retry > 500.0f) retry = 500.0f;
+		m_retryTime = (time_t)retry;
+	}
 
 #if defined(RTS_DEBUG)
 	if (doDebug == TRUE) {
