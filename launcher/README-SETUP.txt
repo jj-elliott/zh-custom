@@ -16,6 +16,11 @@ That's it. On the first run it:
 Every later run checks for updates, updates itself if needed (it may restart once; that is normal), and starts the game.
 You never need a new copy of these files.
 
+If Windows shows "Smart App Control blocked a file that may be unsafe": Smart App Control only allows programs that
+carry a paid code signature, and this build is not signed. Turn it off once: Settings > Privacy & security >
+Windows Security > App & browser control > Smart App Control settings > Off. (Windows will warn that it cannot be
+turned back on without reinstalling Windows; that is expected.) Then run the shortcut again.
+
 If it says "Not launching": read the lines above it, they name the exact file that differs. The usual cause is a game
 file changed by GenTool/GenPatcher. Fix: in Steam, right-click Zero Hour > Properties > Installed Files > Verify integrity
 of game files, then run the desktop shortcut again. If the game crashes, the launcher mentions a crash dump next time;

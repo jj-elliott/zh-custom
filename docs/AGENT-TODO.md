@@ -52,6 +52,9 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       are now "unzip anywhere, double-click". **Second-machine test passed 2026-10-21:** the human and their dad played end to end via
       the kit. Observations: (a) over Tailscale the LAN lobby did not discover the peer; they used Direct Connect (by IP), which works →
       #13; (b) periodic hitches during play → Phase 4 is worth it, start with #6 instrumentation.
+- [ ] **14. Code-sign the launcher and the exe (low priority).** The second machine runs Windows 11 Smart App Control, which blocked the
+      self-updated (unsigned) launcher; the workaround is turning SAC off (documented in `launcher/README-SETUP.txt`). Signing (e.g.
+      Azure Trusted Signing, ~$10/month, identity-verified) in `package.ps1` would remove the need. Only if the workaround is unacceptable.
 - [ ] **13. LAN discovery over Tailscale.** The LAN lobby finds games by UDP broadcast, which a tailnet does not carry. Direct Connect works.
       Option: a `LANPeers` list (in `release.json`, both machines) that the LAN layer also unicasts its announce/scan packets to
       (`Core/GameEngine/Source/GameNetwork/LANAPI*.cpp`, look for the broadcast send). Client/lobby code only, not sim. Low priority:
