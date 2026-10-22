@@ -12,7 +12,9 @@ decoupled/uncapped render rate, then visual and movement upgrades. Full plan: `d
   embedded CRCs are the baseline, any divergence fails. `-Import -Name x` promotes the last played game to a new baseline. Run it before
   and after every sim change; a deliberate sim change must come with re-recorded baselines.
 - Launcher (C#, for the second player): `launcher\`. `dotnet publish launcher\ZHLauncher.csproj -c Release -r win-x64`.
-- Releases: push a tag `v*` → `.github\workflows\release.yml` builds and publishes `zh-game-<tag>.zip`, `zh-launcher-<tag>.zip`, `zh-symbols-<tag>.pdb`.
+- Releases are attended, from this machine: `.\scripts\release.ps1 -Tag vX.Y.Z` (clean `main` in sync with origin → `verify.ps1` gate →
+  `package.ps1` → tag → `gh release create` with `zh-game-<tag>.zip`, `zh-launcher-<tag>.zip`, `zh-symbols-<tag>.pdb`). `release.yml` is a
+  manual-dispatch fallback that packages with the same `package.ps1`. Repo `jj-elliott/zh-custom` is public; the launcher needs no token.
 
 ## Tools you can run yourself (don't ask the human to paste output)
 | command | what it gives you |

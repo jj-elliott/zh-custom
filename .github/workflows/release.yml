@@ -1,9 +1,16 @@
 name: Build and Release
 
+# Manual FALLBACK. The primary release path is attended, on the developer's machine: scripts\release.ps1 -Tag vX.Y.Z
+# (build, verify.ps1 gate, package, tag, upload). This workflow exists for the day that machine is unavailable; it packages
+# with the same scripts\package.ps1 so the zip layout cannot drift. No tag trigger: a local release and a CI release must
+# never race for the same tag.
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and release (e.g. v0.1.1); must already be pushed"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -14,6 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.tag }}
           submodules: recursive
 
       # Puts cl/link/nmake for x86 on PATH (equivalent of vcvars32.bat)
@@ -27,68 +35,20 @@ jobs:
         shell: cmd
         run: cmake --workflow --preset win32
 
-      - name: Build launcher
-        shell: pwsh
-        run: |
-          dotnet publish launcher/ZHLauncher.csproj -c Release -r win-x64 `
-            -p:PublishSingleFile=true -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true `
-            -o out/launcher
-
-      - name: Fetch DXVK (pinned)
+      - name: Package (same script as local releases)
         shell: pwsh
         env:
-          DXVK_VERSION: "2.5.3"   # bump deliberately; check https://github.com/doitsujin/dxvk/releases
+          GH_TOKEN: ${{ github.token }}   # fetch-addons.ps1 downloads add-on release assets with gh
         run: |
-          $url = "https://github.com/doitsujin/dxvk/releases/download/v$env:DXVK_VERSION/dxvk-$env:DXVK_VERSION.tar.gz"
-          Invoke-WebRequest $url -OutFile dxvk.tar.gz
-          tar -xzf dxvk.tar.gz
-          New-Item -ItemType Directory -Force out/game | Out-Null
-          # Game is 32-bit, so the x32 DLLs. d3d8.dll = native D3D8 support (DXVK >= 2.4).
-          Copy-Item "dxvk-$env:DXVK_VERSION/x32/d3d8.dll","dxvk-$env:DXVK_VERSION/x32/d3d9.dll" out/game/
-          @"
-          # DXVK config shipped with every release; identical on both machines.
-          d3d9.samplerAnisotropy = 16
-          d3d9.forceSwapchainMSAA = 4
-          d3d9.maxFrameLatency = 1
-          "@ | Set-Content out/game/dxvk.conf
-
-      - name: Fetch add-ons (Control Bar Pro/HD, ...)
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}   # lets gh download assets of this repo's own releases (private repo)
-        run: |
-          # Downloads each enabled add-on (release asset in this repo, or pinned url) per addons/addons.json and verifies size + sha256.
-          # The launcher refuses to start when assets.sha256 lists a file the zip lacks, so a missing add-on fails the release.
-          New-Item -ItemType Directory -Force out/game | Out-Null
-          & scripts/fetch-addons.ps1 -Out out/game
-          if ($LASTEXITCODE -ne 0) { throw "add-ons missing or failed verification; see addons/addons.json" }
-          exit 0
-
-      - name: Package
-        shell: pwsh
-        run: |
-          $exe = Get-ChildItem build -Recurse -Include generalszh.exe | Where-Object FullName -match Release | Select-Object -First 1
-          if (-not $exe) { throw "generalszh.exe not found" }
-          New-Item -ItemType Directory -Force out/game | Out-Null
-          Copy-Item $exe.FullName out/game/
-          # Any DLLs the build dropped beside the exe (none for the stock preset, but future-proof)
-          Get-ChildItem $exe.DirectoryName -Filter *.dll | Copy-Item -Destination out/game/
-          # Symbols: separate asset, never in the game zip. Match a .dmp to this by tag.
-          $pdb = Join-Path $exe.DirectoryName ($exe.BaseName + ".pdb")
-          if (Test-Path $pdb) { Copy-Item $pdb "out/zh-symbols-${{ github.ref_name }}.pdb" } else { Write-Warning "no PDB emitted; check CMAKE_MSVC_DEBUG_INFORMATION_FORMAT / linker /DEBUG" }
-          # Asset manifest: generated once from a clean Steam install (scripts/make-asset-manifest.ps1), committed to the repo.
-          if (Test-Path assets.sha256) { Copy-Item assets.sha256 out/game/ } else { Write-Warning "assets.sha256 missing; launcher will skip asset check" }
-          # Shipped config so both machines are identical. Any files under config/ land in the game root.
-          if (Test-Path config) { Copy-Item config/* out/game/ -Recurse -Force }
-          Set-Content out/game/BUILD_VERSION.txt "${{ github.ref_name }} ${{ github.sha }}"
-          Compress-Archive -Path out/game/* -DestinationPath zh-game-${{ github.ref_name }}.zip
-          Compress-Archive -Path out/launcher/ZHLauncher.exe -DestinationPath zh-launcher-${{ github.ref_name }}.zip
+          & scripts/package.ps1 -Tag "${{ inputs.tag }}" -Sha "${{ github.sha }}" -OutDir out
+          exit $LASTEXITCODE
 
       - name: Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
         with:
+          tag_name: ${{ inputs.tag }}
           files: |
-            zh-game-${{ github.ref_name }}.zip
-            zh-launcher-${{ github.ref_name }}.zip
+            out/zh-game-${{ inputs.tag }}.zip
+            out/zh-launcher-${{ inputs.tag }}.zip
+            out/zh-symbols-${{ inputs.tag }}.pdb
           generate_release_notes: true
