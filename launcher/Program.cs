@@ -13,6 +13,17 @@ using System.Security.Cryptography;
 using System.Text.Json;
 
 var dir = AppContext.BaseDirectory;
+// Everything printed also goes to logs\launcher.log (append), so a failure on the other machine can be read after the
+// fact; an unexpected exception is printed and the window waits for a key instead of vanishing.
+string? LogFile = null;
+try { Directory.CreateDirectory(Path.Combine(dir, "logs")); LogFile = Path.Combine(dir, "logs", "launcher.log"); } catch { }
+Log($"=== ZHLauncher start {DateTime.Now:yyyy-MM-dd HH:mm:ss} in {dir} ===");
+AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+{
+    Log($"FATAL: {e.ExceptionObject}");
+    Log("The launcher hit an unexpected error. Send logs\\launcher.log. Press any key.");
+    try { Console.ReadKey(); } catch { }
+};
 var cfgPath = Path.Combine(dir, "launcher.json");
 var versionPath = Path.Combine(dir, "BUILD_VERSION.txt");
 var selfPath = Environment.ProcessPath ?? Path.Combine(dir, "ZHLauncher.exe");
@@ -269,7 +280,12 @@ Log($"Launching {cfg.Executable} {gameArgs}");
 Process.Start(new ProcessStartInfo(target, gameArgs) { WorkingDirectory = dir, UseShellExecute = true });
 return 0;
 
-static void Log(string s) => Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] {s}");
+void Log(string s)
+{
+    var line = $"[{DateTime.Now:HH:mm:ss}] {s}";
+    Console.WriteLine(line);
+    if (LogFile is not null) { try { File.AppendAllText(LogFile, line + Environment.NewLine); } catch { } }
+}
 
 // Steam writes the game's registry key (installScript.vdf); fall back to scanning the Steam library folders.
 static string? FindSteamZeroHour()
@@ -305,7 +321,7 @@ static string? FindSteamZeroHour()
 
 // Copy the Steam folder minus third-party leftovers (GenTool proxy, GenPatcher add-ons/backups, GenLauncher, a stale rebuilt exe).
 // Same list as scripts/stage-install.ps1. Idempotent: existing identical files are skipped.
-static int CopyGameFolder(string src, string dst)
+int CopyGameFolder(string src, string dst)
 {
     var skipFile = new System.Text.RegularExpressions.Regex(
         @"^(\d{3}_.*\.big|d3d8\.dll|d3d8\.cfg|d3d9\.dll|dxvk\.conf|GenToolUpdater\.exe|game\.dat-VISION\.log|EdgeScroller\.exe|CustomContentMaps\.big|generalszh\.exe|.*\.bak)$",
