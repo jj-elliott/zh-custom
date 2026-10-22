@@ -1,6 +1,6 @@
 {
   "Repo": "jj-elliott/zh-custom",
-  "Token": "github_pat_XXXX_read_only_contents_on_this_repo",
+  "Token": "",
   "Executable": "generalszh.exe",
   "Args": "-win",
   "Debug": false,

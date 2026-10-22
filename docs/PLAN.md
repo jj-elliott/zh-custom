@@ -65,7 +65,8 @@ Keep your own work on branches off `main`; tag from `main`.
    peer). If he ever installed them, run Steam's "Verify integrity" and delete the leftovers (`d3d8.*`, `GenTool*`, numbered `NNN_*.big`,
    `CustomContentMaps.big`, `EdgeScroller.exe`, `launcher\`). The launcher's `assets.sha256` check will refuse to start otherwise.
 2. Drop `ZHLauncher.exe` and `launcher.json` into that folder.
-3. In `launcher.json` set `Repo` and a **fine-grained PAT**: GitHub → Settings → Developer settings → Fine-grained tokens → repository access = `zh-custom` only, permission = Contents: Read. Set a long expiry. (Private repo assets need auth; this token can do nothing except read that one repo. If you'd rather, make the repo public and leave `Token` empty.)
+3. In `launcher.json` set `Repo` to `jj-elliott/zh-custom` and leave `Token` empty: the repo is **public** (decided 2026-10-21), so the
+   launcher needs no credentials, nothing expires, and GitHub Actions is free. Set `MapPack` to the current map-pack tag.
 4. Shortcut to `ZHLauncher.exe` on the desktop. Done. From now on he just double-clicks it.
 
 Launcher behaviour: compares `BUILD_VERSION.txt` to `releases/latest`; downloads and overwrites if different, keeps `generalszh.exe.prev` as a one-step rollback; if offline it launches whatever is installed.
