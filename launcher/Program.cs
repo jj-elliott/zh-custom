@@ -26,8 +26,15 @@ try
     if (!string.IsNullOrWhiteSpace(cfg.Token))
         http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", cfg.Token);
 
-    var rel = await http.GetFromJsonAsync<Release>($"https://api.github.com/repos/{cfg.Repo}/releases/latest");
-    if (rel is null) throw new Exception("no release returned");
+    // Not /releases/latest: that is simply the newest non-prerelease by date, and the repo also publishes add-on and
+    // map-pack releases (addons-v1, maps-v1). Pick the newest release that is a game release: tag "v*", not a
+    // prerelease/draft, and carrying a zh-game-*.zip asset.
+    var rels = await http.GetFromJsonAsync<Release[]>($"https://api.github.com/repos/{cfg.Repo}/releases?per_page=30")
+               ?? throw new Exception("no releases returned");
+    var rel = rels.FirstOrDefault(r => r.tag_name.StartsWith("v", StringComparison.OrdinalIgnoreCase)
+                                       && !r.prerelease && !r.draft
+                                       && r.assets.Any(a => a.name.StartsWith("zh-game-", StringComparison.OrdinalIgnoreCase)))
+              ?? throw new Exception("no game release (tag v*, with zh-game-*.zip) found");
     Log($"Latest release:  {rel.tag_name}");
 
     if (rel.tag_name != localTag)
@@ -183,5 +190,5 @@ record Config
     public bool AllowMismatch { get; init; } = false; // true = launch even if assets.sha256 doesn't match
     public string MapPack { get; init; } = "";        // release tag of the map pack to install into Documents\...\Maps (e.g. "maps-v1"); empty = skip
 }
-record Release(string tag_name, Asset[] assets);
+record Release(string tag_name, Asset[] assets, bool prerelease = false, bool draft = false);
 record Asset(string name, string url, long size);

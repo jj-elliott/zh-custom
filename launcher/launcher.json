@@ -5,5 +5,5 @@
   "Args": "-win",
   "Debug": false,
   "AllowMismatch": false,
-  "MapPack": ""
+  "MapPack": "maps-v1"
 }
