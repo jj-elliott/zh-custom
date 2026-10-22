@@ -30,10 +30,14 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
 - [x] **9. Camera height scale** — done 2026-10-21, merged to `main` (3a417b362): `Core/GameEngine/Include/Common/CameraHeightScale.h` (+cpp),
       `DefaultScale = 1.5` (310 → 465) for everyone in network games, `Options.ini` `CameraHeightScale` honoured offline. CRC-verified no-op;
       human play-tested: "feels right". Pitch left at retail 37.5 (GenTool's 37 was the same).
-- [~] **10. Add-ons in the release zip** — done 2026-10-21 (`addons/addons.json`, `fetch-addons.ps1`, `stage-install.ps1`, `release.yml`;
-      Control Bar Pro bundles `GenTool/fullviewport.dat`, so no launcher flag). Human-verified in a replay. Map pack: `make-map-pack.ps1` +
-      launcher `MapPack` done; publishing needs the Phase 2 repo. **Open:** pin download URLs in `addons.json` (CI currently warns and skips);
-      test `310_ExpandedLANLobbyMenu` against upstream's lobby; confirm borderless 3840×2160 and pin launcher args.
+- [x] **10. Add-ons in the release zip** — done 2026-10-21. Archives are assets of release `addons-v1` in `jj-elliott/zh-custom` (public),
+      fetched by `fetch-addons.ps1` (gh), layered by `stage-install.ps1`, packaged by `package.ps1`. Map pack `maps-v1` published, installed by
+      the launcher. **Still open (small):** test `310_ExpandedLANLobbyMenu` against upstream's lobby; confirm borderless 3840×2160 and pin
+      launcher args.
+- [x] **Phase 2/3 (2026-10-21):** repo `jj-elliott/zh-custom` public; releases `v0.1.0`, `v0.1.1` (launcher fix), `addons-v1`, `maps-v1`
+      (prereleases). Attended release path `scripts/release.ps1` proven; `release.yml` is a dispatch-only fallback. Launcher verified on this
+      machine: dev-local → v0.1.0 → v0.1.1 self-update, manifest check, map-pack install, DXVK 2.5.3 active. Dad kit `out/zh-dad-kit-v0.1.1.zip`
+      handed to the human. **Open:** the second-machine test (human only).
 - [ ] **11. Shared defaults.** `ArchiveReplays=yes`, FPS limit, overlay font sizes (FPS/clock/timer/ping/money), `CursorCaptureMode` — set via
       code defaults or a launcher-merged `config/` snippet so both machines match without touching menus. Optional: map + player names in the
       archived replay filename.

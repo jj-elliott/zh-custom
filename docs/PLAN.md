@@ -43,7 +43,7 @@ cmake --build build/win32 --target z_generals
 copy build\win32\GeneralsMD\Release\generalszh.exe C:\Games\ZH\ZeroHour-Dev\
 ```
 
-## Phase 2 — pipeline
+## Phase 2 — pipeline (done 2026-10-21; releases are attended via `scripts/release.ps1`, `release.yml` is the manual fallback)
 
 ```powershell
 .\scripts\bootstrap.ps1 -SkipInstall -CreateRepo -RepoName zh-custom
