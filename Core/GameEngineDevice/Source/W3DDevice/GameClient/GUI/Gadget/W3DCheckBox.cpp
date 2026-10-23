@@ -51,6 +51,9 @@
 #include "GameClient/GameWindowGlobal.h"
 #include "GameClient/GameWindowManager.h"
 #include "W3DDevice/GameClient/W3DGadget.h"
+#include "GameClient/UIStyle.h"	// zh-pipeline procedural gadgets
+#include "GameClient/UILayout.h"
+#include "GameClient/UIGadgets.h"
 #include "W3DDevice/GameClient/W3DDisplay.h"
 
 // DEFINES ////////////////////////////////////////////////////////////////////
@@ -125,6 +128,17 @@ static void drawCheckBoxText( GameWindow *window, WinInstanceData *instData )
 //=============================================================================
 void W3DGadgetCheckBoxDraw( GameWindow *window, WinInstanceData *instData )
 {
+	// zh-pipeline: a window a layout put on the procedural UI system draws through UIGadgets
+	if( UIStyle::isEnabled() )
+	{
+		const UILayout::Style st = UILayout::effectiveStyle( window );
+		if( st > UILayout::STYLE_HIDDEN )
+		{
+			UIGadgets::drawCheckBox( window, instData );
+			return;
+		}
+	}
+
 	Int checkOffsetFromLeft;
 	Color backColor,
 				backBorder,

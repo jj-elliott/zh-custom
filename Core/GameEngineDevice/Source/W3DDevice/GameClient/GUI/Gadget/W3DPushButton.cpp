@@ -153,7 +153,7 @@ void W3DGadgetPushButtonDraw( GameWindow *window, WinInstanceData *instData )
 	// zh-pipeline: a window a layout put on the procedural UI system draws through UIGadgets
 	if( UIStyle::isEnabled() )
 	{
-		const UILayout::Style st = UILayout::styleOf( window );
+		const UILayout::Style st = UILayout::effectiveStyle( window );
 		if( st > UILayout::STYLE_HIDDEN )
 		{
 			UIGadgets::drawPushButton( window, instData, st );
@@ -330,7 +330,7 @@ void W3DGadgetPushButtonImageDrawOne( GameWindow *window,
 	// zh-pipeline: a window a layout put on the procedural UI system draws through UIGadgets
 	if( UIStyle::isEnabled() )
 	{
-		const UILayout::Style st = UILayout::styleOf( window );
+		const UILayout::Style st = UILayout::effectiveStyle( window );
 		if( st > UILayout::STYLE_HIDDEN )
 		{
 			UIGadgets::drawPushButton( window, instData, st );
@@ -514,7 +514,7 @@ void W3DGadgetPushButtonImageDrawThree(GameWindow *window, WinInstanceData *inst
 	// zh-pipeline: a window a layout put on the procedural UI system draws through UIGadgets
 	if( UIStyle::isEnabled() )
 	{
-		const UILayout::Style st = UILayout::styleOf( window );
+		const UILayout::Style st = UILayout::effectiveStyle( window );
 		if( st > UILayout::STYLE_HIDDEN )
 		{
 			UIGadgets::drawPushButton( window, instData, st );

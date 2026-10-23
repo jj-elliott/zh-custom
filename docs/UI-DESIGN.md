@@ -193,8 +193,10 @@ and set in the same face at 78% size, baseline-aligned by the ascent ratio; the 
 with the last glyph's overlap padding, measured per font as `2·w("H") − w("HH")` and subtracted at every join. Legacy
 screens keep the user's resolution font adjustment until they are redesigned; the new system sizes text in units only.
 
-6.6 **Dev tooling.** `-uiscreen <Layout.wnd>` opens a named screen directly at start; `-uioverlay` draws anchors, stacks and
-unplaced windows; `run.ps1 -Screen x -Res 1920x1080|3840x2160` screenshots a screen at a resolution.
+6.6 **Dev tooling.** `-uiscreen <Layout.wnd>` (built) pushes that shell screen a moment after the main menu is up;
+`run.ps1 -Screenshot N` focuses the game, nudges the pointer and captures the game window; `-Click "x,y;..."` posts
+clicks but the shell did not act on them in testing, so `-uiscreen` is the way to reach a screen. `-uitest` draws the
+component sheet. Still to do: an overlay that shows anchors and unplaced windows.
 
 ## 7. Delivery
 
@@ -206,8 +208,11 @@ unplaced windows; `run.ps1 -Screen x -Res 1920x1080|3840x2160` screenshots a scr
    boxed column and every submenu column, frame and panel squares hidden, shortcut buttons and emblem row placed);
    captures in `docs/ui-screens`. Signed off 2026-10-23 after a click test (panels had to cover the column for hit-testing,
    and the shell's rectangle flash transitions are skipped on layout-managed windows).
-5. Skirmish setup. Sign-off. Then, one screen per step: Solo play, Load/Save, Replay, Multiplayer (LAN lobby, Direct connect,
-   game options), Options dialog shell, Quit/confirm dialogs.
+5. ~~Skirmish setup.~~ Built 2026-10-23: `SkirmishGameOptionsMenu.layout` with panel decorations, the entry, dropdown,
+   check box, list and slider renderers, the medal strip (`ListboxInfo`) on the honours row; `-uiscreen <Layout.wnd>`
+   opens any screen for captures (`docs/ui-screens/skirmish-4k-at-1080.jpg`). Sign-off pending. Then, one screen per
+   step: Solo play, Load/Save, Replay, Multiplayer (LAN lobby, Direct connect, game options), Options dialog shell,
+   Quit/confirm dialogs.
 6. Package: fonts in the release zip, `-classicui` switch kept for one release, FEATURE-PARITY and CODE-MAP updated.
 
 Each step is a separate small commit, reviewed from screenshots before the next starts. Nothing in the simulation is touched;

@@ -43,7 +43,6 @@ void UIStyleTest::draw()
 {
 	if( TheDisplay == nullptr )
 		return;
-	UIStyle::Text::beginFrame();
 	const Palette &p = palette();
 	const Int W = TheDisplay->getWidth();
 	const Int H = TheDisplay->getHeight();

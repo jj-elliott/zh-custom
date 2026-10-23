@@ -19,7 +19,9 @@ if (-not $Dump) {
   $pattern = if ($Full) { "CrashF*.dmp" } else { "CrashM*.dmp" }
   $cands = @(Get-ChildItem "$userData\CrashDumps\$pattern" -ErrorAction SilentlyContinue)
   if ($game) { $cands += @(Get-ChildItem "$game\crashdumps\*.dmp" -ErrorAction SilentlyContinue) }
-  $d = $cands | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+  # newest dump that actually has content: the MiniDumper sometimes leaves a 0-byte CrashMZ beside the real CrashFZ
+  $d = $cands | Where-Object { $_.Length -gt 0 } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+  if (-not $d) { $d = $cands | Sort-Object LastWriteTime -Descending | Select-Object -First 1 }
   if (-not $d) { throw "No crash dumps found under $userData\CrashDumps or $game\crashdumps" }
   $Dump = $d.FullName
 }

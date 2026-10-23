@@ -476,6 +476,14 @@ Int parseUITest(char *args[], int num)
 	return 1;
 }
 
+// -uiscreen <Layout.wnd>: open that shell screen right after the main menu comes up (screenshots without clicking)
+Int parseUIScreen(char *args[], int num)
+{
+	if( num > 1 )
+		UIStyle::setDevScreen( AsciiString( args[ 1 ] ) );
+	return 2;
+}
+
 Int parseNetLog(char *args[], int num)
 {
 	// -netlog <path>: relative paths resolve against the working directory (the game folder once WinMain sets it);
@@ -1254,6 +1262,7 @@ static CommandLineParam paramsForStartup[] =
 	{ "-netlog", parseNetLog },
 	{ "-classicui", parseClassicUI },
 	{ "-uitest", parseUITest },
+	{ "-uiscreen", parseUIScreen },
 
 	// zh-pipeline @feature 2026-10-21 Solo netcode rig and LAN-over-tailnet:
 	//  -multiinstance  allow a second copy on this machine (it gets Options_Instance02.ini)

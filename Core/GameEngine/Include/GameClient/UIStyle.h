@@ -6,6 +6,7 @@
 #include "Lib/BaseType.h"
 #include "GameClient/Color.h"
 #include "Common/UnicodeString.h"
+#include "Common/AsciiString.h"
 
 namespace UIStyle
 {
@@ -14,6 +15,8 @@ namespace UIStyle
 	void setEnabled( Bool on );
 	Bool isTestScreen();         ///< draw the component sheet over the shell (-uitest)
 	void setTestScreen( Bool on );
+	const AsciiString &devScreen();              ///< -uiscreen <Layout.wnd>: opened once the main menu is up (dev tooling)
+	void setDevScreen( const AsciiString &name );
 
 	// ---- scale and frame (§5): the content frame is 16:9, centred, filling the height (letterboxed by the scene on wider
 	// screens) or the width (bands on 16:10 and squarer). One design unit = frame height / 1080.

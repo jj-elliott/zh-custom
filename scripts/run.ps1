@@ -41,28 +41,41 @@ if ($Screenshot -gt 0) {
   $hp = [IntPtr]::Zero
   for ($i = 0; $i -lt 20 -and $hp -eq [IntPtr]::Zero; $i++) { $p.Refresh(); $hp = $p.MainWindowHandle; if ($hp -eq [IntPtr]::Zero) { Start-Sleep -Milliseconds 250 } }
   if ($hp -ne [IntPtr]::Zero) {
+    # Windows refuses SetForegroundWindow from a background process unless the caller recently sent input: tap Alt first.
+    # The game also gates input on WM_ACTIVATEAPP, so post that as well in case the foreground switch is refused anyway.
+    Add-Type -Namespace Native -Name Key -MemberDefinition @'
+      [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+      [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);
+'@
+    [Native.Key]::keybd_event(0x12, 0, 0, [UIntPtr]::Zero); [Native.Key]::keybd_event(0x12, 0, 2, [UIntPtr]::Zero)
     [Native.Poke]::SetForegroundWindow($hp) | Out-Null
+    [Native.Key]::PostMessage($hp, 0x001C, [IntPtr]1, [IntPtr]0) | Out-Null   # WM_ACTIVATEAPP, active
     $wr = New-Object Native.Poke+RECT
     if ([Native.Poke]::GetWindowRect($hp, [ref]$wr)) {
       $cx = [int](($wr.Left + $wr.Right) / 2); $cy = [int](($wr.Top + $wr.Bottom) / 2)
       foreach ($d in 0, 40, 80, 40, 0) { [Native.Poke]::SetCursorPos($cx + $d, $cy + $d) | Out-Null; Start-Sleep -Milliseconds 120 }
     }
     if ($Click) {
-      Add-Type -Namespace Native -Name Mouse -MemberDefinition @'
-        [DllImport("user32.dll")] public static extern void mouse_event(uint flags, int dx, int dy, uint data, UIntPtr extra);
+      # Post the messages the game's window procedure handles (WM_MOUSEMOVE, WM_LBUTTONDOWN/UP with client coordinates)
+      # rather than injecting input: injected button events did not reach the game, the messages do.
+      Add-Type -Namespace Native -Name Msg -MemberDefinition @'
+        [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);
         [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr hwnd, ref POINT pt);
         [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X, Y; }
 '@
-      Start-Sleep 1
+      Start-Sleep 3   # the shell ignores clicks while its entry transitions play
       foreach ($pair in ($Click -split ";")) {
         $xy = $pair -split ","; if ($xy.Count -ne 2) { continue }
-        $pt = New-Object Native.Mouse+POINT; $pt.X = [int]$xy[0]; $pt.Y = [int]$xy[1]
-        [Native.Mouse]::ClientToScreen($hp, [ref]$pt) | Out-Null
-        [Native.Poke]::SetCursorPos($pt.X, $pt.Y) | Out-Null; Start-Sleep -Milliseconds 150
-        [Native.Mouse]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero); Start-Sleep -Milliseconds 80   # left down
-        [Native.Mouse]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)                                  # left up
-        Write-Host "click: client $($xy[0]),$($xy[1])"
-        Start-Sleep 1
+        $cx = [int]$xy[0]; $cy = [int]$xy[1]
+        $pt = New-Object Native.Msg+POINT; $pt.X = $cx; $pt.Y = $cy
+        [Native.Msg]::ClientToScreen($hp, [ref]$pt) | Out-Null
+        [Native.Poke]::SetCursorPos($pt.X, $pt.Y) | Out-Null
+        $lp = [IntPtr](($cy -shl 16) -bor ($cx -band 0xFFFF))
+        [Native.Msg]::PostMessage($hp, 0x0200, [IntPtr]0, $lp) | Out-Null; Start-Sleep -Milliseconds 120      # WM_MOUSEMOVE
+        [Native.Msg]::PostMessage($hp, 0x0201, [IntPtr]1, $lp) | Out-Null; Start-Sleep -Milliseconds 120      # WM_LBUTTONDOWN
+        [Native.Msg]::PostMessage($hp, 0x0202, [IntPtr]0, $lp) | Out-Null                                     # WM_LBUTTONUP
+        Write-Host "click: client $cx,$cy"
+        Start-Sleep 2
       }
     }
   }

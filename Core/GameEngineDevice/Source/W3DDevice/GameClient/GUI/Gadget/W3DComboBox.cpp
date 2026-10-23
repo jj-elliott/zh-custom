@@ -52,6 +52,9 @@
 #include "GameClient/GadgetComboBox.h"
 #include "GameClient/GadgetListBox.h"
 #include "W3DDevice/GameClient/W3DGadget.h"
+#include "GameClient/UIStyle.h"	// zh-pipeline procedural gadgets
+#include "GameClient/UILayout.h"
+#include "GameClient/UIGadgets.h"
 #include "W3DDevice/GameClient/W3DDisplay.h"
 
 // DEFINES ////////////////////////////////////////////////////////////////////
@@ -78,6 +81,10 @@
 //=============================================================================
 void W3DGadgetComboBoxDraw( GameWindow *window, WinInstanceData *instData )
 {
+	// zh-pipeline: chrome first; the stock drawing below keeps only text, caret and selection (colours cleared by the layout)
+	if( UIStyle::isEnabled() && UILayout::effectiveStyle( window ) > UILayout::STYLE_HIDDEN )
+		UIGadgets::drawComboChrome( window, instData );
+
 	Int width, height, fontHeight, x, y;
 	Color background, border, titleColor, titleBorder;
 //	ComboBoxData *combo = (ComboBoxData *)window->winGetUserData();

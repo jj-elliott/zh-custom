@@ -24,6 +24,9 @@ Bool isEnabled() { return s_enabled; }
 void setEnabled( Bool on ) { s_enabled = on; }
 Bool isTestScreen() { return s_testScreen; }
 void setTestScreen( Bool on ) { s_testScreen = on; }
+static AsciiString s_devScreen;
+const AsciiString &devScreen() { return s_devScreen; }
+void setDevScreen( const AsciiString &name ) { s_devScreen = name; }
 
 // ---- scale ------------------------------------------------------------------------------------------------------------
 
@@ -150,10 +153,17 @@ namespace
 	std::vector<DisplayString *> s_pool;
 	size_t s_cursor = 0;
 
+	// Pool entries are handed out in draw order and the cursor is reset by beginFrame() each frame (InGameUI::postDraw).
+	// A hard cap guards against a missing reset: past it the pool wraps instead of growing, which only risks a wrong
+	// string on screen, never the unbounded allocation that once exhausted the renderer's memory.
+	const size_t POOL_CAP = 2048;
+
 	DisplayString *take()
 	{
 		if( TheDisplayStringManager == nullptr )
 			return nullptr;
+		if( s_cursor >= POOL_CAP )
+			s_cursor = 0;
 		if( s_cursor >= s_pool.size() )
 			s_pool.push_back( TheDisplayStringManager->newDisplayString() );
 		return s_pool[ s_cursor++ ];

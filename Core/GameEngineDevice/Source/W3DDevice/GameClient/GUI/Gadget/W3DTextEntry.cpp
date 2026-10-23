@@ -51,6 +51,9 @@
 #include "GameClient/GadgetTextEntry.h"
 #include "GameClient/IMEManager.h"
 #include "W3DDevice/GameClient/W3DGadget.h"
+#include "GameClient/UIStyle.h"	// zh-pipeline procedural gadgets
+#include "GameClient/UILayout.h"
+#include "GameClient/UIGadgets.h"
 #include "W3DDevice/GameClient/W3DDisplay.h"
 
 
@@ -215,6 +218,10 @@ static void drawTextEntryText( GameWindow *window, WinInstanceData *instData,
 //=============================================================================
 void W3DGadgetTextEntryDraw( GameWindow *window, WinInstanceData *instData )
 {
+	// zh-pipeline: chrome first; the stock drawing below keeps only text, caret and selection (colours cleared by the layout)
+	if( UIStyle::isEnabled() && UILayout::effectiveStyle( window ) > UILayout::STYLE_HIDDEN )
+		UIGadgets::drawEntryChrome( window, instData );
+
 	EntryData *e = (EntryData *)window->winGetUserData();
 	ICoord2D origin, size, start, end;
 	Color backBorder, backColor, textColor, textBorder,

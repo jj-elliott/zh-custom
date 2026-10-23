@@ -54,6 +54,7 @@
 #include "GameClient/DisplayStringManager.h"
 #include "GameClient/UIStyle.h"	// zh-pipeline -uitest
 #include "GameClient/UIStyleTest.h"
+#include "GameClient/UILayout.h"
 #include "GameClient/Diplomacy.h"
 #include "GameClient/Eva.h"
 #include "GameClient/GameText.h"
@@ -3790,6 +3791,11 @@ void InGameUI::postWindowDraw()
 //-------------------------------------------------------------------------------------------------
 void InGameUI::postDraw()
 {
+	// zh-pipeline: the UI text pool is reused in draw order, once per frame; layout decorations (panels, rules, rulers)
+	// go under the windows the manager is about to draw
+	UIStyle::Text::beginFrame();
+	UILayout::drawDecorations();
+
 
 	// render our display strings for the messages if on
 	if( m_messagesOn )

@@ -41,6 +41,7 @@
 #include "GameLogic/GameLogic.h"
 #include "GameNetwork/GameSpyOverlay.h"
 #include "GameNetwork/GameSpy/PeerDefsImplementation.h"
+#include "GameClient/UIStyle.h"	// zh-pipeline -uiscreen
 
 // PUBLIC DATA ////////////////////////////////////////////////////////////////////////////////////
 Shell *TheShell = nullptr;  ///< the shell singleton definition
@@ -215,6 +216,23 @@ void Shell::update()
 			DEBUG_ASSERTCRASH( m_screenStack[ i ], ("Top of shell stack is null!") );
 			m_screenStack[ i ]->runUpdate( nullptr );
 
+		}
+
+		// zh-pipeline: -uiscreen opens a named screen once the main menu has been up for a moment (docs/UI-DESIGN.md 6.6)
+		{
+			static Int ticksWithShell = 0;
+			if( !UIStyle::devScreen().isEmpty() && m_screenCount >= 1 && ++ticksWithShell > 45 )
+			{
+				AsciiString name = UIStyle::devScreen();
+				UIStyle::setDevScreen( AsciiString::TheEmptyString );
+				if( strchr( name.str(), '/' ) == nullptr && strchr( name.str(), 92 ) == nullptr )
+				{
+					AsciiString full;
+					full.format( "Menus/%s", name.str() );
+					name = full;
+				}
+				push( name );
+			}
 		}
 		if(TheGlobalData->m_shellMapOn && m_shellMapOn &&m_background)
 		{

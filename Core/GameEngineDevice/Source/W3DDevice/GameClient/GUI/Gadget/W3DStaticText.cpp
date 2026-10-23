@@ -155,7 +155,7 @@ void W3DGadgetStaticTextDraw( GameWindow *window, WinInstanceData *instData )
 	// zh-pipeline: a window a layout put on the procedural UI system draws through UIGadgets
 	if( UIStyle::isEnabled() )
 	{
-		const UILayout::Style st = UILayout::styleOf( window );
+		const UILayout::Style st = UILayout::effectiveStyle( window );
 		if( st > UILayout::STYLE_HIDDEN )
 		{
 			UIGadgets::drawStaticText( window, instData, st );
@@ -232,7 +232,7 @@ void W3DGadgetStaticTextImageDraw( GameWindow *window, WinInstanceData *instData
 	// zh-pipeline: a window a layout put on the procedural UI system draws through UIGadgets
 	if( UIStyle::isEnabled() )
 	{
-		const UILayout::Style st = UILayout::styleOf( window );
+		const UILayout::Style st = UILayout::effectiveStyle( window );
 		if( st > UILayout::STYLE_HIDDEN )
 		{
 			UIGadgets::drawStaticText( window, instData, st );

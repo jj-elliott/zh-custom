@@ -52,6 +52,9 @@
 #include "W3DDevice/GameClient/W3DGameWindow.h"
 #include "W3DDevice/GameClient/W3DGameWindowManager.h"
 #include "W3DDevice/GameClient/W3DDisplay.h"
+#include "GameClient/UIStyle.h"	// zh-pipeline procedural gadgets
+#include "GameClient/UILayout.h"
+#include "GameClient/UIGadgets.h"
 
 // DEFINES ////////////////////////////////////////////////////////////////////
 enum
@@ -288,6 +291,13 @@ W3DGameWindow::~W3DGameWindow()
 //=============================================================================
 void W3DGameWinDefaultDraw( GameWindow *window, WinInstanceData *instData )
 {
+	// zh-pipeline: a USER window a layout styles as a panel
+	if( UIStyle::isEnabled() && UILayout::styleOf( window ) == UILayout::STYLE_PANEL )
+	{
+		UIGadgets::drawPanel( window, instData );
+		return;
+	}
+
 	Real borderWidth = 1.0f;
 	ICoord2D origin;
 	ICoord2D size;
