@@ -30,6 +30,7 @@
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
 #include "GameClient/GameFont.h"
+#include "GameClient/UIFonts.h"	// zh-pipeline typeface substitution
 
 // PUBLIC DATA ////////////////////////////////////////////////////////////////////////////////////
 FontLibrary *TheFontLibrary = nullptr;
@@ -178,6 +179,17 @@ void FontLibrary::reset()
 //-------------------------------------------------------------------------------------------------
 GameFont *FontLibrary::getFont( AsciiString name, Int pointSize, Bool bold )
 {
+	// zh-pipeline: while the menu UI system is on, the 2003 face names resolve to the shipped typeface (UIFonts)
+	{
+		AsciiString subName;
+		Bool subBold = bold;
+		if( UIFonts::substitute( name, bold, subName, subBold ) )
+		{
+			name = subName;
+			bold = subBold;
+		}
+	}
+
 	// TheSuperHackers @fix No longer creates fonts with zero size and clamps oversized fonts.
 	// The upper bound caps glyph buffer memory when a resolution-scaled point size gets very large.
 	enum { FONT_POINT_SIZE_MAX = 512 };
