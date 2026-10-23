@@ -36,8 +36,11 @@ These need the actual source tree or a Windows machine, so bootstrap.ps1 left th
       Step 2 passed 2026-10-22. Step 3 done the same day: `config/Fonts` (Barlow, Barlow Semi Condensed, Saira Stencil One, OFL),
       `UIFonts` registration + legacy name substitution in `FontLibrary::getFont`, `UIStyle::Text` small caps.
       Step 4 built 2026-10-23: `UILayout` (layout descriptions), `UIGadgets` (push button + static text renderers), hooks in the
-      W3D push-button and static-text draw functions, `config/UI/Layouts/MainMenu.layout`. **Next:** sign-off on the main menu,
-      then skirmish setup (dropdown, entry, checkbox, list, slider renderers + its layout), then the remaining shell screens.
+      W3D push-button and static-text draw functions, `config/UI/Layouts/MainMenu.layout`. **Next:** main menu signed off 2026-10-23. Step 5 (skirmish setup) built the same day:
+      panel/rule/ruler decorations, entry / dropdown / checkbox / list / slider renderers (chrome first, stock text drawing
+      kept with cleared colours), `at:` and `text:` window matching, `-uiscreen`. A missing per-frame text-pool reset
+      exhausted DXVK memory in ~30 s on real screens (fixed: `UIStyle::Text::beginFrame` from `InGameUI::postDraw`, pool
+      capped). Sign-off on skirmish pending (needs a click test), then the remaining shell screens.
       Known: the shell shows its menu only once the window has focus and the pointer has moved; `run.ps1 -Screenshot` now
       focuses the window and nudges the cursor four seconds before the shot, which steals focus: only run it when the human
       has said the screen is free (they may be gaming).
