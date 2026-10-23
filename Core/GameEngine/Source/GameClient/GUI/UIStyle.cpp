@@ -118,26 +118,41 @@ static Color tint( Color base, Color over, Real amount )
 namespace Draw
 {
 
+// one corner bracket: a stub along each edge joined by the corner arc, so it hugs the rounded corner instead of sitting
+// beside it. (cx, cy) is the arc centre, a0 the angle of the first stub's edge, the arc runs a quarter turn to a1.
+static void cornerBracket( Real cx, Real cy, Real r, Real a0, Real a1, Real len, Real stroke, Color c )
+{
+	const Int arcSegs = 6;
+	Coord2D pts[ arcSegs + 3 ];
+	Int n = 0;
+	// stub end before the arc: continue the edge beyond the arc start
+	const Real sx = cx + r * cosf( a0 ), sy = cy + r * sinf( a0 );
+	const Real tx = -sinf( a0 ), ty = cosf( a0 );   // tangent at a0, pointing in the direction of decreasing angle
+	pts[ n ].x = sx + tx * len * ( ( a1 > a0 ) ? -1.0f : 1.0f ); pts[ n ].y = sy + ty * len * ( ( a1 > a0 ) ? -1.0f : 1.0f ); ++n;
+	for( Int i = 0; i <= arcSegs; ++i )
+	{
+		const Real a = a0 + ( a1 - a0 ) * (Real)i / (Real)arcSegs;
+		pts[ n ].x = cx + r * cosf( a ); pts[ n ].y = cy + r * sinf( a ); ++n;
+	}
+	const Real ex = cx + r * cosf( a1 ), ey = cy + r * sinf( a1 );
+	const Real ux = -sinf( a1 ), uy = cosf( a1 );
+	pts[ n ].x = ex + ux * len * ( ( a1 > a0 ) ? 1.0f : -1.0f ); pts[ n ].y = ey + uy * len * ( ( a1 > a0 ) ? 1.0f : -1.0f ); ++n;
+	TheDisplay->drawPolyline( pts, n, stroke, c );
+}
+
 void brackets( Int x, Int y, Int w, Int h, Real radiusUnits )
 {
 	const Palette &p = palette();
 	const Color c = withAlpha( p.signalBlue, 0.7f );
-	const Int len = u( Metric::Bracket );
+	const Real len = uf( Metric::Bracket );
 	const Real stroke = uf( Metric::BracketStroke );
-	const Int r = u( radiusUnits );
-	// each bracket: a short arc-free L that starts past the corner radius, so it reads as a reticle, not a second border
-	// top-left
-	TheDisplay->drawLine( x + r, y, x + r + len, y, stroke, c );
-	TheDisplay->drawLine( x, y + r, x, y + r + len, stroke, c );
-	// top-right
-	TheDisplay->drawLine( x + w - r - len, y, x + w - r, y, stroke, c );
-	TheDisplay->drawLine( x + w, y + r, x + w, y + r + len, stroke, c );
-	// bottom-left
-	TheDisplay->drawLine( x + r, y + h, x + r + len, y + h, stroke, c );
-	TheDisplay->drawLine( x, y + h - r - len, x, y + h - r, stroke, c );
-	// bottom-right
-	TheDisplay->drawLine( x + w - r - len, y + h, x + w - r, y + h, stroke, c );
-	TheDisplay->drawLine( x + w, y + h - r - len, x + w, y + h - r, stroke, c );
+	const Real r = uf( radiusUnits );
+	const Real kPi = 3.14159265f;
+	// the stroke sits centred on the outline: offset the arc centres by nothing, the outline is at the rect edge
+	cornerBracket( x + r,     y + r,     r, kPi,       1.5f * kPi, len, stroke, c );   // top-left: left edge -> arc -> top edge
+	cornerBracket( x + w - r, y + r,     r, 1.5f * kPi, 2.0f * kPi, len, stroke, c );   // top-right
+	cornerBracket( x + w - r, y + h - r, r, 0.0f,      0.5f * kPi, len, stroke, c );   // bottom-right
+	cornerBracket( x + r,     y + h - r, r, 0.5f * kPi, kPi,       len, stroke, c );   // bottom-left
 }
 
 void grid( Int x, Int y, Int w, Int h )
@@ -281,13 +296,11 @@ void menuButton( Int x, Int y, Int w, Int h, ControlState state, Bool focused )
 	{
 		// top corner brackets, as on the mockup
 		const Color c = withAlpha( p.signalBlue, 0.9f );
-		const Int len = u( Metric::Bracket );
+		const Real len = uf( Metric::Bracket );
 		const Real stroke = uf( Metric::BracketStroke );
-		const Int ri = (Int)r;
-		TheDisplay->drawLine( x + ri, y, x + ri + len, y, stroke, c );
-		TheDisplay->drawLine( x, y + ri, x, y + ri + len, stroke, c );
-		TheDisplay->drawLine( x + w - ri - len, y, x + w - ri, y, stroke, c );
-		TheDisplay->drawLine( x + w, y + ri, x + w, y + ri + len, stroke, c );
+		const Real kPi = 3.14159265f;
+		cornerBracket( x + r,     y + r, r, kPi,       1.5f * kPi, len, stroke, c );
+		cornerBracket( x + w - r, y + r, r, 1.5f * kPi, 2.0f * kPi, len, stroke, c );
 	}
 	if( focused )
 		focusRing( x, y, w, h, Metric::RadiusMenuButton );

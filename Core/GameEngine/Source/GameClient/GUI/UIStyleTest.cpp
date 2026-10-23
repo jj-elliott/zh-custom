@@ -178,7 +178,7 @@ void UIStyleTest::draw()
 
 	// ---- dropdown, entry, checkbox, slider ----------------------------------------------------------------------------
 	text( x, y, "Dropdown, entry, checkbox, slider", TEXT_SECTION, p.textPrimary );
-	y += u( 36.0f );
+	y += u( 62.0f );   // room for the control labels above the row
 	{
 		const Int cw = u( 260.0f ), ch = u( Metric::ControlHeight );
 		// dropdown with open list
@@ -228,7 +228,7 @@ void UIStyleTest::draw()
 		text( sx, y + ch + u( 8.0f ), "slider: fader knob, ticks per step, read-out", TEXT_META, p.textSecondary );
 		Draw::slider( sx, y + ch + u( 40.0f ), sw, 0.25f, 10, STATE_DISABLED );
 	}
-	y += u( 290.0f );
+	y += u( 310.0f );
 
 	// ---- panel with motifs -------------------------------------------------------------------------------------------
 	if( y + u( 230.0f ) <= H )
