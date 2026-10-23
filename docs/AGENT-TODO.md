@@ -39,7 +39,8 @@ These need the actual source tree or a Windows machine, so bootstrap.ps1 left th
       W3D push-button and static-text draw functions, `config/UI/Layouts/MainMenu.layout`. **Next:** sign-off on the main menu,
       then skirmish setup (dropdown, entry, checkbox, list, slider renderers + its layout), then the remaining shell screens.
       Known: the shell shows its menu only once the window has focus and the pointer has moved; `run.ps1 -Screenshot` now
-      focuses the window and nudges the cursor four seconds before the shot. Parked on
+      focuses the window and nudges the cursor four seconds before the shot, which steals focus: only run it when the human
+      has said the screen is free (they may be gaming).
       `render/textures`: texture-pack scripts and the earlier gadget/anchoring drafts (superseded).
 - [~] **8. First netcode fix: adaptive retry timer** — implemented 2026-10-21 on `net/retry` (`Connection.cpp` `processAck`): retry after
       1.5× max(current sample, running average), floor 80 ms, cap 500 ms; 250 ms before the first ack (was a fixed 2000 ms). No backoff yet.
