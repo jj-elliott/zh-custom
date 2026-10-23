@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tokens and components</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600&family=Barlow:wght@500;600&family=Saira+Stencil+One&display=swap">
+<style>
+body{margin:0;font-family:'Barlow',Arial,sans-serif;color:#E8EEF6}
+a{color:#4FA3FF}a:hover{color:#E8EEF6}
+.sc{font-variant-caps:small-caps;letter-spacing:0.04em}
+.h2{font-family:'Barlow Semi Condensed','Barlow',Arial,sans-serif;font-weight:600;font-size:22px;line-height:28px;margin:0 0 16px;font-variant-caps:small-caps;letter-spacing:0.04em}
+.sw{display:flex;flex-direction:column;gap:8px;width:150px}
+.sw .c{height:56px;border-radius:6px;border:1px solid rgba(255,255,255,0.12)}
+.sw .n{font-size:13px;font-weight:500;color:#9FB0C8;font-variant-numeric:tabular-nums}
+.sw .t{font-size:15px;font-weight:500}
+.btn{appearance:none;cursor:pointer;box-sizing:border-box;height:44px;border:1px solid rgba(127,166,217,0.4);border-radius:6px;background:rgba(11,20,36,0.76);color:#E8EEF6;font:500 17px/1 'Barlow',Arial,sans-serif;padding:0 24px;font-variant-caps:small-caps;letter-spacing:0.04em;box-shadow:inset 0 1px 0 rgba(127,166,217,0.18)}
+.btn.hover{border-color:#4FA3FF;background:rgba(79,163,255,0.14);box-shadow:inset 0 1px 0 rgba(0,227,255,0.7)}
+.btn.pressed{background:rgba(30,102,201,0.35);border-color:#4FA3FF}
+.btn.focus{outline:2px solid #4FA3FF;outline-offset:2px}
+.btn.disabled{color:#5E6C80;border-color:rgba(127,166,217,0.18);box-shadow:none}
+.btn.primary{background:linear-gradient(180deg,#F2B544,#E1A631);border-color:transparent;color:#1A1300;font-weight:600;padding:0 40px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.35)}
+.btn.danger{border-color:rgba(255,107,107,0.5);color:#FF6B6B}
+.menu{position:relative;appearance:none;cursor:pointer;box-sizing:border-box;width:440px;height:52px;border:1px solid rgba(127,166,217,0.4);border-radius:8px;background:linear-gradient(180deg,rgba(14,26,46,0.82),rgba(9,16,30,0.82));color:#E8EEF6;font:600 26px/1 'Barlow Semi Condensed','Barlow',Arial,sans-serif;font-variant-caps:small-caps;letter-spacing:0.06em;text-align:center;box-shadow:inset 0 1px 0 rgba(127,166,217,0.18)}
+.menu.hover{border-color:#4FA3FF;background:linear-gradient(180deg,rgba(79,163,255,0.22),rgba(30,102,201,0.18));box-shadow:inset 0 1px 0 rgba(0,227,255,0.7)}
+.menu.hover:before,.menu.hover:after{content:"";position:absolute;top:-1px;width:14px;height:14px;border-top:2px solid rgba(79,163,255,0.9)}
+.menu.hover:before{left:-1px;border-left:2px solid rgba(79,163,255,0.9);border-top-left-radius:8px}
+.menu.hover:after{right:-1px;border-right:2px solid rgba(79,163,255,0.9);border-top-right-radius:8px}
+.menu.pressed{border-color:#4FA3FF;background:rgba(30,102,201,0.4)}
+.ctl{box-sizing:border-box;height:44px;border:1px solid rgba(127,166,217,0.4);border-radius:6px;background:rgba(11,20,36,0.76);color:#E8EEF6;font:500 17px/1 'Barlow',Arial,sans-serif;display:flex;align-items:center;justify-content:space-between;padding:0 16px;gap:8px;width:260px}
+.ctl.focus{border-color:#4FA3FF;box-shadow:0 0 0 2px #4FA3FF}
+.chev{width:12px;height:12px;flex:none}
+.cap{font-size:13px;font-weight:500;color:#9FB0C8;margin-top:8px;font-variant-caps:small-caps;letter-spacing:0.04em}
+.item{display:flex;flex-direction:column;gap:0}
+.lrow{height:40px;display:flex;align-items:center;padding:0 16px;font-size:15px;font-weight:500}
+.lrow.sel{background:rgba(79,163,255,0.2);box-shadow:inset 3px 0 0 #4FA3FF}
+.lrow.hov{background:rgba(255,255,255,0.05)}
+.fader{display:flex;align-items:center;gap:14px;width:300px}
+.fader .trk{position:relative;flex:1;height:4px;border-radius:2px;background:rgba(127,166,217,0.4)}
+.fader .fill{position:absolute;left:0;top:0;height:4px;border-radius:2px;background:#4FA3FF}
+.fader .ticks{position:absolute;left:0;right:0;top:10px;height:6px;display:flex;justify-content:space-between}
+.fader .ticks span{width:1px;height:6px;background:rgba(127,166,217,0.4)}
+.fader .knob{position:absolute;top:50%;width:10px;height:24px;margin:-12px 0 0 -5px;border-radius:2px;background:#E8EEF6;border:1px solid rgba(0,0,0,0.35);box-sizing:border-box}
+.fader .knob:after{content:"";position:absolute;left:4px;top:5px;width:1px;height:12px;background:rgba(0,0,0,0.35)}
+.fader .val{box-sizing:border-box;width:56px;height:32px;border:1px solid rgba(127,166,217,0.4);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:500;font-variant-numeric:tabular-nums;background:rgba(11,20,36,0.76)}
+.panel{position:relative;background-color:rgba(11,20,36,0.76);background-image:linear-gradient(rgba(127,166,217,0.07) 1px,transparent 1px),linear-gradient(90deg,rgba(127,166,217,0.07) 1px,transparent 1px);background-size:24px 24px;border:1px solid rgba(127,166,217,0.18);border-radius:10px}
+.bk{position:absolute;width:14px;height:14px;border:0 solid rgba(79,163,255,0.7)}
+.bk.tl{left:-1px;top:-1px;border-top-width:2px;border-left-width:2px;border-top-left-radius:10px}
+.bk.tr{right:-1px;top:-1px;border-top-width:2px;border-right-width:2px;border-top-right-radius:10px}
+.bk.bl{left:-1px;bottom:-1px;border-bottom-width:2px;border-left-width:2px;border-bottom-left-radius:10px}
+.bk.br{right:-1px;bottom:-1px;border-bottom-width:2px;border-right-width:2px;border-bottom-right-radius:10px}
+.rule2{height:1px;background:#4FA3FF;box-shadow:0 3px 0 rgba(0,227,255,0.6)}
+.ruler{height:12px;background-image:repeating-linear-gradient(90deg,rgba(127,166,217,0.55) 0 1px,transparent 1px 8px),repeating-linear-gradient(90deg,rgba(127,166,217,0.8) 0 1px,transparent 1px 40px);background-size:8px 6px,40px 12px;background-repeat:repeat-x;background-position:0 100%,0 0}
+.stencil{font-family:'Saira Stencil One','Barlow Semi Condensed',Arial,sans-serif;text-transform:uppercase;letter-spacing:0.04em}
+</style>
+</helmet>
+<div style="position:relative;width:1920px;height:1180px;overflow:hidden;background:#070B14;padding:48px 64px;box-sizing:border-box;display:grid;grid-template-columns:1fr 1fr;gap:40px 64px;grid-template-rows:auto auto auto auto">
+
+  <section style="grid-column:1/3">
+    <h2 class="h2">Color</h2>
+    <div style="display:flex;gap:16px;flex-wrap:wrap">
+      <div class="sw"><div class="c" style="background:#070B14"></div><div class="t">ink.ground</div><div class="n">#070B14</div></div>
+      <div class="sw"><div class="c" style="background:rgba(11,20,36,0.76)"></div><div class="t">panel.fill</div><div class="n">#0B1424 at 76%</div></div>
+      <div class="sw"><div class="c" style="background:rgba(18,32,54,0.88)"></div><div class="t">panel.fill.raised</div><div class="n">#122036 at 88%</div></div>
+      <div class="sw"><div class="c" style="background:rgba(127,166,217,0.18)"></div><div class="t">line.hair</div><div class="n">#7FA6D9 at 18%</div></div>
+      <div class="sw"><div class="c" style="background:rgba(127,166,217,0.4)"></div><div class="t">line.strong</div><div class="n">#7FA6D9 at 40%</div></div>
+      <div class="sw"><div class="c" style="background:#4FA3FF"></div><div class="t">signal.blue</div><div class="n">#4FA3FF</div></div>
+      <div class="sw"><div class="c" style="background:#00E3FF"></div><div class="t">signal.cyan</div><div class="n">#00E3FF, hairlines only</div></div>
+      <div class="sw"><div class="c" style="background:#1E66C9"></div><div class="t">signal.blue.deep</div><div class="n">#1E66C9</div></div>
+      <div class="sw"><div class="c" style="background:#F2B544"></div><div class="t">attention.amber</div><div class="n">#F2B544</div></div>
+      <div class="sw"><div class="c" style="background:#E8EEF6"></div><div class="t">text.primary</div><div class="n">#E8EEF6</div></div>
+      <div class="sw"><div class="c" style="background:#9FB0C8"></div><div class="t">text.secondary</div><div class="n">#9FB0C8</div></div>
+      <div class="sw"><div class="c" style="background:#5E6C80"></div><div class="t">text.disabled</div><div class="n">#5E6C80</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="h2">Type</h2>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="stencil" style="font-size:40px;line-height:48px">Skirmish <span class="sc" style="font-size:13px;font-weight:500;color:#9FB0C8;font-family:'Barlow',Arial,sans-serif;text-transform:none">screen title, Saira Stencil One 40</span></div>
+      <div class="sc" style="font-family:'Barlow Semi Condensed',Arial,sans-serif;font-weight:600;font-size:26px;line-height:32px;letter-spacing:0.06em">Solo Play <span style="font-size:13px;font-weight:500;color:#9FB0C8;font-family:'Barlow',Arial,sans-serif;letter-spacing:0.04em">menu button 26/600</span></div>
+      <div class="sc" style="font-family:'Barlow Semi Condensed',Arial,sans-serif;font-weight:600;font-size:22px;line-height:28px">Players <span style="font-size:13px;font-weight:500;color:#9FB0C8;font-family:'Barlow',Arial,sans-serif">section 22/600</span></div>
+      <div class="sc" style="font-size:17px;line-height:24px;font-weight:500">Limit Superweapons <span style="font-size:13px;color:#9FB0C8">label and button text 17/500</span></div>
+      <div style="font-size:17px;line-height:24px;font-weight:500">Tournament Desert <span class="sc" style="font-size:13px;color:#9FB0C8">body, names, map names 17/500 mixed case</span></div>
+      <div style="font-size:15px;line-height:20px;font-weight:500;font-variant-numeric:tabular-nums">USA Air Force General  12  4 <span class="sc" style="font-size:13px;color:#9FB0C8">table 15/500 tabular</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="h2">Motifs</h2>
+    <div style="display:flex;gap:24px;align-items:flex-start">
+      <div class="panel" style="width:380px;height:220px;padding:20px 20px;box-sizing:border-box">
+        <span class="bk tl" aria-hidden="true"></span><span class="bk tr" aria-hidden="true"></span><span class="bk bl" aria-hidden="true"></span><span class="bk br" aria-hidden="true"></span>
+        <div class="sc" style="font-family:'Barlow Semi Condensed',Arial,sans-serif;font-weight:600;font-size:22px;line-height:28px">Players</div>
+        <div class="rule2" style="margin:8px 0 18px"></div>
+        <div class="ruler" aria-hidden="true"></div>
+        <div class="cap" style="margin-top:18px">drafting grid, corner brackets, two-tone rule, ruler</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div class="item"><button class="menu" type="button">Solo Play</button><div class="cap">menu button, rest</div></div>
+        <div class="item"><button class="menu hover" type="button">Multiplayer</button><div class="cap">menu button, hover: cyan hairline and brackets</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="h2">Buttons</h2>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">
+      <div class="item"><button class="btn" type="button">Select Map</button><div class="cap">rest</div></div>
+      <div class="item"><button class="btn hover" type="button">Select Map</button><div class="cap">hover</div></div>
+      <div class="item"><button class="btn pressed" type="button">Select Map</button><div class="cap">pressed</div></div>
+      <div class="item"><button class="btn focus" type="button">Select Map</button><div class="cap">keyboard focus</div></div>
+      <div class="item"><button class="btn disabled" type="button" disabled>Select Map</button><div class="cap">disabled</div></div>
+      <div class="item"><button class="btn primary" type="button">Start</button><div class="cap">primary</div></div>
+      <div class="item"><button class="btn danger" type="button">Disconnect</button><div class="cap">destructive</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="h2">Dropdown, entry, checkbox, slider</h2>
+    <div style="display:flex;gap:24px;align-items:flex-start">
+      <div class="item">
+        <div class="ctl"><span>USA Air Force General</span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 4l4 4 4-4" fill="none" stroke="#9FB0C8" stroke-width="1.5"/></svg></div>
+        <div style="width:260px;margin-top:6px;border-radius:6px;background:rgba(18,32,54,0.92);border:1px solid rgba(127,166,217,0.18);padding:6px 0;box-sizing:border-box">
+          <div class="lrow">USA</div>
+          <div class="lrow sel">USA Air Force General</div>
+          <div class="lrow hov">USA Laser General</div>
+          <div class="lrow">USA Superweapon General</div>
+          <div class="lrow">China</div>
+        </div>
+        <div class="cap">dropdown, open list, selected and hovered rows</div>
+      </div>
+      <div class="item">
+        <label style="display:flex;flex-direction:column;gap:8px"><span class="cap" style="margin:0">Player</span><input class="ctl focus" type="text" value="Jack" style="width:260px"></label>
+        <div class="cap">text entry, focused</div>
+        <div style="display:flex;flex-direction:column;gap:12px;margin-top:20px">
+          <label style="display:flex;align-items:center;gap:12px;cursor:pointer">
+            <span aria-hidden="true" style="width:20px;height:20px;border-radius:4px;background:#4FA3FF;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 20 20" style="width:20px;height:20px"><path d="M5 10.5l3.2 3.2L15 7" fill="none" stroke="#070B14" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <input type="checkbox" checked style="position:absolute;opacity:0;width:1px;height:1px"><span class="sc" style="font-size:17px;font-weight:500">Limit Superweapons</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:12px;cursor:pointer">
+            <span aria-hidden="true" style="width:20px;height:20px;border-radius:4px;border:1px solid rgba(127,166,217,0.4);box-sizing:border-box;display:inline-block"></span>
+            <input type="checkbox" style="position:absolute;opacity:0;width:1px;height:1px"><span class="sc" style="font-size:17px;font-weight:500">Limit Superweapons</span>
+          </label>
+          <div class="fader" style="margin-top:12px">
+            <div class="trk">
+              <div class="fill" style="width:60%"></div>
+              <div class="ticks" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+              <span class="knob" aria-hidden="true" style="left:60%"></span>
+            </div>
+            <div class="val">30</div>
+          </div>
+          <div class="cap" style="margin-top:14px">slider: fader knob, ticks per step, read-out</div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1920,"height":1180}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

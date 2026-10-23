@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Main menu</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600&family=Barlow:wght@500;600&family=Saira+Stencil+One&display=swap">
+<style>
+body{margin:0;font-family:'Barlow',Arial,sans-serif;color:#E8EEF6}
+a{color:#4FA3FF}a:hover{color:#E8EEF6}
+.menu{position:relative;appearance:none;cursor:pointer;box-sizing:border-box;width:440px;height:52px;border:1px solid rgba(127,166,217,0.4);border-radius:8px;background:linear-gradient(180deg,rgba(14,26,46,0.82),rgba(9,16,30,0.82));color:#E8EEF6;font:600 26px/1 'Barlow Semi Condensed','Barlow',Arial,sans-serif;font-variant-caps:small-caps;letter-spacing:0.06em;text-align:center;padding:0;box-shadow:inset 0 1px 0 rgba(127,166,217,0.18)}
+.menu:hover,.menu.is-hover{border-color:#4FA3FF;background:linear-gradient(180deg,rgba(79,163,255,0.22),rgba(30,102,201,0.18));color:#E8EEF6;box-shadow:inset 0 1px 0 rgba(0,227,255,0.7)}
+.menu:active{border-color:#4FA3FF;background:rgba(30,102,201,0.4)}
+.menu:focus-visible{outline:2px solid #4FA3FF;outline-offset:2px}
+.menu.is-hover:before,.menu.is-hover:after{content:"";position:absolute;top:-1px;width:14px;height:14px;border-top:2px solid rgba(79,163,255,0.9)}
+.menu.is-hover:before{left:-1px;border-left:2px solid rgba(79,163,255,0.9);border-top-left-radius:8px}
+.menu.is-hover:after{right:-1px;border-right:2px solid rgba(79,163,255,0.9);border-top-right-radius:8px}
+.ruler{height:12px;background-image:repeating-linear-gradient(90deg,rgba(127,166,217,0.55) 0 1px,transparent 1px 8px),repeating-linear-gradient(90deg,rgba(127,166,217,0.8) 0 1px,transparent 1px 40px);background-size:8px 6px,40px 12px;background-repeat:repeat-x;background-position:0 100%,0 0}
+</style>
+</helmet>
+<div style="position:relative;width:1920px;height:1080px;overflow:hidden;background:#070B14">
+  <img src="/_blob/afdd37e787cb9f8051f21fa819dac3b0" alt="" aria-hidden="true" style="position:absolute;inset:0;width:1920px;height:1080px;object-fit:cover">
+  <div aria-hidden="true" style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(7,11,20,0) 55%,rgba(7,11,20,0.45) 80%,rgba(7,11,20,0.6) 100%)"></div>
+
+  <img src="/_blob/9582c0a4fe2d00d2db3e1f53c758d2b8" alt="Command and Conquer Generals: Zero Hour" style="position:absolute;right:59px;top:77px;width:510px;height:166px">
+
+  <div aria-hidden="true" style="position:absolute;right:96px;top:292px;width:440px;height:1px;background:#4FA3FF;box-shadow:0 3px 0 rgba(0,227,255,0.6)"></div>
+
+  <nav aria-label="Main menu" style="position:absolute;right:96px;top:332px;display:flex;flex-direction:column;gap:14px;width:440px;align-items:flex-end">
+    <button class="menu" type="button">Solo Play</button>
+    <button class="menu is-hover" type="button">Multiplayer</button>
+    <button class="menu" type="button">Load</button>
+    <button class="menu" type="button">Options</button>
+    <button class="menu" type="button">Credits</button>
+    <button class="menu" type="button" style="margin-top:18px">Exit Game</button>
+  </nav>
+
+  <div aria-hidden="true" class="ruler" style="position:absolute;left:0;right:0;bottom:28px"></div>
+  <div aria-hidden="true" style="position:absolute;left:0;right:0;bottom:27px;height:1px;background:rgba(127,166,217,0.4)"></div>
+  <div style="position:absolute;right:96px;bottom:44px;font-size:13px;font-weight:500;color:#9FB0C8;font-variant-caps:small-caps;letter-spacing:0.04em;font-variant-numeric:tabular-nums">Version 1.04</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>
