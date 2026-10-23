@@ -4,6 +4,12 @@
 #include <math.h>
 #include "GameClient/UIStyle.h"
 #include "GameClient/Display.h"
+#include "GameClient/DisplayString.h"
+#include "GameClient/DisplayStringManager.h"
+#include "GameClient/GameFont.h"
+#include "GameClient/UIFonts.h"
+#include <vector>
+#include <ctype.h>
 
 namespace UIStyle
 {
@@ -112,6 +118,203 @@ static Color tint( Color base, Color over, Real amount )
 {
 	return mix( base, withAlpha( over, 1.0f ), amount );
 }
+
+
+// ---- text -------------------------------------------------------------------------------------------------------------
+// Small caps are built from two fonts: capitals, digits and punctuation in the role's font, lowercase runs uppercased in
+// the same face at 78% of the size, baseline-aligned. The engine's DisplayString carries one font, so a string becomes a
+// run of DisplayStrings taken from a pool in draw order; the pool cursor resets each frame.
+
+namespace Text
+{
+
+namespace
+{
+	const Real SMALL_CAPS_SCALE = 0.78f;
+	const Real ASCENT_RATIO = 0.80f;   // Barlow's ascent over its em: aligns the lowerRun run's baseline to the full run's
+
+	std::vector<DisplayString *> s_pool;
+	size_t s_cursor = 0;
+
+	DisplayString *take()
+	{
+		if( TheDisplayStringManager == nullptr )
+			return nullptr;
+		if( s_cursor >= s_pool.size() )
+			s_pool.push_back( TheDisplayStringManager->newDisplayString() );
+		return s_pool[ s_cursor++ ];
+	}
+
+	struct Run
+	{
+		AsciiString text;
+		Bool lowerRun;
+	};
+
+	// split into runs; for lowerRun caps, lowercase letters become uppercase in the lowerRun font
+	void splitRuns( const char *ascii, Bool smallCaps, Bool upper, std::vector<Run> &runs )
+	{
+		runs.clear();
+		if( ascii == nullptr )
+			return;
+		if( !smallCaps )
+		{
+			Run r; r.lowerRun = FALSE;
+			if( upper )
+			{
+				for( const char *c = ascii; *c; ++c )
+					r.text.concat( (char)toupper( (unsigned char)*c ) );
+			}
+			else
+				r.text = ascii;
+			runs.push_back( r );
+			return;
+		}
+		Run cur; cur.lowerRun = FALSE;
+		Bool have = FALSE;
+		for( const char *c = ascii; *c; ++c )
+		{
+			const Bool lower = islower( (unsigned char)*c ) != 0;
+			if( have && lower != cur.lowerRun )
+			{
+				runs.push_back( cur );
+				cur.text.clear();
+			}
+			cur.lowerRun = lower;
+			cur.text.concat( lower ? (char)toupper( (unsigned char)*c ) : *c );
+			have = TRUE;
+		}
+		if( have )
+			runs.push_back( cur );
+	}
+
+	// one measured run ready to draw
+	struct Laid
+	{
+		DisplayString *ds;
+		Int w, h;
+		Bool lowerRun;
+	};
+
+	// The sentence renderer reports a string's width with the last glyph's overlap padding added (render2dsentence.cpp,
+	// Get_Extra_Overlap), so butting two measured runs leaves a gap. Measure that padding per font from the public API:
+	// width("H") * 2 - width("HH"). Cached per GameFont.
+	struct OverlapEntry { GameFont *font; Int overlap; };
+	std::vector<OverlapEntry> s_overlaps;
+
+	Int joinOverlap( GameFont *font )
+	{
+		if( font == nullptr )
+			return 0;
+		for( size_t i = 0; i < s_overlaps.size(); ++i )
+			if( s_overlaps[ i ].font == font )
+				return s_overlaps[ i ].overlap;
+		Int overlap = 0;
+		if( TheDisplayStringManager )
+		{
+			DisplayString *a = TheDisplayStringManager->newDisplayString();
+			DisplayString *b = TheDisplayStringManager->newDisplayString();
+			if( a && b )
+			{
+				UnicodeString one, two;
+				one.translate( AsciiString( "H" ) );
+				two.translate( AsciiString( "HH" ) );
+				a->setFont( font ); a->setText( one );
+				b->setFont( font ); b->setText( two );
+				Int w1 = 0, w2 = 0, h = 0;
+				a->getSize( &w1, &h );
+				b->getSize( &w2, &h );
+				overlap = 2 * w1 - w2;
+				if( overlap < 0 ) overlap = 0;
+			}
+			if( a ) TheDisplayStringManager->freeDisplayString( a );
+			if( b ) TheDisplayStringManager->freeDisplayString( b );
+		}
+		OverlapEntry e; e.font = font; e.overlap = overlap;
+		s_overlaps.push_back( e );
+		return overlap;
+	}
+
+	Int layout( const char *ascii, Int roleInt, std::vector<Laid> &out, Int &fullHeight, Int &smallHeight )
+	{
+		out.clear();
+		fullHeight = smallHeight = 0;
+		const UIFonts::Role role = (UIFonts::Role)roleInt;
+		GameFont *big = UIFonts::font( role );
+		GameFont *lowerRun = UIFonts::smallCaps( role ) ? UIFonts::font( role, SMALL_CAPS_SCALE ) : big;
+		if( big == nullptr )
+			return 0;
+		fullHeight = big->height;
+		smallHeight = lowerRun ? lowerRun->height : big->height;
+		std::vector<Run> runs;
+		splitRuns( ascii, UIFonts::smallCaps( role ), UIFonts::uppercase( role ), runs );
+		Int total = 0;
+		for( size_t i = 0; i < runs.size(); ++i )
+		{
+			DisplayString *ds = take();
+			if( ds == nullptr )
+				break;
+			UnicodeString us;
+			us.translate( runs[ i ].text );
+			GameFont *f = runs[ i ].lowerRun ? lowerRun : big;
+			ds->setFont( f );
+			ds->setText( us );
+			Laid l; l.ds = ds; l.lowerRun = runs[ i ].lowerRun; l.w = 0; l.h = 0;
+			ds->getSize( &l.w, &l.h );
+			// every run but the last advances by its width minus the trailing overlap padding
+			if( i + 1 < runs.size() )
+				l.w -= joinOverlap( f );
+			total += l.w;
+			out.push_back( l );
+		}
+		return total;
+	}
+}
+
+void beginFrame()
+{
+	s_cursor = 0;
+}
+
+Int lineHeight( Int role )
+{
+	GameFont *f = UIFonts::font( (UIFonts::Role)role );
+	return f ? f->height : 0;
+}
+
+Int width( const char *ascii, Int role )
+{
+	std::vector<Laid> laid;
+	Int fh, sh;
+	const size_t saved = s_cursor;
+	const Int w = layout( ascii, role, laid, fh, sh );
+	s_cursor = saved;   // measuring borrows pool entries without consuming them
+	return w;
+}
+
+Int draw( Int x, Int y, const char *ascii, Int role, Color color, Int align, Int boxHeight )
+{
+	std::vector<Laid> laid;
+	Int fullH, smallH;
+	const Int total = layout( ascii, role, laid, fullH, smallH );
+	if( laid.empty() )
+		return 0;
+	Int cx = x;
+	if( align == 1 ) cx = x - total / 2;
+	else if( align == 2 ) cx = x - total;
+	Int top = y;
+	if( boxHeight > 0 )
+		top = y + ( boxHeight - fullH ) / 2;
+	const Int smallTop = top + (Int)( ( fullH - smallH ) * ASCENT_RATIO + 0.5f );
+	for( size_t i = 0; i < laid.size(); ++i )
+	{
+		laid[ i ].ds->draw( cx, laid[ i ].lowerRun ? smallTop : top, color, 0 );
+		cx += laid[ i ].w;
+	}
+	return total;
+}
+
+} // namespace Text
 
 // ---- renderers --------------------------------------------------------------------------------------------------------
 

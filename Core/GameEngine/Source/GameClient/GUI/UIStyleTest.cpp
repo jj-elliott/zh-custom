@@ -8,64 +8,27 @@
 #include "GameClient/DisplayString.h"
 #include "GameClient/DisplayStringManager.h"
 #include "GameClient/GameFont.h"
+#include "GameClient/UIFonts.h"
 
 using namespace UIStyle;
 
 namespace
 {
 
-// A small pool of display strings reused in draw order every frame; the sheet is static so slot N is always the same label.
-std::vector<DisplayString *> s_strings;
-Int s_next = 0;
-
 enum TextRole
 {
-	TEXT_TITLE,
-	TEXT_SECTION,
-	TEXT_LABEL,
-	TEXT_BODY,
-	TEXT_META,
-	TEXT_MENU
+	TEXT_TITLE = UIFonts::ROLE_TITLE,
+	TEXT_SECTION = UIFonts::ROLE_SECTION,
+	TEXT_LABEL = UIFonts::ROLE_LABEL,
+	TEXT_BODY = UIFonts::ROLE_BODY,
+	TEXT_META = UIFonts::ROLE_META,
+	TEXT_MENU = UIFonts::ROLE_MENU
 };
 
-GameFont *fontFor( TextRole role )
-{
-	// Step 3 brings the real typeface and small caps; until then the roles map onto the stock faces at the right size.
-	switch( role )
-	{
-		case TEXT_TITLE:   return TheFontLibrary->getFont( "Arial", u( 34.0f ), TRUE );
-		case TEXT_SECTION: return TheFontLibrary->getFont( "Arial", u( 19.0f ), TRUE );
-		case TEXT_MENU:    return TheFontLibrary->getFont( "Arial", u( 22.0f ), TRUE );
-		case TEXT_LABEL:   return TheFontLibrary->getFont( "Arial", u( 15.0f ), FALSE );
-		case TEXT_META:    return TheFontLibrary->getFont( "Arial", u( 12.0f ), FALSE );
-		case TEXT_BODY:
-		default:           return TheFontLibrary->getFont( "Arial", u( 15.0f ), FALSE );
-	}
-}
-
-// draws text; align: 0 left, 1 centre, 2 right. Returns the text width.
+// draws text through the shared UI text path; align: 0 left, 1 centre, 2 right. Returns the text width.
 Int text( Int x, Int y, const char *ascii, TextRole role, Color color, Int align = 0, Int centreInHeight = 0 )
 {
-	if( TheDisplayStringManager == nullptr || TheFontLibrary == nullptr )
-		return 0;
-	if( s_next >= (Int)s_strings.size() )
-		s_strings.push_back( TheDisplayStringManager->newDisplayString() );
-	DisplayString *ds = s_strings[ s_next++ ];
-	if( ds == nullptr )
-		return 0;
-	UnicodeString us;
-	us.translate( AsciiString( ascii ) );
-	ds->setFont( fontFor( role ) );
-	ds->setText( us );
-	Int w = 0, h = 0;
-	ds->getSize( &w, &h );
-	Int dx = x;
-	if( align == 1 ) dx = x - w / 2;
-	else if( align == 2 ) dx = x - w;
-	Int dy = y;
-	if( centreInHeight > 0 ) dy = y + ( centreInHeight - h ) / 2;
-	ds->draw( dx, dy, color, 0 );
-	return w;
+	return UIStyle::Text::draw( x, y, ascii, (Int)role, color, align, centreInHeight );
 }
 
 struct SwatchDef { const char *name; const char *value; Color color; };
@@ -74,18 +37,13 @@ struct SwatchDef { const char *name; const char *value; Color color; };
 
 void UIStyleTest::shutdown()
 {
-	if( TheDisplayStringManager )
-		for( size_t i = 0; i < s_strings.size(); ++i )
-			TheDisplayStringManager->freeDisplayString( s_strings[ i ] );
-	s_strings.clear();
-	s_next = 0;
 }
 
 void UIStyleTest::draw()
 {
 	if( TheDisplay == nullptr )
 		return;
-	s_next = 0;
+	UIStyle::Text::beginFrame();
 	const Palette &p = palette();
 	const Int W = TheDisplay->getWidth();
 	const Int H = TheDisplay->getHeight();
@@ -102,7 +60,7 @@ void UIStyleTest::draw()
 	Draw::ruler( x, y + u( 50.0f ), u( 560.0f ) );
 	{
 		char buf[ 128 ];
-		snprintf( buf, sizeof( buf ), "%d x %d, unit %.2f px", W, H, unit() );
+		snprintf( buf, sizeof( buf ), "%d x %d, unit %.2f px, %s", W, H, unit(), UIFonts::available() ? "Barlow loaded" : "fonts missing, Arial" );
 		text( W - margin, y + u( 12.0f ), buf, TEXT_META, p.textSecondary, 2 );
 	}
 	y += u( 84.0f );
@@ -168,9 +126,9 @@ void UIStyleTest::draw()
 		if( mx + mw <= W - margin )
 		{
 			Draw::menuButton( mx, y - u( 4.0f ), mw, mh, STATE_REST );
-			text( mx + mw / 2, y - u( 4.0f ), "SOLO PLAY", TEXT_MENU, p.textPrimary, 1, mh );
+			text( mx + mw / 2, y - u( 4.0f ), "Solo Play", TEXT_MENU, p.textPrimary, 1, mh );
 			Draw::menuButton( mx, y + mh + u( 10.0f ), mw, mh, STATE_HOVER );
-			text( mx + mw / 2, y + mh + u( 10.0f ), "MULTIPLAYER", TEXT_MENU, p.textPrimary, 1, mh );
+			text( mx + mw / 2, y + mh + u( 10.0f ), "Multiplayer", TEXT_MENU, p.textPrimary, 1, mh );
 			text( mx, y + 2 * mh + u( 20.0f ), "menu button: rest, hover", TEXT_META, p.textSecondary );
 		}
 	}

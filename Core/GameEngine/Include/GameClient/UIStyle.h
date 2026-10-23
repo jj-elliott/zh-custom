@@ -81,6 +81,17 @@ namespace UIStyle
 		BUTTON_DANGER
 	};
 
+	// ---- text (§3.2): role fonts, small caps, alignment. Draw order is cached per frame: call beginFrame() once per
+	// frame before any draw(). Returns the drawn width in pixels. align: 0 left, 1 centre, 2 right; boxHeight > 0 centres
+	// the text vertically in a box of that height at y.
+	namespace Text
+	{
+		void beginFrame();
+		Int  width( const char *ascii, Int role );
+		Int  draw( Int x, Int y, const char *ascii, Int role, Color color, Int align = 0, Int boxHeight = 0 );
+		Int  lineHeight( Int role );
+	}
+
 	namespace Draw
 	{
 		void panel( Int x, Int y, Int w, Int h, Bool grid = TRUE, Bool brackets = TRUE );
