@@ -204,7 +204,8 @@ unplaced windows; `run.ps1 -Screen x -Res 1920x1080|3840x2160` screenshots a scr
    the legacy main menu already in Barlow).
 4. ~~Main menu on the new system end to end.~~ Built 2026-10-23: `MainMenu.layout` (logo on its visible bounds, the
    boxed column and every submenu column, frame and panel squares hidden, shortcut buttons and emblem row placed);
-   captures in `docs/ui-screens`. Sign-off pending.
+   captures in `docs/ui-screens`. Signed off 2026-10-23 after a click test (panels had to cover the column for hit-testing,
+   and the shell's rectangle flash transitions are skipped on layout-managed windows).
 5. Skirmish setup. Sign-off. Then, one screen per step: Solo play, Load/Save, Replay, Multiplayer (LAN lobby, Direct connect,
    game options), Options dialog shell, Quit/confirm dialogs.
 6. Package: fonts in the release zip, `-classicui` switch kept for one release, FEATURE-PARITY and CODE-MAP updated.
@@ -218,6 +219,7 @@ Each step is a separate small commit, reviewed from screenshots before the next 
   original strings only; small caps in homage to the all-caps original; slider redrawn as an instrument fader; the old
   blueprint frame removed from the backdrop.
 
+- 2026-10-23: engine main menu signed off.
 - 2026-10-22, round 2: "reads as generic temp UI" and the battle-honour icons were missing. Added §3.4 motifs (grid, ruler,
   two-tone rule, corner brackets, stencil titles) and restored the medal strip with the real sprites.
 
