@@ -495,6 +495,11 @@ void MainMenuInit( WindowLayout *layout, void *userData )
 	buttonMOTD = TheWindowManager->winGetWindowFromId( parentMainMenu, motdID );
 	buttonWorldBuilder = TheWindowManager->winGetWindowFromId( parentMainMenu, worldBuilderID );
 	buttonReplay = TheWindowManager->winGetWindowFromId( parentMainMenu, buttonReplayID );
+
+	// zh-pipeline @tweak 2026-10-22 The Steam release's PatchWindow.big adds a "Custom Mission" button whose feature exists only in
+	// the Steam executable (and whose label lives in Data\Patch.str, which this engine does not load, hence "MISSING:"). Hide it.
+	if (GameWindow *buttonCustomMission = TheWindowManager->winGetWindowFromId( parentMainMenu, TheNameKeyGenerator->nameToKey( "MainMenu.wnd:ButtonCustomMission" ) ))
+		buttonCustomMission->winHide( TRUE );
 	buttonLoadReplay = TheWindowManager->winGetWindowFromId( parentMainMenu, buttonLoadReplayID );
 	buttonLoad = TheWindowManager->winGetWindowFromId( parentMainMenu, buttonLoadID );
 	buttonCredits = TheWindowManager->winGetWindowFromId( parentMainMenu, buttonCreditsID );
