@@ -70,9 +70,11 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       unicast every lobby broadcast to those addresses too; the launcher passes `release.json` `LanPeers` (both tailnet IPs:
       vision-1 100.66.50.86, admiral 100.91.103.10). Confirmed 2026-10-22 on the loopback rig (B listed A's game via the -lanpeer unicast, joined from the list). **Open:** the same over
       the real tailnet on the next session (release.json carries both IPs).
-- [ ] **11. Shared defaults.** `ArchiveReplays=yes`, FPS limit, overlay font sizes (FPS/clock/timer/ping/money), `CursorCaptureMode` — set via
-      code defaults or a launcher-merged `config/` snippet so both machines match without touching menus. Optional: map + player names in the
-      archived replay filename.
+- [x] **11. Shared defaults** — done 2026-10-22 (v0.3.1): `release.json` `Options` is written into each machine's `Options.ini` by the
+      launcher before every launch (`launcher.json` `OptionsOverride` wins per machine): VeryHigh detail, full textures, 5000 particles,
+      shadows/decals/cloud/light maps, `ArchiveReplays=yes`, DynamicLOD off. Engine defaults: uncapped render with the logic clock at
+      30 Hz, 15% font adjustment, edge scrolling in windowed mode. DXVK config: vsync, triple buffering, sample-rate shading.
+      Optional later: map + player names in the archived replay filename; overlay font sizes.
 - [ ] **12. Netcode test flags already exist** in debug builds: `-packetloss`, `-latAvg`, `-latAmp`, `-latPeriod`, `-latNoise` (`CommandLine.cpp`).
       Expose them in release (or use a `win32-profile` build) and make `net-sim.ps1` prefer them over clumsy.
 

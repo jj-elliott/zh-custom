@@ -172,6 +172,44 @@ if (File.Exists(shippedPath))
     try { shipped = JsonSerializer.Deserialize<Shipped>(File.ReadAllText(shippedPath)) ?? shipped; }
     catch (Exception ex) { Log($"release.json unreadable ({ex.Message}); using launcher.json values."); }
 }
+// ---- Shared Options.ini defaults ----------------------------------------------
+// The game's Options.ini lives under Documents, so the game zip cannot carry it. release.json "Options" holds the keys both
+// machines should run with (detail level, textures, particles, replay archiving); they are written into Options.ini before
+// every launch, so a release changes them on both sides. launcher.json "OptionsOverride" wins per machine. Other keys
+// (Resolution, volumes, Gamma, ...) are left exactly as the player set them in the game's own menus.
+if (shipped.Options is { Count: > 0 } || cfg.OptionsOverride is { Count: > 0 })
+{
+    try
+    {
+        var optPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                                   "Command and Conquer Generals Zero Hour Data", "Options.ini");
+        var lines = File.Exists(optPath) ? File.ReadAllLines(optPath).ToList() : new List<string>();
+        var wanted = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var kv in shipped.Options ?? new()) wanted[kv.Key] = kv.Value;
+        foreach (var kv in cfg.OptionsOverride ?? new()) wanted[kv.Key] = kv.Value;
+        var changed = new List<string>();
+        foreach (var (key, value) in wanted)
+        {
+            var idx = lines.FindIndex(l => l.TrimStart().StartsWith(key + " ", StringComparison.OrdinalIgnoreCase)
+                                        || l.TrimStart().StartsWith(key + "=", StringComparison.OrdinalIgnoreCase));
+            var line = $"{key} = {value}";
+            if (idx < 0) { lines.Add(line); changed.Add(key); }
+            else if (lines[idx].Trim() != line) { lines[idx] = line; changed.Add(key); }
+        }
+        if (changed.Count > 0)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(optPath)!);
+            File.WriteAllLines(optPath, lines);
+            Log($"Options.ini: set {string.Join(", ", changed)}");
+        }
+        else Log("Options.ini: shared settings already in place.");
+    }
+    catch (Exception ex)
+    {
+        Log($"Options.ini update skipped: {ex.Message}");
+    }
+}
+
 var mapPack = string.IsNullOrWhiteSpace(shipped.MapPack) ? cfg.MapPack : shipped.MapPack;
 var gameArgs = string.IsNullOrWhiteSpace(shipped.Args) ? cfg.Args : shipped.Args;
 // LAN discovery over the tailnet: the lobby also unicasts to these peers (broadcasts don't cross a Tailscale tunnel).
@@ -371,6 +409,7 @@ record Config
     public bool AllowMismatch { get; init; } = false; // true = launch even if assets.sha256 doesn't match
     public string MapPack { get; init; } = "";        // fallback only; release.json wins
     public string SetupTarget { get; init; } = "";    // first-run setup copies the Steam install here (default C:\Games\ZeroHour-Custom)
+    public Dictionary<string, string>? OptionsOverride { get; init; }   // per-machine Options.ini keys that win over release.json "Options"
 }
 record Shipped
 {
@@ -378,6 +417,7 @@ record Shipped
     public string Args { get; init; } = "";           // game arguments both machines use (e.g. "-win")
     public bool NetLog { get; init; } = false;        // write a network session log (logs\net-*.log) on both machines
     public string[]? LanPeers { get; init; }          // tailnet IPs the LAN lobby unicasts to (-lanpeer each)
+    public Dictionary<string, string>? Options { get; init; }   // Options.ini keys written on both machines before launch
 }
 record Release(string tag_name, Asset[] assets, bool prerelease = false, bool draft = false);
 record Asset(string name, string url, long size);

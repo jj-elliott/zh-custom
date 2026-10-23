@@ -3,6 +3,24 @@
   "MapPack": "maps-v1",
   "Args": "-win -nologo",
   "NetLog": true,
+  "Options": {
+    "StaticGameLOD": "VeryHigh",
+    "IdealStaticGameLOD": "VeryHigh",
+    "TextureReduction": "0",
+    "MaxParticleCount": "5000",
+    "UseShadowVolumes": "yes",
+    "UseShadowDecals": "yes",
+    "UseCloudMap": "yes",
+    "UseLightMap": "yes",
+    "ShowSoftWaterEdge": "yes",
+    "ShowTrees": "yes",
+    "ExtraAnimations": "yes",
+    "HeatEffects": "yes",
+    "BuildingOcclusion": "yes",
+    "DynamicLOD": "no",
+    "ArchiveReplays": "yes"
+  },
+  "_Options_note": "Written into each machine's Options.ini before every launch (launcher.json OptionsOverride wins per machine). Upstream's 'VeryHigh' detail preset values; DynamicLOD off so detail does not pop under load; ArchiveReplays feeds verify.ps1 baselines. Resolution, volumes, Gamma etc. are left to the player.",
   "LanPeers": ["100.66.50.86", "100.91.103.10"],
   "_LanPeers_note": "Tailnet IPs of both machines (vision-1, admiral). The launcher passes each as -lanpeer so the LAN lobby unicasts its announcements/scans to them; a tailnet carries no broadcasts, which is why Direct Connect was needed before."
 }

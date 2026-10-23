@@ -23,5 +23,10 @@ d3d9.forceSwapchainMSAA = 4
 d3d9.maxFrameLatency = 1
 # Vsync: the engine renders uncapped (logic stays 30 Hz); without this the swapchain presents immediately and tears.
 d3d9.presentInterval = 1
+# Triple buffering: a late frame slips to the next refresh instead of stalling the pipeline.
+d3d9.numBackBuffers = 3
+# With MSAA forced above, shade every sample: smooth edges on alpha-tested trees, fences, decals, infantry.
+# Both machines have the GPU headroom (RTX 5090 / RTX 40-series laptop).
+d3d9.forceSampleRateShading = True
 "@ | Set-Content (Join-Path $Out "dxvk.conf")
 Write-Host "dxvk:   $Version -> $Out"
