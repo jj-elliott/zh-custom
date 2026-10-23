@@ -1,0 +1,255 @@
+# zh-netlog v1 opened=2026-10-22 19:41:23 version=1.4
+# sec: once per second. stall_ms = time this second spent waiting for the peer's commands. lat_* = local command->ack round trips in ms; jitter = mean |delta| between successive samples.
+start t=0 localSlot=1 router=0 players=2 runAhead=30 frameRate=30
+runahead t=967 apply ra=4 fps=30 frame=31
+sec t=1000 frame=32 ra=4 fps=30 stall_ms=0 stalls=0 cushion=31.0 lat_max_peer=0 lat_n=33 lat_mean=21 lat_max=58 jitter=8 retries=0 retry_ms=0 in_pps=147 in_bps=3148 out_pps=1 out_bps=18 unk_pps=0
+sec t=2000 frame=62 ra=4 fps=30 stall_ms=0 stalls=0 cushion=5.0 lat_max_peer=0 lat_n=5 lat_mean=6 lat_max=20 jitter=4 retries=0 retry_ms=0 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=3000 frame=92 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=30 lat_mean=16 lat_max=41 jitter=6 retries=0 retry_ms=0 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+runahead t=3900 apply ra=8 fps=30 frame=119
+sec t=4000 frame=122 ra=8 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=27 lat_mean=21 lat_max=37 jitter=7 retries=0 retry_ms=0 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=5000 frame=152 ra=8 fps=30 stall_ms=12 stalls=1 cushion=7.0 lat_max_peer=0 lat_n=38 lat_mean=33 lat_max=45 jitter=1 retries=6 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=6000 frame=182 ra=8 fps=30 stall_ms=0 stalls=0 cushion=6.0 lat_max_peer=0 lat_n=29 lat_mean=26 lat_max=39 jitter=3 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=7000 frame=212 ra=8 fps=30 stall_ms=0 stalls=0 cushion=8.0 lat_max_peer=0 lat_n=33 lat_mean=18 lat_max=28 jitter=2 retries=0 retry_ms=80 in_pps=2 in_bps=954 out_pps=0 out_bps=0 unk_pps=0
+sec t=8000 frame=242 ra=8 fps=30 stall_ms=0 stalls=0 cushion=6.0 lat_max_peer=0 lat_n=28 lat_mean=12 lat_max=25 jitter=3 retries=0 retry_ms=80 in_pps=15 in_bps=426 out_pps=8 out_bps=312 unk_pps=0
+sec t=9000 frame=272 ra=8 fps=30 stall_ms=0 stalls=0 cushion=5.0 lat_max_peer=0 lat_n=32 lat_mean=34 lat_max=78 jitter=3 retries=4 retry_ms=117 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+runahead t=9033 apply ra=4 fps=30 frame=273
+sec t=10000 frame=302 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=27 lat_mean=20 lat_max=33 jitter=3 retries=0 retry_ms=117 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=11000 frame=332 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=31 lat_mean=23 lat_max=35 jitter=4 retries=0 retry_ms=117 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=12000 frame=362 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=30 lat_mean=21 lat_max=34 jitter=2 retries=0 retry_ms=117 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=13000 frame=392 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=29 lat_mean=25 lat_max=38 jitter=4 retries=0 retry_ms=117 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+runahead t=13911 apply ra=4 fps=30 frame=419
+sec t=14000 frame=422 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=31 lat_mean=26 lat_max=38 jitter=3 retries=0 retry_ms=117 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=15000 frame=452 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=29 lat_mean=23 lat_max=36 jitter=2 retries=0 retry_ms=117 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=16000 frame=482 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=32 lat_mean=24 lat_max=40 jitter=2 retries=4 retry_ms=80 in_pps=28 in_bps=688 out_pps=15 out_bps=440 unk_pps=0
+sec t=17000 frame=512 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=31 lat_mean=26 lat_max=37 jitter=4 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=18000 frame=542 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=30 lat_mean=27 lat_max=37 jitter=3 retries=2 retry_ms=80 in_pps=2 in_bps=954 out_pps=0 out_bps=0 unk_pps=0
+runahead t=18930 apply ra=4 fps=30 frame=569
+sec t=19000 frame=572 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=30 lat_mean=29 lat_max=42 jitter=4 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=20000 frame=601 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=29 lat_mean=27 lat_max=39 jitter=4 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=21000 frame=631 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=29 lat_mean=32 lat_max=42 jitter=4 retries=3 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=22000 frame=661 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=34 lat_mean=27 lat_max=41 jitter=3 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=23000 frame=691 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=28 lat_mean=30 lat_max=41 jitter=3 retries=0 retry_ms=80 in_pps=30 in_bps=706 out_pps=15 out_bps=446 unk_pps=0
+runahead t=23897 apply ra=4 fps=30 frame=717
+sec t=24000 frame=721 ra=4 fps=30 stall_ms=2 stalls=1 cushion=1.0 lat_max_peer=0 lat_n=32 lat_mean=33 lat_max=44 jitter=4 retries=6 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=25000 frame=751 ra=4 fps=30 stall_ms=0 stalls=0 cushion=1.0 lat_max_peer=0 lat_n=30 lat_mean=36 lat_max=48 jitter=4 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=26000 frame=781 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=30 lat_mean=38 lat_max=52 jitter=4 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=27000 frame=811 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=33 lat_mean=16 lat_max=34 jitter=4 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=28000 frame=841 ra=4 fps=30 stall_ms=0 stalls=0 cushion=1.0 lat_max_peer=0 lat_n=30 lat_mean=9 lat_max=34 jitter=4 retries=0 retry_ms=80 in_pps=2 in_bps=954 out_pps=0 out_bps=0 unk_pps=0
+runahead t=28897 apply ra=4 fps=30 frame=867
+sec t=29000 frame=871 ra=4 fps=30 stall_ms=0 stalls=0 cushion=1.0 lat_max_peer=0 lat_n=30 lat_mean=6 lat_max=22 jitter=3 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=30000 frame=901 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=29 lat_mean=8 lat_max=21 jitter=5 retries=0 retry_ms=80 in_pps=28 in_bps=705 out_pps=15 out_bps=458 unk_pps=0
+sec t=31000 frame=930 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=32 lat_mean=7 lat_max=18 jitter=2 retries=2 retry_ms=80 in_pps=31 in_bps=742 out_pps=16 out_bps=512 unk_pps=0
+sec t=32000 frame=960 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=29 lat_mean=11 lat_max=19 jitter=3 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=33000 frame=990 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=30 lat_mean=12 lat_max=25 jitter=3 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+runahead t=33914 apply ra=4 fps=30 frame=1017
+sec t=34000 frame=1020 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=33 lat_mean=12 lat_max=25 jitter=3 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=35000 frame=1050 ra=4 fps=30 stall_ms=0 stalls=0 cushion=0.0 lat_max_peer=0 lat_n=29 lat_mean=12 lat_max=27 jitter=3 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=36000 frame=1080 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=28 lat_mean=12 lat_max=24 jitter=3 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=37000 frame=1109 ra=4 fps=30 stall_ms=41 stalls=1 cushion=3.0 lat_max_peer=0 lat_n=32 lat_mean=12 lat_max=22 jitter=3 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=38000 frame=1138 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=29 lat_mean=13 lat_max=29 jitter=3 retries=2 retry_ms=80 in_pps=29 in_bps=733 out_pps=15 out_bps=494 unk_pps=0
+runahead t=38910 apply ra=4 fps=30 frame=1165
+sec t=39000 frame=1168 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=30 lat_mean=16 lat_max=30 jitter=2 retries=0 retry_ms=80 in_pps=2 in_bps=954 out_pps=0 out_bps=0 unk_pps=0
+sec t=40000 frame=1197 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=29 lat_mean=17 lat_max=27 jitter=2 retries=4 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=41000 frame=1227 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=34 lat_mean=21 lat_max=32 jitter=3 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=42000 frame=1257 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=30 lat_mean=23 lat_max=38 jitter=3 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=43000 frame=1287 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=29 lat_mean=29 lat_max=42 jitter=4 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+runahead t=43900 apply ra=4 fps=30 frame=1314
+sec t=44000 frame=1317 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=31 lat_mean=13 lat_max=22 jitter=3 retries=5 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=45000 frame=1347 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=30 lat_mean=16 lat_max=25 jitter=4 retries=0 retry_ms=80 in_pps=28 in_bps=731 out_pps=15 out_bps=530 unk_pps=0
+sec t=46000 frame=1377 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=30 lat_mean=18 lat_max=32 jitter=4 retries=0 retry_ms=80 in_pps=30 in_bps=756 out_pps=15 out_bps=440 unk_pps=0
+sec t=47000 frame=1407 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=31 lat_mean=19 lat_max=30 jitter=2 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=48000 frame=1437 ra=4 fps=30 stall_ms=12 stalls=1 cushion=0.0 lat_max_peer=0 lat_n=31 lat_mean=29 lat_max=43 jitter=4 retries=4 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+runahead t=48933 apply ra=4 fps=30 frame=1464
+sec t=49000 frame=1466 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=29 lat_mean=33 lat_max=45 jitter=4 retries=2 retry_ms=80 in_pps=2 in_bps=954 out_pps=0 out_bps=0 unk_pps=0
+sec t=50000 frame=1496 ra=4 fps=30 stall_ms=61 stalls=1 cushion=4.0 lat_max_peer=0 lat_n=27 lat_mean=39 lat_max=47 jitter=4 retries=6 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=51000 frame=1525 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=33 lat_mean=11 lat_max=48 jitter=4 retries=1 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=52000 frame=1555 ra=4 fps=30 stall_ms=63 stalls=1 cushion=3.0 lat_max_peer=0 lat_n=30 lat_mean=11 lat_max=23 jitter=3 retries=4 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=53000 frame=1584 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=28 lat_mean=21 lat_max=36 jitter=4 retries=7 retry_ms=80 in_pps=26 in_bps=654 out_pps=15 out_bps=467 unk_pps=0
+runahead t=53930 apply ra=4 fps=30 frame=1611
+sec t=54000 frame=1614 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=31 lat_mean=24 lat_max=40 jitter=4 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=55000 frame=1644 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=32 lat_mean=26 lat_max=41 jitter=3 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=56000 frame=1674 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=28 lat_mean=24 lat_max=33 jitter=1 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=57000 frame=1704 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=33 lat_mean=32 lat_max=44 jitter=4 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=58000 frame=1734 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=30 lat_mean=34 lat_max=46 jitter=3 retries=2 retry_ms=80 in_pps=1 in_bps=477 out_pps=0 out_bps=0 unk_pps=0
+runahead t=58930 apply ra=4 fps=30 frame=1761
+sec t=59000 frame=1764 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=30 lat_mean=15 lat_max=41 jitter=4 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=60000 frame=1794 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=29 lat_mean=25 lat_max=44 jitter=4 retries=2 retry_ms=80 in_pps=28 in_bps=682 out_pps=15 out_bps=449 unk_pps=0
+sec t=61000 frame=1824 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=32 lat_mean=32 lat_max=45 jitter=4 retries=0 retry_ms=80 in_pps=28 in_bps=733 out_pps=16 out_bps=505 unk_pps=0
+sec t=62000 frame=1853 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=31 lat_mean=18 lat_max=33 jitter=4 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=63000 frame=1883 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=30 lat_mean=14 lat_max=25 jitter=3 retries=4 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+runahead t=63917 apply ra=4 fps=30 frame=1910
+sec t=64000 frame=1913 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=30 lat_mean=16 lat_max=29 jitter=3 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=65000 frame=1943 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=30 lat_mean=24 lat_max=38 jitter=5 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=66000 frame=1973 ra=4 fps=30 stall_ms=54 stalls=1 cushion=4.0 lat_max_peer=0 lat_n=30 lat_mean=29 lat_max=40 jitter=3 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=67000 frame=2002 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=33 lat_mean=18 lat_max=50 jitter=4 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=68000 frame=2032 ra=4 fps=30 stall_ms=48 stalls=1 cushion=5.0 lat_max_peer=0 lat_n=27 lat_mean=16 lat_max=31 jitter=4 retries=4 retry_ms=80 in_pps=28 in_bps=700 out_pps=15 out_bps=477 unk_pps=0
+runahead t=68924 apply ra=4 fps=30 frame=2059
+sec t=69000 frame=2062 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=32 lat_mean=32 lat_max=42 jitter=4 retries=2 retry_ms=80 in_pps=2 in_bps=954 out_pps=0 out_bps=0 unk_pps=0
+sec t=70000 frame=2092 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=29 lat_mean=32 lat_max=45 jitter=4 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=71000 frame=2121 ra=4 fps=30 stall_ms=0 stalls=0 cushion=0.0 lat_max_peer=0 lat_n=30 lat_mean=35 lat_max=48 jitter=3 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=72000 frame=2150 ra=4 fps=30 stall_ms=29 stalls=1 cushion=2.0 lat_max_peer=0 lat_n=30 lat_mean=35 lat_max=50 jitter=4 retries=6 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=73000 frame=2180 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=29 lat_mean=11 lat_max=25 jitter=4 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+runahead t=73923 apply ra=4 fps=30 frame=2207
+sec t=74000 frame=2210 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=33 lat_mean=14 lat_max=25 jitter=4 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=75000 frame=2240 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=30 lat_mean=21 lat_max=28 jitter=2 retries=2 retry_ms=80 in_pps=30 in_bps=713 out_pps=15 out_bps=471 unk_pps=0
+sec t=76000 frame=2270 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=31 lat_mean=23 lat_max=39 jitter=2 retries=0 retry_ms=80 in_pps=29 in_bps=718 out_pps=15 out_bps=474 unk_pps=0
+sec t=77000 frame=2300 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=29 lat_mean=30 lat_max=45 jitter=4 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=78000 frame=2330 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=31 lat_mean=20 lat_max=36 jitter=5 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+runahead t=78924 apply ra=4 fps=30 frame=2357
+sec t=79000 frame=2360 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=30 lat_mean=7 lat_max=21 jitter=3 retries=0 retry_ms=80 in_pps=2 in_bps=954 out_pps=0 out_bps=0 unk_pps=0
+sec t=80000 frame=2390 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=29 lat_mean=11 lat_max=23 jitter=5 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=81000 frame=2420 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=34 lat_mean=20 lat_max=34 jitter=3 retries=3 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=82000 frame=2450 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=30 lat_mean=31 lat_max=51 jitter=3 retries=0 retry_ms=80 in_pps=29 in_bps=728 out_pps=15 out_bps=512 unk_pps=0
+sec t=83000 frame=2480 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=29 lat_mean=17 lat_max=33 jitter=4 retries=2 retry_ms=80 in_pps=30 in_bps=708 out_pps=15 out_bps=440 unk_pps=0
+runahead t=83923 apply ra=4 fps=30 frame=2507
+sec t=84000 frame=2510 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=31 lat_mean=22 lat_max=36 jitter=3 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=85000 frame=2539 ra=4 fps=30 stall_ms=0 stalls=0 cushion=0.0 lat_max_peer=0 lat_n=29 lat_mean=27 lat_max=39 jitter=4 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=86000 frame=2567 ra=4 fps=30 stall_ms=91 stalls=1 cushion=4.0 lat_max_peer=0 lat_n=31 lat_mean=18 lat_max=34 jitter=4 retries=6 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=87000 frame=2597 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=28 lat_mean=15 lat_max=30 jitter=4 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=88000 frame=2627 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=32 lat_mean=22 lat_max=39 jitter=4 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+runahead t=88941 apply ra=4 fps=30 frame=2655
+sec t=89000 frame=2657 ra=4 fps=30 stall_ms=0 stalls=0 cushion=1.0 lat_max_peer=0 lat_n=30 lat_mean=32 lat_max=68 jitter=6 retries=0 retry_ms=80 in_pps=2 in_bps=954 out_pps=0 out_bps=0 unk_pps=0
+sec t=90000 frame=2687 ra=4 fps=30 stall_ms=49 stalls=1 cushion=3.0 lat_max_peer=0 lat_n=29 lat_mean=27 lat_max=51 jitter=3 retries=4 retry_ms=80 in_pps=28 in_bps=694 out_pps=15 out_bps=446 unk_pps=0
+sec t=91000 frame=2717 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=32 lat_mean=10 lat_max=25 jitter=2 retries=0 retry_ms=80 in_pps=29 in_bps=712 out_pps=16 out_bps=500 unk_pps=0
+sec t=92000 frame=2747 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=29 lat_mean=17 lat_max=31 jitter=6 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=93000 frame=2777 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=30 lat_mean=23 lat_max=33 jitter=4 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+runahead t=93931 apply ra=4 fps=30 frame=2804
+sec t=94000 frame=2807 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=31 lat_mean=26 lat_max=40 jitter=3 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=95000 frame=2836 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=29 lat_mean=35 lat_max=47 jitter=4 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=96000 frame=2866 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=33 lat_mean=11 lat_max=44 jitter=5 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=97000 frame=2896 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=28 lat_mean=13 lat_max=26 jitter=3 retries=0 retry_ms=80 in_pps=31 in_bps=734 out_pps=16 out_bps=469 unk_pps=0
+sec t=98000 frame=2926 ra=4 fps=30 stall_ms=50 stalls=1 cushion=4.0 lat_max_peer=0 lat_n=32 lat_mean=20 lat_max=33 jitter=3 retries=6 retry_ms=80 in_pps=29 in_bps=695 out_pps=15 out_bps=450 unk_pps=0
+runahead t=98958 apply ra=4 fps=30 frame=2954
+sec t=99000 frame=2956 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=30 lat_mean=26 lat_max=37 jitter=3 retries=0 retry_ms=80 in_pps=1 in_bps=477 out_pps=0 out_bps=0 unk_pps=0
+sec t=100000 frame=2986 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=29 lat_mean=31 lat_max=45 jitter=4 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=101000 frame=3016 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=34 lat_mean=22 lat_max=45 jitter=5 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=102000 frame=3046 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=30 lat_mean=13 lat_max=28 jitter=2 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=103000 frame=3076 ra=4 fps=30 stall_ms=0 stalls=0 cushion=1.0 lat_max_peer=0 lat_n=29 lat_mean=22 lat_max=33 jitter=4 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+runahead t=103924 apply ra=4 fps=30 frame=3103
+sec t=104000 frame=3106 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=31 lat_mean=24 lat_max=39 jitter=4 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=105000 frame=3136 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=30 lat_mean=31 lat_max=40 jitter=2 retries=0 retry_ms=80 in_pps=28 in_bps=706 out_pps=15 out_bps=482 unk_pps=0
+sec t=106000 frame=3166 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=32 lat_mean=25 lat_max=49 jitter=5 retries=0 retry_ms=80 in_pps=30 in_bps=691 out_pps=15 out_bps=447 unk_pps=0
+sec t=107000 frame=3195 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=29 lat_mean=8 lat_max=14 jitter=2 retries=4 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=108000 frame=3225 ra=4 fps=30 stall_ms=0 stalls=0 cushion=1.0 lat_max_peer=0 lat_n=31 lat_mean=15 lat_max=26 jitter=2 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+runahead t=108921 apply ra=4 fps=30 frame=3252
+sec t=109000 frame=3255 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=30 lat_mean=21 lat_max=36 jitter=2 retries=2 retry_ms=80 in_pps=2 in_bps=954 out_pps=0 out_bps=0 unk_pps=0
+sec t=110000 frame=3284 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=29 lat_mean=25 lat_max=42 jitter=3 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=111000 frame=3314 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=31 lat_mean=30 lat_max=46 jitter=2 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=112000 frame=3344 ra=4 fps=30 stall_ms=0 stalls=0 cushion=0.0 lat_max_peer=0 lat_n=28 lat_mean=9 lat_max=33 jitter=3 retries=2 retry_ms=80 in_pps=30 in_bps=715 out_pps=15 out_bps=468 unk_pps=0
+sec t=113000 frame=3373 ra=4 fps=30 stall_ms=0 stalls=0 cushion=1.0 lat_max_peer=0 lat_n=31 lat_mean=13 lat_max=25 jitter=4 retries=0 retry_ms=80 in_pps=29 in_bps=680 out_pps=15 out_bps=449 unk_pps=0
+runahead t=113937 apply ra=4 fps=30 frame=3401
+sec t=114000 frame=3403 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=31 lat_mean=16 lat_max=22 jitter=2 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=115000 frame=3433 ra=4 fps=30 stall_ms=0 stalls=0 cushion=1.0 lat_max_peer=0 lat_n=31 lat_mean=24 lat_max=37 jitter=4 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=116000 frame=3463 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=27 lat_mean=28 lat_max=46 jitter=4 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=117000 frame=3493 ra=4 fps=30 stall_ms=46 stalls=1 cushion=0.0 lat_max_peer=0 lat_n=27 lat_mean=35 lat_max=46 jitter=6 retries=10 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=118000 frame=3522 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=37 lat_mean=9 lat_max=25 jitter=4 retries=6 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+runahead t=118934 apply ra=4 fps=30 frame=3550
+sec t=119000 frame=3552 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=29 lat_mean=17 lat_max=28 jitter=2 retries=1 retry_ms=80 in_pps=2 in_bps=954 out_pps=0 out_bps=0 unk_pps=0
+sec t=120000 frame=3582 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=30 lat_mean=20 lat_max=31 jitter=3 retries=2 retry_ms=80 in_pps=29 in_bps=714 out_pps=15 out_bps=453 unk_pps=0
+sec t=121000 frame=3612 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=34 lat_mean=22 lat_max=36 jitter=2 retries=2 retry_ms=80 in_pps=28 in_bps=736 out_pps=16 out_bps=508 unk_pps=0
+sec t=122000 frame=3642 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=29 lat_mean=23 lat_max=38 jitter=3 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=123000 frame=3672 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=30 lat_mean=25 lat_max=38 jitter=3 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+runahead t=123914 apply ra=4 fps=30 frame=3699
+sec t=124000 frame=3702 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=29 lat_mean=27 lat_max=38 jitter=3 retries=1 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+stall t=124295 frame=3706 ms=147 runAhead=4
+sec t=125000 frame=3728 ra=4 fps=30 stall_ms=148 stalls=1 cushion=4.0 lat_max_peer=0 lat_n=28 lat_mean=18 lat_max=28 jitter=4 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=126000 frame=3758 ra=4 fps=30 stall_ms=0 stalls=0 cushion=0.0 lat_max_peer=0 lat_n=30 lat_mean=12 lat_max=24 jitter=2 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=127000 frame=3788 ra=4 fps=30 stall_ms=0 stalls=0 cushion=1.0 lat_max_peer=0 lat_n=28 lat_mean=13 lat_max=27 jitter=2 retries=2 retry_ms=80 in_pps=29 in_bps=707 out_pps=16 out_bps=467 unk_pps=0
+sec t=128000 frame=3818 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=34 lat_mean=18 lat_max=29 jitter=4 retries=0 retry_ms=80 in_pps=30 in_bps=721 out_pps=15 out_bps=450 unk_pps=0
+runahead t=128945 apply ra=4 fps=30 frame=3846
+sec t=129000 frame=3848 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=30 lat_mean=21 lat_max=30 jitter=3 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=130000 frame=3878 ra=4 fps=30 stall_ms=0 stalls=0 cushion=0.0 lat_max_peer=0 lat_n=29 lat_mean=17 lat_max=33 jitter=3 retries=2 retry_ms=80 in_pps=2 in_bps=954 out_pps=0 out_bps=0 unk_pps=0
+sec t=131000 frame=3907 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=32 lat_mean=19 lat_max=29 jitter=4 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=132000 frame=3937 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=29 lat_mean=19 lat_max=33 jitter=2 retries=6 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=133000 frame=3967 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=29 lat_mean=19 lat_max=32 jitter=4 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+runahead t=133928 apply ra=4 fps=30 frame=3994
+sec t=134000 frame=3996 ra=4 fps=30 stall_ms=0 stalls=0 cushion=0.0 lat_max_peer=0 lat_n=32 lat_mean=20 lat_max=33 jitter=5 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=135000 frame=4026 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=30 lat_mean=19 lat_max=33 jitter=4 retries=1 retry_ms=80 in_pps=28 in_bps=683 out_pps=15 out_bps=438 unk_pps=0
+sec t=136000 frame=4056 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=31 lat_mean=19 lat_max=31 jitter=3 retries=2 retry_ms=80 in_pps=29 in_bps=722 out_pps=15 out_bps=498 unk_pps=0
+sec t=137000 frame=4086 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=29 lat_mean=21 lat_max=35 jitter=5 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=138000 frame=4116 ra=4 fps=30 stall_ms=0 stalls=0 cushion=1.0 lat_max_peer=0 lat_n=31 lat_mean=17 lat_max=29 jitter=2 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+runahead t=138955 apply ra=4 fps=30 frame=4144
+sec t=139000 frame=4146 ra=4 fps=30 stall_ms=55 stalls=1 cushion=3.0 lat_max_peer=0 lat_n=30 lat_mean=16 lat_max=31 jitter=3 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=140000 frame=4176 ra=4 fps=30 stall_ms=0 stalls=0 cushion=0.0 lat_max_peer=0 lat_n=31 lat_mean=17 lat_max=30 jitter=2 retries=0 retry_ms=80 in_pps=2 in_bps=954 out_pps=0 out_bps=0 unk_pps=0
+sec t=141000 frame=4205 ra=4 fps=30 stall_ms=0 stalls=0 cushion=1.0 lat_max_peer=0 lat_n=31 lat_mean=18 lat_max=34 jitter=2 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=142000 frame=4235 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=30 lat_mean=24 lat_max=37 jitter=4 retries=0 retry_ms=80 in_pps=29 in_bps=720 out_pps=15 out_bps=473 unk_pps=0
+sec t=143000 frame=4265 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=30 lat_mean=23 lat_max=38 jitter=3 retries=0 retry_ms=80 in_pps=30 in_bps=690 out_pps=15 out_bps=434 unk_pps=0
+runahead t=143908 apply ra=4 fps=30 frame=4292
+sec t=144000 frame=4295 ra=4 fps=30 stall_ms=0 stalls=0 cushion=2.0 lat_max_peer=0 lat_n=30 lat_mean=25 lat_max=40 jitter=3 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=145000 frame=4323 ra=4 fps=30 stall_ms=92 stalls=1 cushion=4.0 lat_max_peer=0 lat_n=28 lat_mean=28 lat_max=41 jitter=4 retries=3 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=146000 frame=4353 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=31 lat_mean=29 lat_max=42 jitter=3 retries=4 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=147000 frame=4383 ra=4 fps=30 stall_ms=0 stalls=0 cushion=1.0 lat_max_peer=0 lat_n=28 lat_mean=26 lat_max=39 jitter=3 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=148000 frame=4413 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=34 lat_mean=26 lat_max=39 jitter=3 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+runahead t=148943 apply ra=4 fps=30 frame=4441
+sec t=149000 frame=4443 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=30 lat_mean=28 lat_max=40 jitter=4 retries=0 retry_ms=80 in_pps=2 in_bps=954 out_pps=0 out_bps=0 unk_pps=0
+sec t=150000 frame=4473 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=30 lat_mean=26 lat_max=41 jitter=3 retries=2 retry_ms=80 in_pps=30 in_bps=710 out_pps=15 out_bps=432 unk_pps=0
+sec t=151000 frame=4503 ra=4 fps=30 stall_ms=0 stalls=0 cushion=1.0 lat_max_peer=0 lat_n=29 lat_mean=28 lat_max=41 jitter=3 retries=0 retry_ms=80 in_pps=29 in_bps=696 out_pps=16 out_bps=492 unk_pps=0
+sec t=152000 frame=4532 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=31 lat_mean=28 lat_max=38 jitter=3 retries=6 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=153000 frame=4562 ra=4 fps=30 stall_ms=0 stalls=0 cushion=1.0 lat_max_peer=0 lat_n=28 lat_mean=31 lat_max=41 jitter=4 retries=6 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+runahead t=153923 apply ra=4 fps=30 frame=4589
+sec t=154000 frame=4592 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=31 lat_mean=30 lat_max=45 jitter=3 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=155000 frame=4622 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=33 lat_mean=31 lat_max=46 jitter=5 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=156000 frame=4651 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=30 lat_mean=33 lat_max=42 jitter=3 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=157000 frame=4681 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=30 lat_mean=34 lat_max=49 jitter=4 retries=0 retry_ms=80 in_pps=30 in_bps=715 out_pps=16 out_bps=478 unk_pps=0
+sec t=158000 frame=4711 ra=4 fps=30 stall_ms=0 stalls=0 cushion=1.0 lat_max_peer=0 lat_n=30 lat_mean=39 lat_max=49 jitter=5 retries=0 retry_ms=80 in_pps=28 in_bps=698 out_pps=15 out_bps=439 unk_pps=0
+runahead t=158980 apply ra=4 fps=30 frame=4739
+sec t=159000 frame=4740 ra=4 fps=30 stall_ms=47 stalls=1 cushion=4.0 lat_max_peer=0 lat_n=31 lat_mean=19 lat_max=45 jitter=4 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=160000 frame=4770 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=30 lat_mean=11 lat_max=23 jitter=4 retries=2 retry_ms=80 in_pps=2 in_bps=954 out_pps=0 out_bps=0 unk_pps=0
+sec t=161000 frame=4800 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=30 lat_mean=12 lat_max=25 jitter=2 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=162000 frame=4829 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=30 lat_mean=21 lat_max=29 jitter=3 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=163000 frame=4859 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=30 lat_mean=18 lat_max=25 jitter=2 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+runahead t=163963 apply ra=4 fps=30 frame=4887
+sec t=164000 frame=4889 ra=4 fps=30 stall_ms=66 stalls=1 cushion=4.0 lat_max_peer=0 lat_n=29 lat_mean=22 lat_max=35 jitter=3 retries=2 retry_ms=80 in_pps=29 in_bps=680 out_pps=15 out_bps=431 unk_pps=0
+sec t=165000 frame=4919 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=31 lat_mean=20 lat_max=35 jitter=2 retries=0 retry_ms=80 in_pps=28 in_bps=708 out_pps=15 out_bps=445 unk_pps=0
+sec t=166000 frame=4948 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=30 lat_mean=26 lat_max=37 jitter=4 retries=3 retry_ms=80 in_pps=28 in_bps=684 out_pps=15 out_bps=493 unk_pps=0
+sec t=167000 frame=4978 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=29 lat_mean=29 lat_max=42 jitter=3 retries=3 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=168000 frame=5008 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=31 lat_mean=32 lat_max=45 jitter=4 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+runahead t=168950 apply ra=4 fps=30 frame=5036
+sec t=169000 frame=5038 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=32 lat_mean=33 lat_max=45 jitter=3 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=170000 frame=5068 ra=4 fps=30 stall_ms=0 stalls=0 cushion=1.0 lat_max_peer=0 lat_n=29 lat_mean=34 lat_max=49 jitter=4 retries=0 retry_ms=80 in_pps=2 in_bps=954 out_pps=0 out_bps=0 unk_pps=0
+sec t=171000 frame=5098 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=31 lat_mean=32 lat_max=43 jitter=3 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=172000 frame=5128 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=31 lat_mean=32 lat_max=49 jitter=2 retries=0 retry_ms=80 in_pps=30 in_bps=747 out_pps=15 out_bps=465 unk_pps=0
+sec t=173000 frame=5156 ra=4 fps=30 stall_ms=13 stalls=1 cushion=2.0 lat_max_peer=0 lat_n=28 lat_mean=35 lat_max=50 jitter=3 retries=5 retry_ms=80 in_pps=29 in_bps=680 out_pps=15 out_bps=443 unk_pps=0
+runahead t=173987 apply ra=4 fps=30 frame=5184
+sec t=174000 frame=5185 ra=4 fps=30 stall_ms=80 stalls=1 cushion=4.0 lat_max_peer=0 lat_n=30 lat_mean=22 lat_max=50 jitter=5 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=175000 frame=5215 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=31 lat_mean=10 lat_max=22 jitter=3 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=176000 frame=5245 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=31 lat_mean=12 lat_max=26 jitter=3 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=177000 frame=5275 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=29 lat_mean=16 lat_max=30 jitter=5 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=178000 frame=5305 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=31 lat_mean=17 lat_max=30 jitter=4 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+runahead t=178923 apply ra=4 fps=30 frame=5332
+sec t=179000 frame=5335 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=30 lat_mean=16 lat_max=24 jitter=1 retries=4 retry_ms=80 in_pps=30 in_bps=742 out_pps=15 out_bps=474 unk_pps=0
+sec t=180000 frame=5365 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=31 lat_mean=19 lat_max=29 jitter=3 retries=0 retry_ms=80 in_pps=27 in_bps=684 out_pps=15 out_bps=466 unk_pps=0
+sec t=181000 frame=5394 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=30 lat_mean=21 lat_max=34 jitter=2 retries=0 retry_ms=80 in_pps=2 in_bps=954 out_pps=0 out_bps=0 unk_pps=0
+sec t=182000 frame=5424 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=29 lat_mean=18 lat_max=29 jitter=2 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=183000 frame=5453 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=31 lat_mean=20 lat_max=32 jitter=2 retries=4 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+runahead t=183933 apply ra=4 fps=30 frame=5481
+sec t=184000 frame=5483 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=28 lat_mean=20 lat_max=32 jitter=3 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=185000 frame=5513 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=32 lat_mean=23 lat_max=34 jitter=3 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=186000 frame=5543 ra=4 fps=30 stall_ms=0 stalls=0 cushion=1.0 lat_max_peer=0 lat_n=31 lat_mean=25 lat_max=38 jitter=3 retries=4 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=187000 frame=5573 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=29 lat_mean=23 lat_max=31 jitter=1 retries=0 retry_ms=80 in_pps=26 in_bps=654 out_pps=16 out_bps=496 unk_pps=0
+sec t=188000 frame=5603 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=33 lat_mean=24 lat_max=34 jitter=2 retries=0 retry_ms=80 in_pps=28 in_bps=698 out_pps=15 out_bps=449 unk_pps=0
+runahead t=188953 apply ra=4 fps=30 frame=5631
+sec t=189000 frame=5633 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=28 lat_mean=29 lat_max=38 jitter=3 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=190000 frame=5663 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=31 lat_mean=29 lat_max=45 jitter=3 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=191000 frame=5693 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=31 lat_mean=31 lat_max=46 jitter=4 retries=0 retry_ms=80 in_pps=2 in_bps=954 out_pps=0 out_bps=0 unk_pps=0
+sec t=192000 frame=5722 ra=4 fps=30 stall_ms=0 stalls=0 cushion=1.0 lat_max_peer=0 lat_n=30 lat_mean=32 lat_max=46 jitter=5 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=193000 frame=5752 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=30 lat_mean=35 lat_max=47 jitter=5 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+runahead t=193943 apply ra=4 fps=30 frame=5780
+sec t=194000 frame=5782 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=29 lat_mean=34 lat_max=47 jitter=5 retries=0 retry_ms=80 in_pps=29 in_bps=730 out_pps=15 out_bps=433 unk_pps=0
+sec t=195000 frame=5811 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=32 lat_mean=14 lat_max=50 jitter=5 retries=2 retry_ms=80 in_pps=29 in_bps=708 out_pps=15 out_bps=443 unk_pps=0
+sec t=196000 frame=5841 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=31 lat_mean=8 lat_max=20 jitter=3 retries=2 retry_ms=80 in_pps=30 in_bps=718 out_pps=15 out_bps=496 unk_pps=0
+sec t=197000 frame=5871 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=28 lat_mean=7 lat_max=19 jitter=2 retries=6 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=198000 frame=5901 ra=4 fps=30 stall_ms=0 stalls=0 cushion=1.0 lat_max_peer=0 lat_n=29 lat_mean=11 lat_max=25 jitter=5 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+runahead t=198937 apply ra=4 fps=30 frame=5929
+sec t=199000 frame=5931 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=33 lat_mean=14 lat_max=25 jitter=3 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=200000 frame=5961 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=28 lat_mean=14 lat_max=27 jitter=3 retries=4 retry_ms=80 in_pps=2 in_bps=954 out_pps=0 out_bps=0 unk_pps=0
+sec t=201000 frame=5991 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=35 lat_mean=15 lat_max=28 jitter=2 retries=6 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=202000 frame=6021 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=30 lat_mean=16 lat_max=29 jitter=3 retries=4 retry_ms=80 in_pps=28 in_bps=671 out_pps=15 out_bps=454 unk_pps=0
+sec t=203000 frame=6050 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=29 lat_mean=17 lat_max=30 jitter=4 retries=2 retry_ms=80 in_pps=30 in_bps=742 out_pps=15 out_bps=491 unk_pps=0
+runahead t=203950 apply ra=4 fps=30 frame=6078
+sec t=204000 frame=6080 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=29 lat_mean=22 lat_max=42 jitter=5 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=205000 frame=6110 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=31 lat_mean=28 lat_max=43 jitter=4 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=206000 frame=6140 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=31 lat_mean=32 lat_max=43 jitter=3 retries=2 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=207000 frame=6170 ra=4 fps=30 stall_ms=0 stalls=0 cushion=3.0 lat_max_peer=0 lat_n=29 lat_mean=36 lat_max=53 jitter=4 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=208000 frame=6200 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=30 lat_mean=10 lat_max=41 jitter=6 retries=0 retry_ms=80 in_pps=0 in_bps=0 out_pps=0 out_bps=0 unk_pps=0
+sec t=209000 frame=6230 ra=4 fps=30 stall_ms=0 stalls=0 cushion=4.0 lat_max_peer=0 lat_n=0 lat_mean=0 lat_max=0 jitter=0 retries=12 retry_ms=80 in_pps=19 in_bps=457 out_pps=15 out_bps=413 unk_pps=0

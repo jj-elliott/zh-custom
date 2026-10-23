@@ -28,7 +28,7 @@ for p, (secs, stalls, ra) in logs.items():
               f"median {st.median(d):.0f} ms  min {min(d):.0f}  max {max(d):.0f}  "
               f"between 1700-2000ms: {sum(1 for x in d if 1700 <= x <= 2000)}")
         gaps = [(stalls[i+1]["t"] - stalls[i]["t"]) / 1000 for i in range(len(stalls) - 1)]
-        print(f"gap between stalls: median {st.median(gaps):.1f} s, min {min(gaps):.1f}, max {max(gaps):.1f}")
+        if gaps: print(f"gap between stalls: median {st.median(gaps):.1f} s, min {min(gaps):.1f}, max {max(gaps):.1f}")
     sm = [s["stall_ms"] for s in secs]
     print(f"stall_ms per sec: total {sum(sm)/1000:.1f} s; seconds with any stall {sum(1 for x in sm if x > 0)}/{len(sm)}")
     lat = [s for s in secs if s["lat_n"] > 0]

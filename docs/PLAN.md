@@ -100,6 +100,9 @@ Context: StarCraft II, AoE4, Factorio and Stormgate are all still deterministic 
    are free. Transport-level only: duplicates are already dropped by command ID (upstream fix #3564); the simulation is untouched.
    Validate with the solo loopback rig at 2–5% injected loss, then one real session. Jitter-aware run-ahead stays as a later option if
    logs ever show stalls with latency spikes rather than retries.
+   **Done 2026-10-22 (`Tests/netlogs/2026-10-22-solo-loss4-*`, rig at 4% loss + 20 ms jitter, 3.5 min):** 3 stalls total, two of them in
+   the first 3 s while the run-ahead settles from 30 to 4, one of 147 ms mid-game; frozen time 0.6% (host) / 0.1% (peer) vs 11% before,
+   longest stall 810 ms (startup) vs 2.0 s. Retry timer sat at the 80 ms floor on loopback. Shipped in v0.3.0; next real session confirms.
 3. **State resync instead of termination (Factorio model).** On CRC mismatch: host serialises game state (the save-game path already exists), ships it, guest loads and rejoins at that frame. ~2-second hitch, no more dead games. Host is the source of truth; this is already how Factorio handles desync.
 4. **Local input acknowledgment (the SC2 trick).** Respond to the player's input *immediately* on the UI layer: selection highlight, unit voice bark, order marker, start of turn animation. The actual command still executes N ticks later in lockstep. This is why SC2 feels responsive at the same real latency, and ZH currently gives zero feedback until the command clears the wait. Cheap, pure presentation layer, biggest *felt* improvement.
 5. **Catch-up instead of stall (Factorio).** When a client falls behind, run the sim at 2–3× until caught up rather than freezing. With the decoupled render loop from Phase 5, a hitch becomes a brief fast-forward.

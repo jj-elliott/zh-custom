@@ -33,13 +33,16 @@ These need the actual source tree or a Windows machine, so bootstrap.ps1 left th
 - [ ] **7. `/LARGEADDRESSAWARE`** on the exe if not already set (needed before the texture pack).
 - [~] **8. First netcode fix: adaptive retry timer** — implemented 2026-10-21 on `net/retry` (`Connection.cpp` `processAck`): retry after
       1.5× max(current sample, running average), floor 80 ms, cap 500 ms; 250 ms before the first ack (was a fixed 2000 ms). No backoff yet.
-      The netlog `sec` line now carries `retry_ms`. **Open:** measure on the solo rig with `-Loss 4`, then a real session; compare against
-      `Tests/netlogs/2026-10-21-session1-*` (11% frozen, ~1.9 s stalls).
+      The netlog `sec` line now carries `retry_ms`. **Measured 2026-10-22 on the solo rig at 4% loss:** 0.6% / 0.1% frozen vs 11%, no stall
+      over 1 s except the 30→4 run-ahead settle at game start (`Tests/netlogs/2026-10-22-solo-loss4-*`). Shipped v0.3.0. **Open:** confirm on
+      a real session; possible refinement: floor the retry at 2× the frame grouping interval so loopback-fast links don't resend before the
+      piggybacked ack can arrive (cosmetic: extra tiny packets only).
 - [~] **15. Solo netcode rig** — built 2026-10-21 on `net/retry`: `scripts/solo-net.ps1` starts two instances (`-multiinstance`; the second
       gets `Options_Instance02.ini`) bound to 127.0.0.1 / 127.0.0.2 via `-lanip` (no port offset needed: each binds its own loopback IP),
       discovering each other through `-lanpeer`, with upstream's loss/latency simulation now compiled in release (`Transport.h`
       `RTS_NETSIM`; `-packetloss`/`-latAvg`/`-latAmp`/`-latPeriod`/`-latNoise`) applied to instance B. Each writes `logs\net-solo-A/B.log`.
-      **Open:** the lobby/host/join clicks are human; first run pending. `net-sim.ps1` (clumsy) is now the fallback.
+      First run 2026-10-22: both instances up, host/join/play worked, logs produced. The lobby/host/join clicks stay human. `net-sim.ps1`
+      (clumsy) is now the fallback.
 
 Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setup had that we must keep):
 - [x] **9. Camera height scale** — done 2026-10-21, merged to `main` (3a417b362): `Core/GameEngine/Include/Common/CameraHeightScale.h` (+cpp),
