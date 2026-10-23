@@ -40,7 +40,11 @@ FramePacer::FramePacer()
 	m_updateTime = 1.0f / (Real)BaseFps; // initialized to something to avoid division by zero on first use
 	m_logicFramePhase = 1.0f;
 	m_enableFpsLimit = FALSE;
-	m_enableLogicTimeScale = FALSE;
+	// zh-pipeline @tweak 2026-10-22 Logic time scale on by default (30 logic fps), so an uncapped render rate does not drag
+	// the simulation along with it (with it off, getActualLogicTimeScaleFps returns "uncapped" to mimic the original game,
+	// where game speed followed the frame rate). Network games are paced by TheNetwork regardless; the fast-forward and
+	// hotkey paths toggle this flag themselves.
+	m_enableLogicTimeScale = TRUE;
 	m_isTimeFrozen = FALSE;
 	m_isGameHalted = FALSE;
 }
