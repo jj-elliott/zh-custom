@@ -38,6 +38,8 @@ file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/BuildVersion.h
 
 if(MSVC)
     target_link_options(z_generals PRIVATE "/NODEFAULTLIB:libci.lib")
+    # zh-pipeline @feature 2026-10-22 4 GB address space for the 32-bit exe (PLAN.md Phase 5 step 3: higher-resolution textures).
+    target_link_options(z_generals PRIVATE "/LARGEADDRESSAWARE")
 endif()
 
 target_include_directories(z_generals PRIVATE
