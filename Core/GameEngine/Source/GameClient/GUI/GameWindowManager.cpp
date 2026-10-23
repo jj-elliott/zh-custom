@@ -36,6 +36,7 @@
 #include "GameClient/Display.h"
 #include "GameClient/GameWindowManager.h"
 #include "GameClient/GameWindow.h"
+#include "GameClient/UILayout.h"	// zh-pipeline
 #include "GameClient/Mouse.h"
 #include "GameClient/DisplayStringManager.h"
 #include "GameClient/WindowLayout.h"
@@ -1390,6 +1391,8 @@ Int GameWindowManager::winDestroy( GameWindow *window )
 
 	if( window == nullptr )
 		return WIN_ERR_INVALID_WINDOW;
+
+	UILayout::forget( window );   // zh-pipeline
 
 	//
 	// we should never have edit data allocated in the window code, it's

@@ -53,6 +53,9 @@
 #include "GameClient/GadgetStaticText.h"
 #include "W3DDevice/GameClient/W3DGameWindow.h"
 #include "W3DDevice/GameClient/W3DGadget.h"
+#include "GameClient/UIStyle.h"	// zh-pipeline procedural gadgets
+#include "GameClient/UILayout.h"
+#include "GameClient/UIGadgets.h"
 #include "W3DDevice/GameClient/W3DDisplay.h"
 
 // DEFINES ////////////////////////////////////////////////////////////////////
@@ -149,6 +152,17 @@ static void drawStaticTextText( GameWindow *window, WinInstanceData *instData,
 //=============================================================================
 void W3DGadgetStaticTextDraw( GameWindow *window, WinInstanceData *instData )
 {
+	// zh-pipeline: a window a layout put on the procedural UI system draws through UIGadgets
+	if( UIStyle::isEnabled() )
+	{
+		const UILayout::Style st = UILayout::styleOf( window );
+		if( st != UILayout::STYLE_NONE )
+		{
+			UIGadgets::drawStaticText( window, instData, st );
+			return;
+		}
+	}
+
 	TextData *tData = (TextData *)window->winGetUserData();
 	Color backColor, backBorder, textColor, textOutlineColor;
 	ICoord2D size, origin, start, end;
@@ -215,6 +229,17 @@ void W3DGadgetStaticTextDraw( GameWindow *window, WinInstanceData *instData )
 //=============================================================================
 void W3DGadgetStaticTextImageDraw( GameWindow *window, WinInstanceData *instData )
 {
+	// zh-pipeline: a window a layout put on the procedural UI system draws through UIGadgets
+	if( UIStyle::isEnabled() )
+	{
+		const UILayout::Style st = UILayout::styleOf( window );
+		if( st != UILayout::STYLE_NONE )
+		{
+			UIGadgets::drawStaticText( window, instData, st );
+			return;
+		}
+	}
+
 	TextData *tData = (TextData *)window->winGetUserData();
 	Color textColor, textOutlineColor;
 	ICoord2D size, origin, start, end;

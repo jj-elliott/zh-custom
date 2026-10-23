@@ -5,6 +5,7 @@
 
 #include "Lib/BaseType.h"
 #include "GameClient/Color.h"
+#include "Common/UnicodeString.h"
 
 namespace UIStyle
 {
@@ -14,7 +15,9 @@ namespace UIStyle
 	Bool isTestScreen();         ///< draw the component sheet over the shell (-uitest)
 	void setTestScreen( Bool on );
 
-	// ---- scale: one design unit = display height / 1080 ---------------------------------------------------------------
+	// ---- scale and frame (§5): the content frame is 16:9, centred, filling the height (letterboxed by the scene on wider
+	// screens) or the width (bands on 16:10 and squarer). One design unit = frame height / 1080.
+	void frame( Int &x, Int &y, Int &w, Int &h );
 	Real unit();
 	Real uf( Real units );       ///< design units -> screen pixels
 	Int  u( Real units );        ///< design units -> whole screen pixels (at least 1 for a positive input)
@@ -88,7 +91,9 @@ namespace UIStyle
 	{
 		void beginFrame();
 		Int  width( const char *ascii, Int role );
+		Int  width( const UnicodeString &text, Int role );
 		Int  draw( Int x, Int y, const char *ascii, Int role, Color color, Int align = 0, Int boxHeight = 0 );
+		Int  draw( Int x, Int y, const UnicodeString &text, Int role, Color color, Int align = 0, Int boxHeight = 0 );
 		Int  lineHeight( Int role );
 	}
 

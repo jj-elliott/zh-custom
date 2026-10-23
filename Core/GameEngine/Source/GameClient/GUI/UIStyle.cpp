@@ -10,6 +10,7 @@
 #include "GameClient/UIFonts.h"
 #include <vector>
 #include <ctype.h>
+#include <wctype.h>
 
 namespace UIStyle
 {
@@ -26,11 +27,24 @@ void setTestScreen( Bool on ) { s_testScreen = on; }
 
 // ---- scale ------------------------------------------------------------------------------------------------------------
 
+void frame( Int &x, Int &y, Int &w, Int &h )
+{
+	const Int W = TheDisplay ? TheDisplay->getWidth() : 1920;
+	const Int H = TheDisplay ? TheDisplay->getHeight() : 1080;
+	w = W; h = H;
+	if( W * 9 > H * 16 ) w = H * 16 / 9;    // wider than 16:9: letterbox left and right
+	else h = W * 9 / 16;                     // 16:10 and squarer: bands top and bottom
+	x = ( W - w ) / 2;
+	y = ( H - h ) / 2;
+}
+
 Real unit()
 {
-	if( TheDisplay == nullptr || TheDisplay->getHeight() <= 0 )
+	Int x, y, w, h;
+	frame( x, y, w, h );
+	if( h <= 0 )
 		return 1.0f;
-	return (Real)TheDisplay->getHeight() / 1080.0f;
+	return (Real)h / 1080.0f;
 }
 
 Real uf( Real units ) { return units * unit(); }
@@ -131,7 +145,7 @@ namespace Text
 namespace
 {
 	const Real SMALL_CAPS_SCALE = 0.78f;
-	const Real ASCENT_RATIO = 0.80f;   // Barlow's ascent over its em: aligns the lowerRun run's baseline to the full run's
+	const Real ASCENT_RATIO = 0.80f;   // Barlow's ascent over its em: aligns the small run's baseline to the full run's
 
 	std::vector<DisplayString *> s_pool;
 	size_t s_cursor = 0;
@@ -147,41 +161,70 @@ namespace
 
 	struct Run
 	{
-		AsciiString text;
+		UnicodeString text;
 		Bool lowerRun;
 	};
 
-	// split into runs; for lowerRun caps, lowercase letters become uppercase in the lowerRun font
-	void splitRuns( const char *ascii, Bool smallCaps, Bool upper, std::vector<Run> &runs )
+	Bool hasLower( const UnicodeString &t )
+	{
+		for( Int i = 0; i < t.getLength(); ++i )
+			if( iswlower( t.getCharAt( i ) ) )
+				return TRUE;
+		return FALSE;
+	}
+
+	// the game's own strings are often set in capitals ("SOLO PLAY"); small caps need the mixed-case form, so an all-caps
+	// string is title-cased first: first letter of each word kept, the rest lowered
+	UnicodeString titleCase( const UnicodeString &t )
+	{
+		UnicodeString out;
+		Bool wordStart = TRUE;
+		for( Int i = 0; i < t.getLength(); ++i )
+		{
+			const WideChar c = t.getCharAt( i );
+			if( iswalpha( c ) )
+			{
+				out.concat( wordStart ? c : (WideChar)towlower( c ) );
+				wordStart = FALSE;
+			}
+			else
+			{
+				out.concat( c );
+				wordStart = TRUE;
+			}
+		}
+		return out;
+	}
+
+	// split into runs; for small caps, lowercase letters become uppercase in the small font
+	void splitRuns( const UnicodeString &src, Bool smallCaps, Bool upper, std::vector<Run> &runs )
 	{
 		runs.clear();
-		if( ascii == nullptr )
-			return;
 		if( !smallCaps )
 		{
 			Run r; r.lowerRun = FALSE;
 			if( upper )
-			{
-				for( const char *c = ascii; *c; ++c )
-					r.text.concat( (char)toupper( (unsigned char)*c ) );
-			}
+				for( Int i = 0; i < src.getLength(); ++i )
+					r.text.concat( (WideChar)towupper( src.getCharAt( i ) ) );
 			else
-				r.text = ascii;
+				r.text = src;
 			runs.push_back( r );
 			return;
 		}
+		const UnicodeString t = hasLower( src ) ? src : titleCase( src );
 		Run cur; cur.lowerRun = FALSE;
 		Bool have = FALSE;
-		for( const char *c = ascii; *c; ++c )
+		for( Int i = 0; i < t.getLength(); ++i )
 		{
-			const Bool lower = islower( (unsigned char)*c ) != 0;
+			const WideChar c = t.getCharAt( i );
+			const Bool lower = iswlower( c ) != 0;
 			if( have && lower != cur.lowerRun )
 			{
 				runs.push_back( cur );
 				cur.text.clear();
 			}
 			cur.lowerRun = lower;
-			cur.text.concat( lower ? (char)toupper( (unsigned char)*c ) : *c );
+			cur.text.concat( lower ? (WideChar)towupper( c ) : c );
 			have = TRUE;
 		}
 		if( have )
@@ -235,30 +278,28 @@ namespace
 		return overlap;
 	}
 
-	Int layout( const char *ascii, Int roleInt, std::vector<Laid> &out, Int &fullHeight, Int &smallHeight )
+	Int layout( const UnicodeString &text, Int roleInt, std::vector<Laid> &out, Int &fullHeight, Int &smallHeight )
 	{
 		out.clear();
 		fullHeight = smallHeight = 0;
 		const UIFonts::Role role = (UIFonts::Role)roleInt;
 		GameFont *big = UIFonts::font( role );
-		GameFont *lowerRun = UIFonts::smallCaps( role ) ? UIFonts::font( role, SMALL_CAPS_SCALE ) : big;
+		GameFont *lowerFont = UIFonts::smallCaps( role ) ? UIFonts::font( role, SMALL_CAPS_SCALE ) : big;
 		if( big == nullptr )
 			return 0;
 		fullHeight = big->height;
-		smallHeight = lowerRun ? lowerRun->height : big->height;
+		smallHeight = lowerFont ? lowerFont->height : big->height;
 		std::vector<Run> runs;
-		splitRuns( ascii, UIFonts::smallCaps( role ), UIFonts::uppercase( role ), runs );
+		splitRuns( text, UIFonts::smallCaps( role ), UIFonts::uppercase( role ), runs );
 		Int total = 0;
 		for( size_t i = 0; i < runs.size(); ++i )
 		{
 			DisplayString *ds = take();
 			if( ds == nullptr )
 				break;
-			UnicodeString us;
-			us.translate( runs[ i ].text );
-			GameFont *f = runs[ i ].lowerRun ? lowerRun : big;
+			GameFont *f = runs[ i ].lowerRun ? lowerFont : big;
 			ds->setFont( f );
-			ds->setText( us );
+			ds->setText( runs[ i ].text );
 			Laid l; l.ds = ds; l.lowerRun = runs[ i ].lowerRun; l.w = 0; l.h = 0;
 			ds->getSize( &l.w, &l.h );
 			// every run but the last advances by its width minus the trailing overlap padding
@@ -282,21 +323,28 @@ Int lineHeight( Int role )
 	return f ? f->height : 0;
 }
 
-Int width( const char *ascii, Int role )
+Int width( const UnicodeString &text, Int role )
 {
 	std::vector<Laid> laid;
 	Int fh, sh;
 	const size_t saved = s_cursor;
-	const Int w = layout( ascii, role, laid, fh, sh );
+	const Int w = layout( text, role, laid, fh, sh );
 	s_cursor = saved;   // measuring borrows pool entries without consuming them
 	return w;
 }
 
-Int draw( Int x, Int y, const char *ascii, Int role, Color color, Int align, Int boxHeight )
+Int width( const char *ascii, Int role )
+{
+	UnicodeString us;
+	us.translate( AsciiString( ascii ? ascii : "" ) );
+	return width( us, role );
+}
+
+Int draw( Int x, Int y, const UnicodeString &text, Int role, Color color, Int align, Int boxHeight )
 {
 	std::vector<Laid> laid;
 	Int fullH, smallH;
-	const Int total = layout( ascii, role, laid, fullH, smallH );
+	const Int total = layout( text, role, laid, fullH, smallH );
 	if( laid.empty() )
 		return 0;
 	Int cx = x;
@@ -312,6 +360,13 @@ Int draw( Int x, Int y, const char *ascii, Int role, Color color, Int align, Int
 		cx += laid[ i ].w;
 	}
 	return total;
+}
+
+Int draw( Int x, Int y, const char *ascii, Int role, Color color, Int align, Int boxHeight )
+{
+	UnicodeString us;
+	us.translate( AsciiString( ascii ? ascii : "" ) );
+	return draw( x, y, us, role, color, align, boxHeight );
 }
 
 } // namespace Text

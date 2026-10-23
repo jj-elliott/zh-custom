@@ -58,6 +58,7 @@
 #include "GameClient/WindowLayout.h"
 #include "GameClient/Gadget.h"
 #include "GameClient/GameWindowManager.h"
+#include "GameClient/UILayout.h"	// zh-pipeline layout descriptions
 #include "GameClient/GameWindowGlobal.h"
 #include "GameClient/GadgetStaticText.h"
 #include "GameClient/GadgetTabControl.h"
@@ -2916,6 +2917,10 @@ GameWindow *GameWindowManager::winCreateFromScript( AsciiString filenameString,
 		*info = scriptInfo;
 
 	// return the first window created
+	// zh-pipeline: a UI\Layouts\<screen>.layout places the named windows in the 16:9 frame and marks the ones the
+	// procedural renderers draw (docs/UI-DESIGN.md 6.4). Runs before the layout's init callback.
+	UILayout::apply( filenameString, firstWindow );
+
 	return firstWindow;
 
 }

@@ -56,6 +56,9 @@
 #include "W3DDevice/GameClient/W3DGameWindow.h"
 #include "W3DDevice/GameClient/W3DDisplay.h"
 #include "W3DDevice/GameClient/W3DGadget.h"
+#include "GameClient/UIStyle.h"	// zh-pipeline procedural gadgets
+#include "GameClient/UILayout.h"
+#include "GameClient/UIGadgets.h"
 
 
 
@@ -147,6 +150,17 @@ static void drawButtonText( GameWindow *window, WinInstanceData *instData )
 //=============================================================================
 void W3DGadgetPushButtonDraw( GameWindow *window, WinInstanceData *instData )
 {
+	// zh-pipeline: a window a layout put on the procedural UI system draws through UIGadgets
+	if( UIStyle::isEnabled() )
+	{
+		const UILayout::Style st = UILayout::styleOf( window );
+		if( st != UILayout::STYLE_NONE )
+		{
+			UIGadgets::drawPushButton( window, instData, st );
+			return;
+		}
+	}
+
 	Color color, border;
 	ICoord2D origin, size, start, end;
 
@@ -313,6 +327,17 @@ void W3DGadgetPushButtonImageDraw( GameWindow *window,
 void W3DGadgetPushButtonImageDrawOne( GameWindow *window,
 																	 WinInstanceData *instData )
 {
+	// zh-pipeline: a window a layout put on the procedural UI system draws through UIGadgets
+	if( UIStyle::isEnabled() )
+	{
+		const UILayout::Style st = UILayout::styleOf( window );
+		if( st != UILayout::STYLE_NONE )
+		{
+			UIGadgets::drawPushButton( window, instData, st );
+			return;
+		}
+	}
+
 	const Image *image = nullptr;
 	ICoord2D size, start, end;
 
@@ -486,6 +511,17 @@ void W3DGadgetPushButtonImageDrawOne( GameWindow *window,
 
 void W3DGadgetPushButtonImageDrawThree(GameWindow *window, WinInstanceData *instData )
 {
+	// zh-pipeline: a window a layout put on the procedural UI system draws through UIGadgets
+	if( UIStyle::isEnabled() )
+	{
+		const UILayout::Style st = UILayout::styleOf( window );
+		if( st != UILayout::STYLE_NONE )
+		{
+			UIGadgets::drawPushButton( window, instData, st );
+			return;
+		}
+	}
+
 
 	const Image *leftImage, *rightImage, *centerImage;
 	ICoord2D origin, size, start, end;
