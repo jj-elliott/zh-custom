@@ -30,7 +30,12 @@ These need the actual source tree or a Windows machine, so bootstrap.ps1 left th
       last 20 kept. Shipped in **v0.2.0** (2026-10-21) together with windowed edge scrolling. **Open:** read a real two-machine session log;
       decide Phase 4 step 2 (jitter term) from it. Not in the CRC. Launch args are now `-win -nologo` (skip logo + intro movie, keep the
       animated shell map); the human prefers that over `-quickstart`.
-- [ ] **7. `/LARGEADDRESSAWARE`** on the exe if not already set (needed before the texture pack).
+- [x] **7. `/LARGEADDRESSAWARE`** — set 2026-10-22 (`GeneralsMD/Code/Main/CMakeLists.txt`); PE characteristics 0x122; CRC unchanged.
+- [~] **16. Menu UI system** (`render/ui`, spec `docs/UI-DESIGN.md`, mockups linked there). Done: primitives (`Display::drawRounded*`,
+      `drawDisc`, `drawPolyline` in `W3DDisplay`), `UIStyle` tokens/renderers, `-uitest` component sheet, `-classicui` switch.
+      **Next:** screenshots of the sheet at 4K and 1080p for the human (step 2 sign-off), then typeface (fonts folder +
+      substitution + height-based sizing), main menu layout description, skirmish setup, remaining shell screens. Parked on
+      `render/textures`: texture-pack scripts and the earlier gadget/anchoring drafts (superseded).
 - [~] **8. First netcode fix: adaptive retry timer** — implemented 2026-10-21 on `net/retry` (`Connection.cpp` `processAck`): retry after
       1.5× max(current sample, running average), floor 80 ms, cap 500 ms; 250 ms before the first ack (was a fixed 2000 ms). No backoff yet.
       The netlog `sec` line now carries `retry_ms`. **Measured 2026-10-22 on the solo rig at 4% loss:** 0.6% / 0.1% frozen vs 11%, no stall

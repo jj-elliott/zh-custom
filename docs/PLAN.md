@@ -120,7 +120,13 @@ Reality check: every ZH fork is x86 (inline asm) and D3D8 fixed-function. No for
    (bobtista, 2026-09-14) plus `ParticleSys.cpp` lerp with it. Uncapped FPS is `FramesPerSecondLimit=0` / `-fps` / `RenderFpsPreset::UncappedFpsValue`.
    What is *not* interpolated yet: the drawable's base position/orientation (only the locomotor bob/pitch/roll and particles). Catch-up mode
    (Phase 4 step 5) can build on `setLogicTimeScaleFps`. Skip the port; just verify smoothness in-game and extend interpolation if needed.
-3. **Textures.** AI-upscale the `.dds` in the `.big` archives (ESRGAN on the 5090), re-export with mipmaps into a higher-priority `.big`. Reforged ships 481 originals at 4× as reference. Set the exe LAA flag (`/LARGEADDRESSAWARE`) for 4 GB address space; x64 is not needed for this.
+3. **Textures.** AI-upscale the `.dds` in the `.big` archives (ESRGAN on the 5090), re-export with mipmaps into a higher-priority `.big`. Reforged ships 481 originals at 4× as reference. ~~Set the exe LAA flag~~ LAA set 2026-10-22. **Scoped down 2026-10-22:** the UI
+   chrome is not upscaled any more; it is redrawn (step 3b). An upscale pipeline for world textures exists parked on `render/textures`
+   (`scripts/make-texture-pack.ps1`); the UI atlases are no longer a target.
+3b. **Menu UI system (`render/ui`, design signed off 2026-10-22).** `docs/UI-DESIGN.md` is the spec. Procedural chrome drawn through new
+   `Display` primitives, a style module (`GameClient/UIStyle`), per-gadget renderers, 16:9-native layout descriptions, a new typeface.
+   Delivery per the doc's §7: step 2 (primitives + style module + `-uitest` component sheet) built 2026-10-22; next: typeface, then the
+   main menu end to end, then skirmish setup, then the remaining shell screens. In-game HUD stays on sprites until its own pass.
 4. **Native D3D9 in `DX8Wrapper`.** Contained change, removes the translation layer, unlocks Shader Model 3 for normal maps and a post pass without touching fixed-function code. Optional if Phase 6 is going to happen anyway.
 5. Models: pilot one static building through an image-to-3D generator before touching any animated unit.
 
