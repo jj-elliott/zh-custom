@@ -638,7 +638,8 @@ void GameLODManager::applyStaticLODLevel(StaticGameLODLevel level)
 		TheWritableGlobalData->m_useDrawModuleLOD=!lodInfo->m_useBuildupScaffolds;
 		TheWritableGlobalData->m_useHeatEffects=lodInfo->m_useHeatEffects;
 		TheWritableGlobalData->m_enableDynamicLOD = lodInfo->m_enableDynamicLOD;
-		TheWritableGlobalData->m_useFpsLimit = lodInfo->m_useFpsLimit;
+		// zh-pipeline @tweak 2026-10-22 A detail preset may ask for the cap, but the FPSLimit preference (default off) has the last word.
+		TheWritableGlobalData->m_useFpsLimit = lodInfo->m_useFpsLimit && OptionPreferences().getFPSLimitEnabled();
 		TheWritableGlobalData->m_useTrees = requestedTrees;
 
 		if (!m_memPassed || isReallyLowMHz()) {

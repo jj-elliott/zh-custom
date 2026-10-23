@@ -32,6 +32,7 @@
 
 #include "Common/CRCDebug.h"
 #include "Common/FramePacer.h"
+#include "Common/OptionPreferences.h"	// zh-pipeline: FPSLimit preference at game start
 #include "Common/GameAudio.h"
 #include "Common/GameEngine.h"
 #include "Common/GlobalData.h"
@@ -884,7 +885,9 @@ bool GameLogic::onNewGame(MAYBE_UNUSED GameMessage *msg)
 			maxFPS = TheGlobalData->m_framesPerSecondLimit;
 		DEBUG_LOG(("Setting max FPS limit to %d FPS", maxFPS));
 		TheFramePacer->setFramesPerSecondLimit(maxFPS);
-		TheWritableGlobalData->m_useFpsLimit = true;
+		// zh-pipeline @tweak 2026-10-22 Respect the FPSLimit preference instead of forcing the cap on at every game start
+		// (the menu honoured it, the game did not). The value is still set so a cap, when wanted, uses the game's rate.
+		TheWritableGlobalData->m_useFpsLimit = OptionPreferences().getFPSLimitEnabled();
 	}
 
 	// prepare for new game
