@@ -2445,6 +2445,194 @@ void W3DDisplay::drawFillRect( Int startX, Int startY, Int width, Int height,
 	}
 }
 
+#include "GameClient/UIStyle.h"	// zh-pipeline procedural UI primitives
+#include <vector>
+#include <math.h>
+
+// ---- zh-pipeline @feature 2026-10-22 procedural UI primitives (docs/UI-DESIGN.md 6.1) --------------------------------
+// Rounded shapes are tessellated; edge quality comes from the swapchain MSAA the shipped DXVK config forces. Vertical
+// gradients are split into bands whose stop colours are mixed in linear light (UIStyle::mix). Vertex order follows
+// Render2DClass::Add_Quad's rectangle convention (v0 top-left, v1 bottom-left, v2 top-right, v3 bottom-right) so the
+// winding matches the renderer's.
+namespace
+{
+	const Real UI_PI = 3.14159265358979f;
+
+	Int cornerSegments( Real r )
+	{
+		Int s = (Int)( r * 0.6f ) + 3;
+		if( s < 3 ) s = 3;
+		if( s > 24 ) s = 24;
+		return s;
+	}
+
+	// edge points of a rounded rectangle, clockwise, 4 * (segs + 1) points starting at the top-left corner's left end.
+	// inset shrinks rect and radius together (the inner edge of a stroke).
+	void roundedPath( Real x, Real y, Real w, Real h, Real r, Real inset, Int segs, std::vector<Vector2> &out )
+	{
+		x += inset; y += inset; w -= 2.0f * inset; h -= 2.0f * inset; r -= inset;
+		if( w < 0.0f ) w = 0.0f;
+		if( h < 0.0f ) h = 0.0f;
+		const Real maxR = 0.5f * ( ( w < h ) ? w : h );
+		if( r > maxR ) r = maxR;
+		if( r < 0.0f ) r = 0.0f;
+		const Real cx[ 4 ] = { x + r, x + w - r, x + w - r, x + r };
+		const Real cy[ 4 ] = { y + r, y + r, y + h - r, y + h - r };
+		const Real a0[ 4 ] = { UI_PI, 1.5f * UI_PI, 0.0f, 0.5f * UI_PI };
+		out.clear();
+		out.reserve( 4 * ( segs + 1 ) );
+		for( Int c = 0; c < 4; ++c )
+			for( Int i = 0; i <= segs; ++i )
+			{
+				const Real a = a0[ c ] + ( 0.5f * UI_PI ) * (Real)i / (Real)segs;
+				out.push_back( Vector2( cx[ c ] + r * cosf( a ), cy[ c ] + r * sinf( a ) ) );
+			}
+	}
+
+	// one fan triangle (centre, a, b) in the renderer's winding, as a degenerate quad
+	inline void fanTri( Render2DClass *r2d, const Vector2 &centre, const Vector2 &a, const Vector2 &b, Color color )
+	{
+		r2d->Add_Quad( centre, b, a, a, color );
+	}
+}
+
+void W3DDisplay::drawRoundedRect( Int x, Int y, Int width, Int height, Real radius, Color fill )
+{
+	if( width <= 0 || height <= 0 )
+		return;
+	if( radius < 0.75f )
+	{
+		drawFillRect( x, y, width, height, fill );
+		return;
+	}
+	setup2DRenderState( nullptr, DRAW_IMAGE_ALPHA, FALSE );
+	std::vector<Vector2> path;
+	roundedPath( (Real)x, (Real)y, (Real)width, (Real)height, radius, 0.0f, cornerSegments( radius ), path );
+	const Vector2 centre( x + width * 0.5f, y + height * 0.5f );
+	const size_t n = path.size();
+	for( size_t i = 0; i < n; ++i )
+		fanTri( m_2DRender, centre, path[ i ], path[ ( i + 1 ) % n ], fill );
+	if( !m_isBatching )
+		m_2DRender->Render();
+}
+
+void W3DDisplay::drawRoundedRectVGradient( Int x, Int y, Int width, Int height, Real radius, Color top, Color bottom )
+{
+	if( width <= 0 || height <= 0 )
+		return;
+	setup2DRenderState( nullptr, DRAW_IMAGE_ALPHA, FALSE );
+	const Real fx = (Real)x, fy = (Real)y, fw = (Real)width, fh = (Real)height;
+	Real r = radius;
+	const Real maxR = 0.5f * ( ( fw < fh ) ? fw : fh );
+	if( r > maxR ) r = maxR;
+	if( r < 0.75f ) r = 0.0f;
+	// linear-light stops: mix() interpolates in linear light, the renderer then blends each band in sRGB, which is
+	// invisible at 8 bands over a subtle gradient
+	const Int bands = 8;
+	Color stop[ bands + 1 ];
+	for( Int i = 0; i <= bands; ++i )
+		stop[ i ] = UIStyle::mix( top, bottom, (Real)i / (Real)bands );
+
+	if( r <= 0.0f )
+	{
+		for( Int i = 0; i < bands; ++i )
+		{
+			const Real y0 = fy + fh * i / bands, y1 = fy + fh * ( i + 1 ) / bands;
+			m_2DRender->Add_Quad_VGradient( RectClass( fx, y0, fx + fw, y1 ), stop[ i ], stop[ i + 1 ] );
+		}
+	}
+	else
+	{
+		const Int segs = cornerSegments( r );
+		std::vector<Vector2> path;
+		roundedPath( fx, fy, fw, fh, r, 0.0f, segs, path );
+		// top and bottom zones: centre strip as a gradient quad, corners as fans coloured per triangle
+		m_2DRender->Add_Quad_VGradient( RectClass( fx + r, fy, fx + fw - r, fy + r ),
+																		UIStyle::mix( top, bottom, 0.0f ), UIStyle::mix( top, bottom, r / fh ) );
+		m_2DRender->Add_Quad_VGradient( RectClass( fx + r, fy + fh - r, fx + fw - r, fy + fh ),
+																		UIStyle::mix( top, bottom, ( fh - r ) / fh ), UIStyle::mix( top, bottom, 1.0f ) );
+		const Vector2 corner[ 4 ] = { Vector2( fx + r, fy + r ), Vector2( fx + fw - r, fy + r ), Vector2( fx + fw - r, fy + fh - r ), Vector2( fx + r, fy + fh - r ) };
+		for( Int c = 0; c < 4; ++c )
+			for( Int i = 0; i < segs; ++i )
+			{
+				const Vector2 &a = path[ c * ( segs + 1 ) + i ];
+				const Vector2 &b = path[ c * ( segs + 1 ) + i + 1 ];
+				const Real yy = ( a.Y + b.Y + corner[ c ].Y ) / 3.0f;
+				fanTri( m_2DRender, corner[ c ], a, b, UIStyle::mix( top, bottom, ( yy - fy ) / fh ) );
+			}
+		// middle zone, full width, in bands
+		const Real my0 = fy + r, my1 = fy + fh - r;
+		if( my1 > my0 )
+			for( Int i = 0; i < bands; ++i )
+			{
+				const Real y0 = my0 + ( my1 - my0 ) * i / bands, y1 = my0 + ( my1 - my0 ) * ( i + 1 ) / bands;
+				m_2DRender->Add_Quad_VGradient( RectClass( fx, y0, fx + fw, y1 ),
+																				UIStyle::mix( top, bottom, ( y0 - fy ) / fh ), UIStyle::mix( top, bottom, ( y1 - fy ) / fh ) );
+			}
+	}
+	if( !m_isBatching )
+		m_2DRender->Render();
+}
+
+void W3DDisplay::drawRoundedOutline( Int x, Int y, Int width, Int height, Real radius, Real lineWidth, Color color )
+{
+	if( width <= 0 || height <= 0 || lineWidth <= 0.0f )
+		return;
+	if( radius < 0.75f )
+	{
+		drawOpenRect( x, y, width, height, lineWidth, color );
+		return;
+	}
+	setup2DRenderState( nullptr, DRAW_IMAGE_ALPHA, FALSE );
+	const Int segs = cornerSegments( radius );
+	std::vector<Vector2> outer, inner;
+	roundedPath( (Real)x, (Real)y, (Real)width, (Real)height, radius, 0.0f, segs, outer );
+	roundedPath( (Real)x, (Real)y, (Real)width, (Real)height, radius, lineWidth, segs, inner );
+	const size_t n = outer.size();
+	for( size_t i = 0; i < n; ++i )
+	{
+		const size_t j = ( i + 1 ) % n;
+		m_2DRender->Add_Quad( outer[ i ], inner[ i ], outer[ j ], inner[ j ], color );
+	}
+	if( !m_isBatching )
+		m_2DRender->Render();
+}
+
+void W3DDisplay::drawDisc( Real cx, Real cy, Real radius, Color fill )
+{
+	if( radius <= 0.0f )
+		return;
+	setup2DRenderState( nullptr, DRAW_IMAGE_ALPHA, FALSE );
+	Int segs = (Int)( radius * 1.2f ) + 8;
+	if( segs > 64 ) segs = 64;
+	const Vector2 centre( cx, cy );
+	Vector2 prev( cx + radius, cy );
+	for( Int i = 1; i <= segs; ++i )
+	{
+		const Real a = 2.0f * UI_PI * (Real)i / (Real)segs;
+		const Vector2 cur( cx + radius * cosf( a ), cy + radius * sinf( a ) );
+		fanTri( m_2DRender, centre, prev, cur, fill );
+		prev = cur;
+	}
+	if( !m_isBatching )
+		m_2DRender->Render();
+}
+
+void W3DDisplay::drawPolyline( const Coord2D *points, Int count, Real lineWidth, Color color )
+{
+	if( points == nullptr || count < 2 || lineWidth <= 0.0f )
+		return;
+	setup2DRenderState( nullptr, DRAW_IMAGE_ALPHA, FALSE );
+	for( Int i = 0; i + 1 < count; ++i )
+		m_2DRender->Add_Line( Vector2( points[ i ].x, points[ i ].y ), Vector2( points[ i + 1 ].x, points[ i + 1 ].y ), lineWidth, color );
+	if( !m_isBatching )
+		m_2DRender->Render();
+	// round joins and caps once the line is thick enough for the corner gaps to show
+	if( lineWidth >= 2.0f )
+		for( Int i = 0; i < count; ++i )
+			drawDisc( points[ i ].x, points[ i ].y, lineWidth * 0.5f, color );
+}
+
 void W3DDisplay::drawRectClock(Int startX, Int startY, Int width, Int height, Int percent, UnsignedInt color)
 {
 	// sanity

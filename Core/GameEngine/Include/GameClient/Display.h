@@ -149,6 +149,15 @@ public:
 	virtual void drawFillRect( Int startX, Int startY, Int width, Int height,
 														 UnsignedInt color ) = 0;
 
+	// zh-pipeline @feature 2026-10-22 Procedural UI primitives (docs/UI-DESIGN.md 6.1): resolution-independent geometry
+	// through the 2D renderer. The W3D device implements them; other displays may leave them empty. Not clipped by the
+	// 2D clip region.
+	virtual void drawRoundedRect( Int x, Int y, Int width, Int height, Real radius, Color fill ) {}
+	virtual void drawRoundedRectVGradient( Int x, Int y, Int width, Int height, Real radius, Color top, Color bottom ) {}
+	virtual void drawRoundedOutline( Int x, Int y, Int width, Int height, Real radius, Real lineWidth, Color color ) {}
+	virtual void drawDisc( Real cx, Real cy, Real radius, Color fill ) {}
+	virtual void drawPolyline( const Coord2D *points, Int count, Real lineWidth, Color color ) {}   ///< round joins and caps
+
 	/// Draw a percentage of a rectangle, much like a clock
 	virtual void drawRectClock(Int startX, Int startY, Int width, Int height, Int percent, UnsignedInt color) = 0;
 	virtual void drawRemainingRectClock(Int startX, Int startY, Int width, Int height, Int percent, UnsignedInt color) = 0;
