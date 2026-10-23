@@ -39,6 +39,7 @@
 #include "GameClient/TerrainVisual.h" // for TERRAIN_LOD_MIN definition
 #include "GameClient/GameText.h"
 #include "GameNetwork/NetworkDefs.h"
+#include "GameClient/UIStyle.h"	// zh-pipeline -classicui / -uitest
 
 
 
@@ -458,6 +459,20 @@ Int parseJobs(char *args[], int num)
 		}
 		return 2;
 	}
+	return 1;
+}
+
+// zh-pipeline menu UI system (docs/UI-DESIGN.md): -classicui keeps the original sprite-drawn shell, -uitest draws the
+// component sheet over the shell for screenshots
+Int parseClassicUI(char *args[], int num)
+{
+	UIStyle::setEnabled( FALSE );
+	return 1;
+}
+
+Int parseUITest(char *args[], int num)
+{
+	UIStyle::setTestScreen( TRUE );
 	return 1;
 }
 
@@ -1237,6 +1252,8 @@ static CommandLineParam paramsForStartup[] =
 
 	// zh-pipeline @feature 2026-10-21 Network session log (PLAN.md Phase 4 step 1). The launcher passes it.
 	{ "-netlog", parseNetLog },
+	{ "-classicui", parseClassicUI },
+	{ "-uitest", parseUITest },
 
 	// zh-pipeline @feature 2026-10-21 Solo netcode rig and LAN-over-tailnet:
 	//  -multiinstance  allow a second copy on this machine (it gets Options_Instance02.ini)

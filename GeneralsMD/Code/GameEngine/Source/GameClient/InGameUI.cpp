@@ -52,6 +52,8 @@
 #include "GameClient/Anim2D.h"
 #include "GameClient/ControlBar.h"
 #include "GameClient/DisplayStringManager.h"
+#include "GameClient/UIStyle.h"	// zh-pipeline -uitest
+#include "GameClient/UIStyleTest.h"
 #include "GameClient/Diplomacy.h"
 #include "GameClient/Eva.h"
 #include "GameClient/GameText.h"
@@ -3752,6 +3754,10 @@ void InGameUI::postWindowDraw()
 {
 	Int hudOffsetX = 0;
 	Int hudOffsetY = 0;
+
+	// zh-pipeline: the component sheet, over everything the window manager drew
+	if( UIStyle::isTestScreen() )
+		UIStyleTest::draw();
 
 	if (m_networkLatencyPointSize > 0 && TheGameLogic->isInMultiplayerGame())
 	{

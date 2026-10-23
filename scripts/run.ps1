@@ -28,14 +28,33 @@ $p = Start-Process -FilePath "$game\generalszh.exe" -ArgumentList $GameArgs -Wor
 if ($Screenshot -gt 0) {
   Start-Sleep $Screenshot
   Add-Type -AssemblyName System.Windows.Forms,System.Drawing
-  # Without DPI awareness, a scaled desktop (e.g. 4K at 150%) reports scaled bounds and CopyFromScreen grabs only the top-left
-  # part of the physical screen, cropping the bottom/right of the game window.
-  Add-Type -Namespace Native -Name Dpi -MemberDefinition '[DllImport("user32.dll")] public static extern bool SetProcessDPIAware();'
-  [Native.Dpi]::SetProcessDPIAware() | Out-Null
-  $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
-  $bmp = New-Object System.Drawing.Bitmap $b.Width,$b.Height
-  [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location,[System.Drawing.Point]::Empty,$b.Size)
-  $bmp.Save("$out\screenshot.png"); $bmp.Dispose()
+  # Capture the game's own window with PrintWindow (PW_RENDERFULLCONTENT) so the shot is the game even when another
+  # window is in front of it; fall back to the primary screen when the process has no window yet.
+  # DPI awareness first: on a scaled desktop (4K at 150%) the unaware bounds crop the bottom/right of the image.
+  Add-Type -Namespace Native -Name Win -MemberDefinition @'
+    [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+    [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hwnd, IntPtr hdc, uint flags);
+    [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr hwnd, out RECT rect);
+    [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
+'@
+  [Native.Win]::SetProcessDPIAware() | Out-Null
+  $hwnd = [IntPtr]::Zero
+  for ($i = 0; $i -lt 20 -and $hwnd -eq [IntPtr]::Zero; $i++) { $p.Refresh(); $hwnd = $p.MainWindowHandle; if ($hwnd -eq [IntPtr]::Zero) { Start-Sleep -Milliseconds 250 } }
+  $rc = New-Object Native.Win+RECT
+  if ($hwnd -ne [IntPtr]::Zero -and [Native.Win]::GetClientRect($hwnd, [ref]$rc) -and ($rc.Right - $rc.Left) -gt 0) {
+    $bmp = New-Object System.Drawing.Bitmap ($rc.Right - $rc.Left), ($rc.Bottom - $rc.Top)
+    $g = [System.Drawing.Graphics]::FromImage($bmp); $hdc = $g.GetHdc()
+    [Native.Win]::PrintWindow($hwnd, $hdc, 3) | Out-Null   # 1 = PW_CLIENTONLY, 2 = PW_RENDERFULLCONTENT
+    $g.ReleaseHdc($hdc); $g.Dispose()
+    $bmp.Save("$out\screenshot.png"); $bmp.Dispose()
+    Write-Host "screenshot: game window $($rc.Right - $rc.Left)x$($rc.Bottom - $rc.Top)"
+  } else {
+    $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+    $bmp = New-Object System.Drawing.Bitmap $b.Width,$b.Height
+    [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location,[System.Drawing.Point]::Empty,$b.Size)
+    $bmp.Save("$out\screenshot.png"); $bmp.Dispose()
+    Write-Host "screenshot: no game window found, captured the primary screen"
+  }
 }
 
 if ($TimeoutSec -gt 0) {

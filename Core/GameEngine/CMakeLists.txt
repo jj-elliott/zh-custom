@@ -184,6 +184,7 @@ set(GAMEENGINE_SRC
 #    Include/GameClient/GameClient.h
     Include/GameClient/GameFont.h
     Include/GameClient/UIStyle.h
+    Include/GameClient/UIStyleTest.h
 #    Include/GameClient/GameInfoWindow.h
     Include/GameClient/GameText.h
     Include/GameClient/GameWindow.h
@@ -762,6 +763,7 @@ set(GAMEENGINE_SRC
     Source/GameClient/GUI/Gadget/GadgetVerticalSlider.cpp
     Source/GameClient/GUI/GameFont.cpp
     Source/GameClient/GUI/UIStyle.cpp
+    Source/GameClient/GUI/UIStyleTest.cpp
     Source/GameClient/GUI/GameWindow.cpp
     Source/GameClient/GUI/GameWindowGlobal.cpp
     Source/GameClient/GUI/GameWindowManager.cpp
