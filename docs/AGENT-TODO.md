@@ -68,8 +68,8 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       Azure Trusted Signing, ~$10/month, identity-verified) in `package.ps1` would remove the need. Only if the workaround is unacceptable.
 - [~] **13. LAN discovery over Tailscale** — implemented 2026-10-21 on `net/retry`: `-lanpeer <ip>` (repeatable) makes `LANAPI::sendMessage`
       unicast every lobby broadcast to those addresses too; the launcher passes `release.json` `LanPeers` (both tailnet IPs:
-      vision-1 100.66.50.86, admiral 100.91.103.10). **Open:** confirm on the next real session that the game shows up in the LAN list
-      without Direct Connect.
+      vision-1 100.66.50.86, admiral 100.91.103.10). Confirmed 2026-10-22 on the loopback rig (B listed A's game via the -lanpeer unicast, joined from the list). **Open:** the same over
+      the real tailnet on the next session (release.json carries both IPs).
 - [ ] **11. Shared defaults.** `ArchiveReplays=yes`, FPS limit, overlay font sizes (FPS/clock/timer/ping/money), `CursorCaptureMode` — set via
       code defaults or a launcher-merged `config/` snippet so both machines match without touching menus. Optional: map + player names in the
       archived replay filename.
