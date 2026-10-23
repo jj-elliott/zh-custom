@@ -694,7 +694,13 @@ Bool OptionPreferences::getFPSLimitEnabled()
 {
 	OptionPreferences::const_iterator it = find("FPSLimit");
 	if (it == end())
-		return TheGlobalData->m_useFpsLimit;
+	{
+		// zh-pipeline @tweak 2026-10-22 Uncapped render rate by default. GameData.ini ships UseFPSLimit=Yes with
+		// FramesPerSecondLimit=30 (the 2003 cap); LAN games already force the limit off, so this makes skirmish, replays and
+		// menus match. Only the enable flag changes: the 30 value must stay because the network code clamps the logic rate to it.
+		// Options.ini "FPSLimit = yes" restores the cap per machine.
+		return FALSE;
+	}
 
 	if (stricmp(it->second.str(), "yes") == 0) {
 		return TRUE;
