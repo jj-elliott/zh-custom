@@ -221,6 +221,13 @@ Bool BIGFileSystem::loadArchiveFilesFromDirectory(AsciiString dir, AsciiString f
 			it++;
 			continue;
 		}
+		// zh-pipeline @tweak 2026-10-22 Skip the Steam release's PatchWindow.big: it enlarges the single-player panel for a
+		// "Custom Mission" button and swaps the map-select layout, both for a feature that exists only in the Steam executable
+		// (label in Data\Patch.str, never loaded here). Loading it shows a dead "MISSING:" button; skipping gives the vanilla menus.
+		if (it->endsWithNoCase("PatchWindow.big")) {
+			it++;
+			continue;
+		}
 #endif
 
 		ArchiveFile *archiveFile = openArchiveFile((*it).str());
