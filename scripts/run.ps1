@@ -7,7 +7,8 @@
 # the game's own log files written during the run. The folder path is printed last so the agent can read it.
 # NOTE: the parameter is $GameArgs, not $Args: $Args is a PowerShell automatic variable and a parameter of that name
 # binds unreliably (Start-Process saw it as empty). The -Args alias keeps the documented command line working.
-param([Alias("Args")][string]$GameArgs = "-win", [int]$TimeoutSec = 0, [int]$Screenshot = 0, [switch]$NoCopyExe)
+param([Alias("Args")][string]$GameArgs = "-win", [int]$TimeoutSec = 0, [int]$Screenshot = 0, [string]$Click = "", [switch]$NoCopyExe)
+# -Click "x,y[;x,y...]" clicks those client-area pixels (left button) after the focus nudge, one second apart, before the shot.
 $ErrorActionPreference = "Stop"
 $repo = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $local = Get-Content "$repo\.zh-local.json" | ConvertFrom-Json
@@ -45,6 +46,24 @@ if ($Screenshot -gt 0) {
     if ([Native.Poke]::GetWindowRect($hp, [ref]$wr)) {
       $cx = [int](($wr.Left + $wr.Right) / 2); $cy = [int](($wr.Top + $wr.Bottom) / 2)
       foreach ($d in 0, 40, 80, 40, 0) { [Native.Poke]::SetCursorPos($cx + $d, $cy + $d) | Out-Null; Start-Sleep -Milliseconds 120 }
+    }
+    if ($Click) {
+      Add-Type -Namespace Native -Name Mouse -MemberDefinition @'
+        [DllImport("user32.dll")] public static extern void mouse_event(uint flags, int dx, int dy, uint data, UIntPtr extra);
+        [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr hwnd, ref POINT pt);
+        [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X, Y; }
+'@
+      Start-Sleep 1
+      foreach ($pair in ($Click -split ";")) {
+        $xy = $pair -split ","; if ($xy.Count -ne 2) { continue }
+        $pt = New-Object Native.Mouse+POINT; $pt.X = [int]$xy[0]; $pt.Y = [int]$xy[1]
+        [Native.Mouse]::ClientToScreen($hp, [ref]$pt) | Out-Null
+        [Native.Poke]::SetCursorPos($pt.X, $pt.Y) | Out-Null; Start-Sleep -Milliseconds 150
+        [Native.Mouse]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero); Start-Sleep -Milliseconds 80   # left down
+        [Native.Mouse]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)                                  # left up
+        Write-Host "click: client $($xy[0]),$($xy[1])"
+        Start-Sleep 1
+      }
     }
   }
   Start-Sleep ($Screenshot - $poke)

@@ -25,6 +25,7 @@ namespace UILayout
 	enum Style
 	{
 		STYLE_NONE = 0,
+		STYLE_HIDDEN,        // placed by a layout with `hide`: draws nothing, and the shell's flash transitions skip it
 		STYLE_MENU_BUTTON,
 		STYLE_BUTTON,
 		STYLE_PRIMARY,
@@ -36,6 +37,7 @@ namespace UILayout
 	Bool apply( const AsciiString &wndFile, GameWindow *root );
 
 	Style styleOf( const GameWindow *window );   ///< how the procedural renderers should draw this window, if at all
+	Bool isManaged( const GameWindow *window );  ///< a layout placed or hid this window
 	void forget( const GameWindow *window );     ///< called when a window is destroyed
 	void reset();                                ///< drop every record (shutdown)
 }

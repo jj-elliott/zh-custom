@@ -61,6 +61,8 @@
 #include "GameClient/GadgetPushButton.h"
 #include "GameClient/GadgetStaticText.h"
 #include "GameClient/ControlBar.h"
+#include "GameClient/UIStyle.h"	// zh-pipeline: no sprite-era flashes over the procedural UI
+#include "GameClient/UILayout.h"
 
 //-----------------------------------------------------------------------------
 // DEFINES ////////////////////////////////////////////////////////////////////
@@ -199,6 +201,10 @@ void FlashTransition::reverse()
 
 void FlashTransition::draw()
 {
+	// zh-pipeline: the rectangle flash belongs to the sprite-drawn shell; windows a layout manages draw their own states
+	if( UIStyle::isEnabled() && UILayout::isManaged( m_win ) )
+		return;
+
 	switch (m_drawState)
 	{
 		case FLASHTRANSITION_FADE_IN_1:
@@ -516,6 +522,10 @@ void ButtonFlashTransition::reverse()
 
 void ButtonFlashTransition::draw()
 {
+	// zh-pipeline: the rectangle flash belongs to the sprite-drawn shell; windows a layout manages draw their own states
+	if( UIStyle::isEnabled() && UILayout::isManaged( m_win ) )
+		return;
+
 	switch (m_drawState)
 	{
 		case BUTTONFLASHTRANSITION_FADE_IN_1:

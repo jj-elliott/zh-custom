@@ -14,6 +14,19 @@ hide MainMenu.wnd:MapBorder1
 hide MainMenu.wnd:MapBorder2
 hide MainMenu.wnd:MapBorder3
 hide MainMenu.wnd:MapBorder4
+# ...and they must cover the column: mouse hit-testing only descends into children of a window under the pointer, and
+# children are placed relative to their parent, so the panels are placed first. MapBorder2 = top level, MapBorder = Solo
+# Play, MapBorder4 = difficulty, MapBorder1 = Multiplayer, MapBorder3 = Load/Replay.
+window MainMenu.wnd:MapBorder2 right top 96 332 440 420
+window MainMenu.wnd:MapBorder right top 96 332 440 420
+window MainMenu.wnd:MapBorder4 right top 96 332 440 420
+window MainMenu.wnd:MapBorder1 right top 96 332 440 420
+window MainMenu.wnd:MapBorder3 right top 96 332 440 420
+window MainMenu.wnd:EarthMap right top 96 332 440 420
+window MainMenu.wnd:EarthMap1 right top 96 332 440 420
+window MainMenu.wnd:EarthMap2 right top 96 332 440 420
+window MainMenu.wnd:EarthMap3 right top 96 332 440 420
+window MainMenu.wnd:EarthMap4 right top 96 332 440 420
 
 # Title logo: the GeneralsLogo sprite carries 24 px of transparent padding left and 27 right (visible 319 of 370), so the
 # window is sized so the visible art is 440 wide with its right edge on the column's right edge.

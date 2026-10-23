@@ -170,6 +170,7 @@ Bool apply( const AsciiString &wndFile, GameWindow *root )
 				if( w )
 				{
 					w->winSetDrawFunc( noDraw );
+					record( w, STYLE_HIDDEN );
 					++placed;
 				}
 				else ++missing;
@@ -229,6 +230,11 @@ Style styleOf( const GameWindow *window )
 		if( s_styles[ i ].win == window )
 			return s_styles[ i ].style;
 	return STYLE_NONE;
+}
+
+Bool isManaged( const GameWindow *window )
+{
+	return styleOf( window ) != STYLE_NONE;
 }
 
 void forget( const GameWindow *window )

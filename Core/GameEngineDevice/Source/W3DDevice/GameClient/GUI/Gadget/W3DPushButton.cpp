@@ -154,7 +154,7 @@ void W3DGadgetPushButtonDraw( GameWindow *window, WinInstanceData *instData )
 	if( UIStyle::isEnabled() )
 	{
 		const UILayout::Style st = UILayout::styleOf( window );
-		if( st != UILayout::STYLE_NONE )
+		if( st > UILayout::STYLE_HIDDEN )
 		{
 			UIGadgets::drawPushButton( window, instData, st );
 			return;
@@ -331,7 +331,7 @@ void W3DGadgetPushButtonImageDrawOne( GameWindow *window,
 	if( UIStyle::isEnabled() )
 	{
 		const UILayout::Style st = UILayout::styleOf( window );
-		if( st != UILayout::STYLE_NONE )
+		if( st > UILayout::STYLE_HIDDEN )
 		{
 			UIGadgets::drawPushButton( window, instData, st );
 			return;
@@ -515,7 +515,7 @@ void W3DGadgetPushButtonImageDrawThree(GameWindow *window, WinInstanceData *inst
 	if( UIStyle::isEnabled() )
 	{
 		const UILayout::Style st = UILayout::styleOf( window );
-		if( st != UILayout::STYLE_NONE )
+		if( st > UILayout::STYLE_HIDDEN )
 		{
 			UIGadgets::drawPushButton( window, instData, st );
 			return;

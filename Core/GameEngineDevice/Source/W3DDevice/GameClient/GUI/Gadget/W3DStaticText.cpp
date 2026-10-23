@@ -156,7 +156,7 @@ void W3DGadgetStaticTextDraw( GameWindow *window, WinInstanceData *instData )
 	if( UIStyle::isEnabled() )
 	{
 		const UILayout::Style st = UILayout::styleOf( window );
-		if( st != UILayout::STYLE_NONE )
+		if( st > UILayout::STYLE_HIDDEN )
 		{
 			UIGadgets::drawStaticText( window, instData, st );
 			return;
@@ -233,7 +233,7 @@ void W3DGadgetStaticTextImageDraw( GameWindow *window, WinInstanceData *instData
 	if( UIStyle::isEnabled() )
 	{
 		const UILayout::Style st = UILayout::styleOf( window );
-		if( st != UILayout::STYLE_NONE )
+		if( st > UILayout::STYLE_HIDDEN )
 		{
 			UIGadgets::drawStaticText( window, instData, st );
 			return;
