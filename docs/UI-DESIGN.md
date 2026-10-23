@@ -163,14 +163,22 @@ Gradients: stops converted to linear, the quad split into 8 bands, back to sRGB 
 `u(units)` = `units * displayHeight / 1080`, and the font roles. Loaded with defaults from code; an optional `UI\style.ini`
 override so palette experiments do not need a rebuild.
 
-6.3 **Gadget renderers.** One draw function per gadget type (`W3DGadget*.cpp` already dispatches by type) that draws from
-`UIStyle` instead of the window's image set. Selected per window by a flag in the layout description, so a screen is either
-on the new system or on the sprite path; never mixed. The old draw functions remain for the HUD.
+6.3 **Gadget renderers.** Built 2026-10-23 for push buttons and static text (`GameClient/UIGadgets`): the W3D draw
+functions (`W3DPushButton.cpp`, `W3DStaticText.cpp`) first ask `UILayout::styleOf(window)` and hand a styled window to
+`UIGadgets`, which draws the frame from `UIStyle::Draw` (rest, hover, pressed, disabled from the window's status and
+state) and the window's own localised text through `UIStyle::Text` in the role the style implies. An all-caps string
+("SOLO PLAY") is title-cased before small caps, so the game's strings read as the mockup. Dropdowns, entries, check
+boxes, lists and sliders follow with the skirmish screen. The old draw functions remain for everything else.
 
-6.4 **Layout descriptions.** A small declarative file per redesigned screen (`UI\Layouts\SkirmishGameOptionsMenu.ini`-style,
-parsed by the existing INI reader) that names the windows of the `.wnd` file and gives each an anchor, size and stack
-membership in units. Applied after `winCreateFromScript` creates the windows, so callbacks and names are untouched. Windows
-not mentioned keep their legacy position (and are flagged in the dev overlay so none is forgotten).
+6.4 **Layout descriptions.** Built 2026-10-23 (`GameClient/UILayout`). A text file per redesigned screen,
+`UI\Layouts\<Screen>.layout` (repo: `config/UI/Layouts`), names windows of the `.wnd` and gives each an anchor (left,
+centre, right × top, middle, bottom), offsets and size in units, or places them in a vertical `stack` with a gap; `hide`
+swaps a window's draw function for a no-op (its children, input and the shell's show/hide logic are untouched: the
+main menu's submenu panels are hidden this way and still toggle their buttons); an optional style (`menu`, `button`,
+`primary`, `danger`, `label`) marks the windows the procedural renderers draw. Applied at the end of
+`winCreateFromScript`, before the screen's init callback, so callbacks and names are untouched and the init code
+sees the final positions. Windows not mentioned keep their legacy position. The content frame (`UIStyle::frame`) is
+16:9, centred: letterboxed by the scene on wider screens, bands on 16:10; one unit = frame height / 1080.
 
 6.5 **Type.** Built 2026-10-22. Fonts ship as `.ttf` under `<gameDir>\Fonts\` (`config/Fonts` in the repo, OFL text beside
 them; stage-install and package copy `config/*`) and are registered process-private on first use (`UIFonts::ensureInit`,
@@ -194,7 +202,9 @@ unplaced windows; `run.ps1 -Screen x -Res 1920x1080|3840x2160` screenshots a scr
 2. ~~Primitives + style module + the component sheet rendered by the engine as a test screen.~~ Done 2026-10-22, passed.
 3. ~~Fonts in, substitution table, sizing method.~~ Done 2026-10-22; captures in `docs/ui-screens` (sheet at 4K and 1080p,
    the legacy main menu already in Barlow).
-4. Main menu on the new system end to end (layout description, text buttons, status line). Sign-off.
+4. ~~Main menu on the new system end to end.~~ Built 2026-10-23: `MainMenu.layout` (logo on its visible bounds, the
+   boxed column and every submenu column, frame and panel squares hidden, shortcut buttons and emblem row placed);
+   captures in `docs/ui-screens`. Sign-off pending.
 5. Skirmish setup. Sign-off. Then, one screen per step: Solo play, Load/Save, Replay, Multiplayer (LAN lobby, Direct connect,
    game options), Options dialog shell, Quit/confirm dialogs.
 6. Package: fonts in the release zip, `-classicui` switch kept for one release, FEATURE-PARITY and CODE-MAP updated.

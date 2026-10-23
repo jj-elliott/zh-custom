@@ -35,7 +35,11 @@ These need the actual source tree or a Windows machine, so bootstrap.ps1 left th
       `drawDisc`, `drawPolyline` in `W3DDisplay`), `UIStyle` tokens/renderers, `-uitest` component sheet, `-classicui` switch.
       Step 2 passed 2026-10-22. Step 3 done the same day: `config/Fonts` (Barlow, Barlow Semi Condensed, Saira Stencil One, OFL),
       `UIFonts` registration + legacy name substitution in `FontLibrary::getFont`, `UIStyle::Text` small caps.
-      **Next:** main menu layout description (§6.4) and the main menu end to end, then skirmish setup, remaining shell screens. Parked on
+      Step 4 built 2026-10-23: `UILayout` (layout descriptions), `UIGadgets` (push button + static text renderers), hooks in the
+      W3D push-button and static-text draw functions, `config/UI/Layouts/MainMenu.layout`. **Next:** sign-off on the main menu,
+      then skirmish setup (dropdown, entry, checkbox, list, slider renderers + its layout), then the remaining shell screens.
+      Known: the shell shows its menu only once the window has focus and the pointer has moved; `run.ps1 -Screenshot` now
+      focuses the window and nudges the cursor four seconds before the shot. Parked on
       `render/textures`: texture-pack scripts and the earlier gadget/anchoring drafts (superseded).
 - [~] **8. First netcode fix: adaptive retry timer** — implemented 2026-10-21 on `net/retry` (`Connection.cpp` `processAck`): retry after
       1.5× max(current sample, running average), floor 80 ms, cap 500 ms; 250 ms before the first ack (was a fixed 2000 ms). No backoff yet.

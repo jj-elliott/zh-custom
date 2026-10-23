@@ -26,8 +26,28 @@ $p = Start-Process -FilePath "$game\generalszh.exe" -ArgumentList $GameArgs -Wor
        -RedirectStandardOutput "$out\stdout.txt" -RedirectStandardError "$out\stderr.txt"
 
 if ($Screenshot -gt 0) {
-  Start-Sleep $Screenshot
+  # The shell only shows its menu once the window has focus and the pointer has moved, so a few seconds before the shot:
+  # bring the game window to the front and nudge the cursor across it.
+  $poke = [Math]::Max(1, $Screenshot - 4)
+  Start-Sleep $poke
   Add-Type -AssemblyName System.Windows.Forms,System.Drawing
+  Add-Type -Namespace Native -Name Poke -MemberDefinition @'
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
+    [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
+    [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
+'@
+  $hp = [IntPtr]::Zero
+  for ($i = 0; $i -lt 20 -and $hp -eq [IntPtr]::Zero; $i++) { $p.Refresh(); $hp = $p.MainWindowHandle; if ($hp -eq [IntPtr]::Zero) { Start-Sleep -Milliseconds 250 } }
+  if ($hp -ne [IntPtr]::Zero) {
+    [Native.Poke]::SetForegroundWindow($hp) | Out-Null
+    $wr = New-Object Native.Poke+RECT
+    if ([Native.Poke]::GetWindowRect($hp, [ref]$wr)) {
+      $cx = [int](($wr.Left + $wr.Right) / 2); $cy = [int](($wr.Top + $wr.Bottom) / 2)
+      foreach ($d in 0, 40, 80, 40, 0) { [Native.Poke]::SetCursorPos($cx + $d, $cy + $d) | Out-Null; Start-Sleep -Milliseconds 120 }
+    }
+  }
+  Start-Sleep ($Screenshot - $poke)
   # Capture the game's own window with PrintWindow (PW_RENDERFULLCONTENT) so the shot is the game even when another
   # window is in front of it; fall back to the primary screen when the process has no window yet.
   # DPI awareness first: on a scaled desktop (4K at 150%) the unaware bounds crop the bottom/right of the image.
