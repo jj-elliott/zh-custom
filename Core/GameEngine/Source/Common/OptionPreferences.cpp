@@ -897,7 +897,12 @@ Real OptionPreferences::getResolutionFontAdjustment()
 {
 	OptionPreferences::const_iterator it = find("ResolutionFontAdjustment");
 	if (it == end())
-		return -1.0f;
+	{
+		// zh-pipeline @tweak 2026-10-22 Default 15% instead of "automatic" (-1 = Language.ini's 0.7). With the 2160p Control Bar
+		// Pro, whose header templates already enlarge fonts, the automatic value made UI text oversized at 4K; 15% was chosen by
+		// eye on a 3840x2160 display. Options.ini "ResolutionFontAdjustment = <percent>" overrides per machine (-100 = automatic).
+		return 0.15f;
+	}
 
 	Real fontScale = (Real)atof(it->second.str()) / 100.0f;
 	if (fontScale < 0.0f)

@@ -21,5 +21,7 @@ Copy-Item (Join-Path $cache "x32\d3d8.dll"), (Join-Path $cache "x32\d3d9.dll") $
 d3d9.samplerAnisotropy = 16
 d3d9.forceSwapchainMSAA = 4
 d3d9.maxFrameLatency = 1
+# Vsync: the engine renders uncapped (logic stays 30 Hz); without this the swapchain presents immediately and tears.
+d3d9.presentInterval = 1
 "@ | Set-Content (Join-Path $Out "dxvk.conf")
 Write-Host "dxvk:   $Version -> $Out"
