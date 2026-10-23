@@ -172,10 +172,18 @@ parsed by the existing INI reader) that names the windows of the `.wnd` file and
 membership in units. Applied after `winCreateFromScript` creates the windows, so callbacks and names are untouched. Windows
 not mentioned keep their legacy position (and are flagged in the dev overlay so none is forgotten).
 
-6.5 **Type.** Fonts ship as `.ttf` under `<gameDir>\Fonts\` (OFL text beside them) and are registered at start with
-`AddFontResourceEx(FR_PRIVATE)`. A substitution table maps the historical names (`Times New Roman`, `Arial`, `Generals`) to
-the Barlow faces per role; `FontLibrary::getFont` applies it. Font sizing uses the height-based method so text and layout
-scale together.
+6.5 **Type.** Built 2026-10-22. Fonts ship as `.ttf` under `<gameDir>\Fonts\` (`config/Fonts` in the repo, OFL text beside
+them; stage-install and package copy `config/*`) and are registered process-private on first use (`UIFonts::ensureInit`,
+`AddFontResourceEx(FR_PRIVATE)`), so nothing is installed on the machine. GDI sees Google's static cuts as their own
+families: `Barlow Medium`, `Barlow SemiBold`, `Barlow Semi Condensed Medium`, `Barlow Semi Condensed SemiBold`,
+`Saira Stencil One`; a weight is chosen by family, never by `FW_BOLD`, which GDI would synthesise. `FontLibrary::getFont`
+maps the historical names (`Arial`, `Times New Roman`, `Generals`, `Placard MT Condensed`) onto them while the system is on,
+so every legacy screen and the HUD pick the typeface up at once; `-classicui` restores the originals; Courier and the Unicode
+fallback are left alone. Role sizes are design units treated as pixels: `Create_GDI_Font` takes points at 96 dpi, so the
+request is `units × 0.75` points. Small caps (`UIStyle::Text`): a string is split into runs, lowercase runs are uppercased
+and set in the same face at 78% size, baseline-aligned by the ascent ratio; the sentence renderer reports each run's width
+with the last glyph's overlap padding, measured per font as `2·w("H") − w("HH")` and subtracted at every join. Legacy
+screens keep the user's resolution font adjustment until they are redesigned; the new system sizes text in units only.
 
 6.6 **Dev tooling.** `-uiscreen <Layout.wnd>` opens a named screen directly at start; `-uioverlay` draws anchors, stacks and
 unplaced windows; `run.ps1 -Screen x -Res 1920x1080|3840x2160` screenshots a screen at a resolution.
@@ -183,8 +191,9 @@ unplaced windows; `run.ps1 -Screen x -Res 1920x1080|3840x2160` screenshots a scr
 ## 7. Delivery
 
 1. Sign-off on this document and the mockups (palette, type, main menu, skirmish setup). ← **we are here**
-2. Primitives + style module + the component sheet rendered by the engine as a test screen. Screenshots at 4K and 1080p.
-3. Fonts in, substitution table, sizing method. Screenshot pass.
+2. ~~Primitives + style module + the component sheet rendered by the engine as a test screen.~~ Done 2026-10-22, passed.
+3. ~~Fonts in, substitution table, sizing method.~~ Done 2026-10-22; captures in `docs/ui-screens` (sheet at 4K and 1080p,
+   the legacy main menu already in Barlow).
 4. Main menu on the new system end to end (layout description, text buttons, status line). Sign-off.
 5. Skirmish setup. Sign-off. Then, one screen per step: Solo play, Load/Save, Replay, Multiplayer (LAN lobby, Direct connect,
    game options), Options dialog shell, Quit/confirm dialogs.

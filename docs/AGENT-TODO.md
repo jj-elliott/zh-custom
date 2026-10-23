@@ -33,8 +33,9 @@ These need the actual source tree or a Windows machine, so bootstrap.ps1 left th
 - [x] **7. `/LARGEADDRESSAWARE`** — set 2026-10-22 (`GeneralsMD/Code/Main/CMakeLists.txt`); PE characteristics 0x122; CRC unchanged.
 - [~] **16. Menu UI system** (`render/ui`, spec `docs/UI-DESIGN.md`, mockups linked there). Done: primitives (`Display::drawRounded*`,
       `drawDisc`, `drawPolyline` in `W3DDisplay`), `UIStyle` tokens/renderers, `-uitest` component sheet, `-classicui` switch.
-      **Next:** screenshots of the sheet at 4K and 1080p for the human (step 2 sign-off), then typeface (fonts folder +
-      substitution + height-based sizing), main menu layout description, skirmish setup, remaining shell screens. Parked on
+      Step 2 passed 2026-10-22. Step 3 done the same day: `config/Fonts` (Barlow, Barlow Semi Condensed, Saira Stencil One, OFL),
+      `UIFonts` registration + legacy name substitution in `FontLibrary::getFont`, `UIStyle::Text` small caps.
+      **Next:** main menu layout description (§6.4) and the main menu end to end, then skirmish setup, remaining shell screens. Parked on
       `render/textures`: texture-pack scripts and the earlier gadget/anchoring drafts (superseded).
 - [~] **8. First netcode fix: adaptive retry timer** — implemented 2026-10-21 on `net/retry` (`Connection.cpp` `processAck`): retry after
       1.5× max(current sample, running average), floor 80 ms, cap 500 ms; 250 ms before the first ack (was a fixed 2000 ms). No backoff yet.
