@@ -1,0 +1,98 @@
+# Main menu on the procedural UI system (docs/UI-DESIGN.md, mockup Main.dc.html). Units: 1 = frame height / 1080.
+# The blueprint frame is UI art and goes; the shell map fills the screen.
+hide MainMenu.wnd:MainMenuRuler
+# the dark squares behind each submenu panel (IMAGE BlackSquare): the column sits on the scene now
+hide MainMenu.wnd:EarthMap
+hide MainMenu.wnd:EarthMap1
+hide MainMenu.wnd:EarthMap2
+hide MainMenu.wnd:EarthMap3
+hide MainMenu.wnd:EarthMap4
+# the submenu panels themselves draw a faint border with the default window draw; keep them (they are toggled by the
+# shell and hold the buttons) but draw nothing
+hide MainMenu.wnd:MapBorder
+hide MainMenu.wnd:MapBorder1
+hide MainMenu.wnd:MapBorder2
+hide MainMenu.wnd:MapBorder3
+hide MainMenu.wnd:MapBorder4
+
+# Title logo: the GeneralsLogo sprite carries 24 px of transparent padding left and 27 right (visible 319 of 370), so the
+# window is sized so the visible art is 440 wide with its right edge on the column's right edge.
+window MainMenu.wnd:Logo right top 59 77 510 166
+
+# Top-level commands
+stack right top 96 332 440 14
+  item MainMenu.wnd:ButtonSinglePlayer 52 menu
+  item MainMenu.wnd:ButtonMultiplayer 52 menu
+  item MainMenu.wnd:ButtonLoadReplay 52 menu
+  item MainMenu.wnd:ButtonOptions 52 menu
+  item MainMenu.wnd:ButtonCredits 52 menu
+  space 18
+  item MainMenu.wnd:ButtonExit 52 menu
+end
+
+# Solo Play
+stack right top 96 332 440 14
+  item MainMenu.wnd:ButtonUSA 52 menu
+  item MainMenu.wnd:ButtonGLA 52 menu
+  item MainMenu.wnd:ButtonChina 52 menu
+  item MainMenu.wnd:ButtonChallenge 52 menu
+  item MainMenu.wnd:ButtonSkirmish 52 menu
+  space 18
+  item MainMenu.wnd:ButtonSingleBack 52 menu
+end
+
+# Campaign difficulty
+stack right top 96 332 440 14
+  item MainMenu.wnd:StaticTextSelectDifficulty 36 label
+  item MainMenu.wnd:ButtonEasy 52 menu
+  item MainMenu.wnd:ButtonMedium 52 menu
+  item MainMenu.wnd:ButtonHard 52 menu
+  space 18
+  item MainMenu.wnd:ButtonDiffBack 52 menu
+end
+
+# Multiplayer
+stack right top 96 332 440 14
+  item MainMenu.wnd:ButtonOnline 52 menu
+  item MainMenu.wnd:ButtonNetwork 52 menu
+  space 18
+  item MainMenu.wnd:ButtonMultiBack 52 menu
+end
+
+# Load / Replay
+stack right top 96 332 440 14
+  item MainMenu.wnd:ButtonLoadGame 52 menu
+  item MainMenu.wnd:ButtonReplay 52 menu
+  space 18
+  item MainMenu.wnd:ButtonLoadReplayBack 52 menu
+end
+
+# Recent save / load shortcuts that appear beside a campaign button: left of the column, on that button's row
+window MainMenu.wnd:ButtonUSARecentSave right top 552 332 140 24 button
+window MainMenu.wnd:ButtonUSALoadGame right top 552 360 140 24 button
+window MainMenu.wnd:ButtonGLARecentSave right top 552 398 140 24 button
+window MainMenu.wnd:ButtonGLALoadGame right top 552 426 140 24 button
+window MainMenu.wnd:ButtonChinaRecentSave right top 552 464 140 24 button
+window MainMenu.wnd:ButtonChinaLoadGame right top 552 492 140 24 button
+
+# Faction and mode emblems shown while a Solo Play entry is hovered: a row along the bottom-left (art, sprite-drawn).
+# Small = 96, Medium = 144 on the same centre.
+window MainMenu.wnd:WinFactionUS left bottom 64 64 96 96
+window MainMenu.wnd:WinFactionUSSmall left bottom 64 64 96 96
+window MainMenu.wnd:WinFactionUSMedium left bottom 40 40 144 144
+window MainMenu.wnd:WinFactionGLA left bottom 184 64 96 96
+window MainMenu.wnd:WinFactionGLASmall left bottom 184 64 96 96
+window MainMenu.wnd:WinFactionGLAMedium left bottom 160 40 144 144
+window MainMenu.wnd:WinFactionChina left bottom 304 64 96 96
+window MainMenu.wnd:WinFactionChinaSmall left bottom 304 64 96 96
+window MainMenu.wnd:WinFactionChinaMedium left bottom 280 40 144 144
+window MainMenu.wnd:WinFactionTraining left bottom 424 64 96 96
+window MainMenu.wnd:WinFactionTrainingSmall left bottom 424 64 96 96
+window MainMenu.wnd:WinFactionTrainingMedium left bottom 400 40 144 144
+window MainMenu.wnd:WinFactionSkirmish left bottom 544 64 96 96
+window MainMenu.wnd:WinFactionSkirmishSmall left bottom 544 64 96 96
+window MainMenu.wnd:WinFactionSkirmishMedium left bottom 520 40 144 144
+
+# Online indicator (bottom-left in the original)
+window MainMenu.wnd:GreenDot left bottom 64 40 13 13
+window MainMenu.wnd:Clock left bottom 84 36 105 24
