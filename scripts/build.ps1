@@ -25,5 +25,27 @@ $log = Join-Path $repo "tests\out\build-$(Get-Date -Format yyyyMMdd-HHmmss).log"
 New-Item -ItemType Directory -Force (Split-Path $log) | Out-Null
 cmd /c "$cmd 2>&1" | Tee-Object -FilePath $log
 $code = $LASTEXITCODE
-if ($code -ne 0) { Write-Host "BUILD FAILED (exit $code); full log: $log" -ForegroundColor Red } else { Write-Host "build ok; log: $log" }
-exit $code
+if ($code -ne 0) { Write-Host "BUILD FAILED (exit $code); full log: $log" -ForegroundColor Red; exit $code }
+Write-Host "build ok; log: $log"
+# Stage the result into the dev install (.zh-local.json gameDir) so a human test sees this build: exe, PDB and config.
+# Skipped, with a notice, when the exe there is locked (a game instance is running).
+$localCfg = Join-Path $repo ".zh-local.json"
+if (Test-Path $localCfg) {
+  $local = Get-Content $localCfg -Raw | ConvertFrom-Json
+  $game = $local.gameDir
+  $exe = Get-ChildItem (Join-Path $repo "build") -Recurse -Filter generalszh.exe -ErrorAction SilentlyContinue |
+         Where-Object { $_.FullName -notmatch "CMakeFiles" } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+  if ($game -and (Test-Path $game) -and $exe) {
+    try {
+      Copy-Item $exe.FullName (Join-Path $game "generalszh.exe") -Force -ErrorAction Stop
+      $pdb = Join-Path $exe.DirectoryName "generalszh.pdb"
+      if (Test-Path $pdb) { Copy-Item $pdb (Join-Path $game "generalszh.pdb") -Force }
+      $config = Join-Path $repo "config"
+      if (Test-Path $config) { Copy-Item (Join-Path $config "*") $game -Recurse -Force }
+      Write-Host "staged into $game"
+    } catch {
+      Write-Host "NOT STAGED into $game (exe locked? a game instance may be running): $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+  }
+}
+exit 0
