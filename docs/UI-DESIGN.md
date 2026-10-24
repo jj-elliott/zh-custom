@@ -201,6 +201,10 @@ skirmish; accept markers and the lobby chat on LAN). Applied at the end of
 `winCreateFromScript`, before the screen's init callback, so callbacks and names are untouched and the init code
 sees the final positions. Windows not mentioned keep their legacy position. The content frame (`UIStyle::frame`) is
 16:9, centred: letterboxed by the scene on wider screens, bands on 16:10; one unit = frame height / 1080.
+Shell transitions (`WindowTransitions.ini`): on a screen that has a layout, the styles that animate a window's legacy
+image (flash and button-flash boxes, window fades, the scale-ups, the full-fade black box) jump to their end state
+instead of playing, because what they draw is art the screen no longer has (`TransitionWindow::update`, 2026-10-24,
+after "old elements flicker for a frame or two"); the text, count-up, sound and whole-screen fade styles still play.
 
 6.5 **Type.** Built 2026-10-22. Fonts ship as `.ttf` under `<gameDir>\Fonts\` (`config/Fonts` in the repo, OFL text beside
 them; stage-install and package copy `config/*`) and are registered process-private on first use (`UIFonts::ensureInit`,

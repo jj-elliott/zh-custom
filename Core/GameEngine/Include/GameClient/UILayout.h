@@ -64,6 +64,7 @@ namespace UILayout
 	Style styleOf( const GameWindow *window );          ///< this window's own style
 	Style effectiveStyle( const GameWindow *window );   ///< own style, else the nearest styled ancestor's (gadget children)
 	Bool isManaged( const GameWindow *window );         ///< a layout placed or hid this window
+	Bool isManagedTree( const GameWindow *window );     ///< this window or an ancestor is managed: the screen has a layout
 	void forget( const GameWindow *window );            ///< called when a window is destroyed
 	void reset();                                       ///< drop every record (shutdown)
 

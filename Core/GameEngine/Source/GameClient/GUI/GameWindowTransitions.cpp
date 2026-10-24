@@ -57,6 +57,8 @@
 #include "GameClient/GameWindowManager.h"
 #include "Common/FramePacer.h"
 #include "Common/GlobalData.h"
+#include "GameClient/UIStyle.h"   // zh-pipeline Menu UI system: no legacy transition art on redesigned screens
+#include "GameClient/UILayout.h"
 //-----------------------------------------------------------------------------
 // DEFINES ////////////////////////////////////////////////////////////////////
 //-----------------------------------------------------------------------------
@@ -147,6 +149,7 @@ TransitionWindow::TransitionWindow()
 {
 	m_currentFrameDelay = m_frameDelay = 0;
 	m_style = 0;
+	m_reversed = FALSE;
 
 	m_winID = NAMEKEY_INVALID;
 	m_win = nullptr;
@@ -169,6 +172,7 @@ Bool TransitionWindow::init()
 	m_winID = TheNameKeyGenerator->nameToKey(m_winName);
 	m_win		= TheWindowManager->winGetWindowFromId(nullptr, m_winID);
 	m_currentFrameDelay = m_frameDelay;
+	m_reversed = FALSE;
 //	DEBUG_ASSERTCRASH( m_win, ("TransitionWindow::init Failed to find window %s", m_winName.str()));
 //	if( !m_win )
 //		return FALSE;
@@ -184,10 +188,36 @@ Bool TransitionWindow::init()
 	return TRUE;
 }
 
+// zh-pipeline @feature 2026-10-24 Menu UI system: these styles animate the window's legacy image (flash boxes, fades,
+// scale-ups, the full-fade black box). On a screen a layout manages they show art the screen no longer has, for a few
+// frames, so the window jumps to the transition's end state instead: shown when playing forward, hidden when reversed.
+// The text, count-up, sound and whole-screen fade styles draw no window art and still play.
+static Bool transitionAnimatesLegacyArt( Int style )
+{
+	switch( style )
+	{
+		case TRANSITION_FLASH: case BUTTON_TRANSITION_FLASH: case WIN_FADE_TRANSITION: case WIN_SCALE_UP_TRANSITION:
+		case MAINMENU_SCALE_UP_TRANSITION: case MAINMENU_MEDIUM_SCALE_UP_TRANSITION: case MAINMENU_SMALL_SCALE_DOWN_TRANSITION:
+		case FULL_FADE_TRANSITION: case CONTROL_BAR_ARROW_TRANSITION: case SCORE_SCALE_UP_TRANSITION:
+			return TRUE;
+		default:
+			return FALSE;
+	}
+}
+
 void TransitionWindow::update( Int frame )
 {
 	if(frame < m_currentFrameDelay || frame > (m_currentFrameDelay + m_transition->getFrameLength()))
 		return;
+
+	if(m_transition && UIStyle::isEnabled() && transitionAnimatesLegacyArt( m_style ) && UILayout::isManagedTree( m_win ))
+	{
+		if( m_reversed )
+			m_transition->update( 0 );   // every style's frame 0 played backwards hides the window and finishes
+		else
+			m_transition->skip();        // the forward end state: window shown, finished
+		return;
+	}
 
 	if(m_transition)
 		m_transition->update( frame - m_currentFrameDelay);
@@ -203,6 +233,7 @@ Bool TransitionWindow::isFinished()
 void TransitionWindow::reverse( Int totalFrames )
 {
 	//m_currentFrameDelay = totalFrames - (m_transition->getFrameLength() + m_frameDelay);
+	m_reversed = TRUE;
 	if(m_transition)
 		m_transition->reverse();
 }

@@ -621,6 +621,7 @@ public:
 	GameWindow *m_win;
 	Transition *m_transition; // each window is allowed one transition
 	Int m_currentFrameDelay;	// this will change based on if we're going forward or backwards
+	Bool m_reversed;					// zh-pipeline: set by reverse(), so a layout-managed window can jump to the right end state
 };
 
 //-----------------------------------------------------------------------------

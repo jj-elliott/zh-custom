@@ -498,6 +498,14 @@ Bool isManaged( const GameWindow *window )
 	return styleOf( window ) != STYLE_NONE;
 }
 
+Bool isManagedTree( const GameWindow *window )
+{
+	for( const GameWindow *w = window; w; w = const_cast<GameWindow *>( w )->winGetParent() )
+		if( isManaged( w ) )
+			return TRUE;
+	return FALSE;
+}
+
 void forget( const GameWindow *window )
 {
 	for( size_t i = 0; i < s_styles.size(); ++i )
