@@ -1,0 +1,111 @@
+# Options on the procedural UI system. The shell creates this .wnd as a layout over the main menu (and in game), with a
+# root that used to draw a half-dark fill: it is a dialog now. A 1600 x 900 raised panel centred on a scrim (x 160..1760,
+# y 90..990): title, four groups in two columns (Display, Audio / Controls, Network), Defaults at the left of the bottom
+# row, Cancel and Accept at the right. The advanced display options window is a second dialog over it. Units: 1 = frame
+# height / 1080.
+hide at:0,0,799,599
+scrim
+window $OptionsMenuParent left top 0 0 1920 1080
+hide $OptionsMenuParent
+window $OptionsMenuParentOld centre middle 0 0 1600 900 dialog
+hide $Line
+hide $Line1
+hide $Line2
+hide $Line3
+hide $Line4
+
+window text:GUI:Options left top 184 110 600 32 section
+rule left top 184 150 1552
+
+# ---- display (left, top) ---------------------------------------------------------------------------------------------
+window $VideoParent left top 184 176 760 344
+hide $VideoParent
+window text:GUI:DisplayOptions left top 184 176 400 24 meta
+rule left top 184 206 760
+window $ResolutionLabel left top 184 224 360 24 meta
+window $ComboBoxResolution left top 184 252 360 44 dropdown
+window $DetailLabel left top 584 224 360 24 meta
+window $ComboBoxDetail left top 584 252 360 44 dropdown
+window $GammaLabel left top 184 324 360 24 meta
+window $SliderGamma left top 184 352 760 44 slider
+
+# ---- audio (right, top) ----------------------------------------------------------------------------------------------
+window $AudioParent left top 976 176 760 344
+hide $AudioParent
+window text:GUI:AudioOptions left top 976 176 400 24 meta
+rule left top 976 206 760
+window $MusicVolumeLabel left top 976 224 360 24 meta
+window $SliderMusicVolume left top 976 252 760 44 slider
+window $SFXVolumeLabel left top 976 324 360 24 meta
+window $SliderSFXVolume left top 976 352 760 44 slider
+window $VoiceVolumeLabel left top 976 424 360 24 meta
+window $SliderVoiceVolume left top 976 452 760 44 slider
+
+# ---- controls (left, bottom) -----------------------------------------------------------------------------------------
+window $ScrollParent left top 184 544 760 336
+hide $ScrollParent
+window text:GUI:ControlOptions left top 184 544 400 24 meta
+rule left top 184 574 760
+window $CheckAlternateMouse left top 184 592 360 40 checkbox
+window $CheckDoubleClickAttackMove left top 584 592 360 40 checkbox
+window $Retaliation left top 184 640 360 40 checkbox
+window $ScrollSpeedLabel left top 184 712 360 24 meta
+window $SliderScrollSpeed left top 184 740 760 44 slider
+
+# ---- network (right, bottom) -----------------------------------------------------------------------------------------
+window $NetworkParent left top 976 544 760 336
+hide $NetworkParent
+window text:GUI:NetworkOptions left top 976 544 400 24 meta
+rule left top 976 574 760
+window $StaticTextOnlineIpAddresses left top 976 592 360 24 meta
+window $ComboBoxOnlineIP left top 976 620 360 44 dropdown
+window $StaticTextLANIpAddresses left top 1376 592 360 24 meta
+window $ComboBoxIP left top 1376 620 360 44 dropdown
+window $StaticTextFirewallPortOverride left top 976 692 360 24 meta
+window $TextEntryFirewallPortOverride left top 976 720 200 44 entry
+window $ButtonFirewallRefresh left top 1196 720 140 44 button
+window $StaticTextHTTPProxy left top 1376 692 360 24 meta
+window $TextEntryHTTPProxy left top 1376 720 360 44 entry
+window $CheckSendDelay left top 976 792 400 40 checkbox
+
+# ---- bottom row ------------------------------------------------------------------------------------------------------
+window $ButtonDefaults left top 184 922 200 44 button
+window $LabelVersion left top 404 930 600 28 meta
+window $ButtonBack left top 1336 922 200 44 button
+window $ButtonAccept left top 1556 922 180 44 primary
+
+# ---- advanced display options: a dialog over the options (shown by code) -------------------------------------------
+window $WinAdvancedDisplayOptions centre middle 0 0 1000 760 dialog
+hide $AdvanceOptionsLine
+window text:GUI:AdvanceDisplayOptions left top 484 180 600 32 section
+window parent:$Check3DShadows left top 484 232 952 300
+hide parent:$Check3DShadows
+hide $ToggleOnOffLine
+window text:GUI:AdvancedOptionsToggleOnOff left top 484 232 600 24 meta
+window $Check3DShadows left top 484 264 440 40 checkbox
+window $Check2DShadows left top 484 308 440 40 checkbox
+window $CheckCloudShadows left top 484 352 440 40 checkbox
+window $CheckGroundLighting left top 484 396 440 40 checkbox
+window $CheckSmoothWater left top 484 440 440 40 checkbox
+window $CheckBehindBuilding left top 960 264 440 40 checkbox
+window $CheckShowProps left top 960 308 440 40 checkbox
+window $CheckExtraAnimations left top 960 352 440 40 checkbox
+window $CheckNoDynamicLOD left top 960 396 440 40 checkbox
+window $CheckHeatEffects left top 960 440 440 40 checkbox
+window $CheckUnlockFPS left top 960 484 440 40 checkbox
+window $LowResWin left top 484 540 952 140
+hide $LowResWin
+hide $LowResLine
+window text:GUI:LowResSlider left top 484 540 600 24 meta
+window $LowResSlider left top 484 572 952 44 slider
+window text:GUI:LowResFaster left top 484 620 400 24 meta
+window text:GUI:HighResSlower left top 1036 620 400 24 meta
+window $ParticleCapWin left top 484 700 952 140
+hide $ParticleCapWin
+hide $ParticleCapLine
+window text:GUI:ParticleCap left top 484 700 600 24 meta
+window $ParticleCapSlider left top 484 732 952 44 slider
+window text:GUI:LessParticlesFaster left top 484 780 400 24 meta
+window text:GUI:MoreParticlesSlower left top 1036 780 400 24 meta
+window $ButtonAdvanceBack left top 484 852 180 44 button
+window $ButtonAdvanceAccept left top 1236 852 200 44 primary
