@@ -460,12 +460,21 @@ WindowMsgHandledType GadgetHorizontalSliderSystem( GameWindow *window, UnsignedI
 		// ------------------------------------------------------------------------
 		case GGM_RESIZED:
 		{
-//			Int width = (Int)mData1;
+			Int width = (Int)mData1;
 			Int height = (Int)mData2;
 			GameWindow *thumb = window->winGetChild();
 
 			if( thumb )
 				thumb->winSetSize( GADGET_SIZE, height );
+
+			// zh-pipeline @fix 2026-10-24: a slider resized after creation (layout descriptions do this) kept the tick
+			// spacing of its creation width, so the thumb no longer matched the value and could not reach the right end
+			// (it snapped back to the old width's end). Recompute the spacing and re-place the thumb. Client UI only.
+			if( thumb && s->maxVal > s->minVal )
+			{
+				s->numTicks = (Real)( width - HORIZONTAL_SLIDER_THUMB_WIDTH ) / (Real)( s->maxVal - s->minVal );
+				thumb->winSetPosition( (Int)( ( s->position - s->minVal ) * s->numTicks ), HORIZONTAL_SLIDER_THUMB_POSITION );
+			}
 
 			break;
 

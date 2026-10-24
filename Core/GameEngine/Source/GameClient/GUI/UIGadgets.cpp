@@ -175,7 +175,16 @@ void drawHorizontalSlider( GameWindow *window, WinInstanceData *instData )
 	const Int x = origin.x + knobHalf, w = size.x - 2 * knobHalf;
 	const Color trackColor = ( state == STATE_DISABLED ) ? p.lineHair : p.lineStrong;
 	TheDisplay->drawRoundedRect( x, cy - trackH / 2, w, trackH, trackH * 0.5f, trackColor );
-	const Int fillW = (Int)( w * value01 + 0.5f );
+	// the fill ends under the knob: take the thumb window's centre when there is one, so the two never disagree
+	Int fillW = (Int)( w * value01 + 0.5f );
+	if( GameWindow *thumb = window->winGetChild() )
+	{
+		ICoord2D to, ts;
+		rectOf( thumb, to, ts );
+		fillW = to.x + ts.x / 2 - x;
+		if( fillW < 0 ) fillW = 0;
+		if( fillW > w ) fillW = w;
+	}
 	if( fillW > 0 && state != STATE_DISABLED )
 		TheDisplay->drawRoundedRect( x, cy - trackH / 2, fillW, trackH, trackH * 0.5f, p.signalBlue );
 	const Int tickTop = cy + trackH / 2 + u( 6.0f );
