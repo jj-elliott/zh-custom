@@ -1,6 +1,11 @@
 # LAN lobby on the procedural UI system. Units: 1 = frame height / 1080. Title top-left; left panel: player name row,
 # the players and games lists side by side, the lobby chat under them; right panel: game info. Host, Join and Direct
 # Connect on the right of the bottom bar, Back on the left.
+# The root draws the blueprint frame; GadgetParent holds every control and ended at 558 of 600 legacy units, which clipped
+# the bottom bar's clicks: made frame-sized and drawing nothing.
+hide $LanLobbyMenuParent
+window $GadgetParent left top 0 0 1920 1080
+hide $GadgetParent
 hide $Line
 
 window text:GUI:LANLobby left top 64 40 560 48 title

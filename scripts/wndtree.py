@@ -1,39 +1,41 @@
-"""Print a compact tree of a .wnd file: depth, type, name, rect (800x600), status, text label. Usage: wndtree.py file.wnd"""
+"""Print the window tree of a .wnd file (extracted with bigtool.py): indent = nesting, then type, name, the 800x600
+rect (l,t-r,b), the text label and flags. Usage: python -I scripts/wndtree.py <file.wnd> [...]"""
 import sys, re
-for path in sys.argv[1:]:
+
+def dump(path):
     txt = open(path, encoding='latin-1').read()
     print('=====', path.replace(chr(92), '/').split('/')[-1])
-    depth = 0
-    cur = None
+    stack = []      # open WINDOW records
     for line in txt.splitlines():
         s = line.strip()
         if s == 'WINDOW':
-            cur = {'depth': depth, 'type': '', 'name': '', 'rect': '', 'status': '', 'text': '', 'style': ''}
-        elif s == 'CHILD':
-            depth += 1
-        elif s == 'ENDALLCHILDREN':
-            depth -= 1
-        elif s.startswith('WINDOWTYPE') and cur is not None:
+            stack.append({'type': '', 'name': '', 'rect': '', 'status': '', 'text': '', 'printed': False})
+            continue
+        if not stack:
+            continue
+        cur = stack[-1]
+        if s == 'CHILD' or s == 'END' or s == 'ENDALLCHILDREN':
+            if not cur['printed']:
+                flags = [f for f, k in (('hidden', 'HIDDEN'), ('seethru', 'SEE_THRU'), ('img', 'IMAGE')) if k in cur['status']]
+                print('  ' * (len(stack) - 1) + cur['type'].ljust(14), cur['name'].ljust(34), cur['rect'].ljust(16),
+                      cur['text'].ljust(28), ' '.join(flags))
+                cur['printed'] = True
+            if s == 'END':
+                stack.pop()
+        elif s.startswith('WINDOWTYPE'):
             cur['type'] = s.split('=')[1].strip(' ;')
-        elif s.startswith('NAME =') and cur is not None and not cur['name']:
-            cur['name'] = s.split('"')[1].split(':')[-1]
-        elif s.startswith('SCREENRECT') and cur is not None:
+        elif s.startswith('NAME =') and not cur['name']:
+            cur['name'] = s.split('"')[1].split(':')[-1] or '(unnamed)'
+        elif s.startswith('SCREENRECT'):
             m = re.search(r'UPPERLEFT:\s*(\d+)\s+(\d+)', s)
             cur['rect'] = m.group(1) + ',' + m.group(2)
-        elif s.startswith('BOTTOMRIGHT') and cur is not None and cur['rect'].count(',') == 1:
+        elif s.startswith('BOTTOMRIGHT') and cur['rect'].count(',') == 1:
             m = re.search(r'BOTTOMRIGHT:\s*(\d+)\s+(\d+)', s)
             cur['rect'] += '-' + m.group(1) + ',' + m.group(2)
-        elif s.startswith('STATUS') and cur is not None and not cur['status']:
+        elif s.startswith('STATUS') and not cur['status']:
             cur['status'] = s.split('=')[1].strip(' ;')
-        elif s.startswith('STYLE') and cur is not None and not cur['style']:
-            cur['style'] = s.split('=')[1].strip(' ;')
-        elif s.startswith('TEXT =') and cur is not None:
-            cur['text'] = s.split('"')[1] if '"' in s else ''
-        elif s == 'END' and cur is not None:
-            flags = []
-            if 'HIDDEN' in cur['status']: flags.append('hidden')
-            if 'SEE_THRU' in cur['status']: flags.append('seethru')
-            if 'IMAGE' in cur['status']: flags.append('img')
-            print('  ' * cur['depth'] + cur['type'].ljust(14), cur['name'].ljust(34), cur['rect'].ljust(16),
-                  (cur['text'] or '').ljust(28), ' '.join(flags))
-            cur = None
+        elif s.startswith('TEXT =') and '"' in s:
+            cur['text'] = s.split('"')[1]
+
+for p in sys.argv[1:]:
+    dump(p)

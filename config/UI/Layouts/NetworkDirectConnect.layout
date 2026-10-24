@@ -1,6 +1,14 @@
 # Direct connect on the procedural UI system. Units: 1 = frame height / 1080. Title top-left like every screen, then one
 # form panel centred on the shell map: player name, this machine's address, the remote address (an editable dropdown
 # with the history), and Back / Host / Join on the panel's bottom row.
+# The root draws the blueprint frame and GadgetParent (holding every control, 40..760 x 40..560 legacy) is made
+# frame-sized; the unnamed box that framed the old form holds the form controls, so it is moved over the new panel
+# (hit-testing only descends into children of a window under the pointer) and draws nothing.
+hide $NetworkDirectConnectParent
+window $GadgetParent left top 0 0 1920 1080
+hide $GadgetParent
+window parent:$EditPlayerName left top 560 240 800 480
+hide parent:$EditPlayerName
 hide $Line
 
 window $StaticWindowLabel left top 64 40 560 48 title
