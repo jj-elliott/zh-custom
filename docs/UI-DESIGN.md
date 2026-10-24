@@ -241,8 +241,12 @@ component sheet. Still to do: an overlay that shows anchors and unplaced windows
    (`NetworkDirectConnect.layout`, a centred form panel), LAN game options (`LanGameOptionsMenu.layout`, the shared
    blocks plus accept markers and chat) and its map selection (`LanMapSelectMenu.layout`), LAN lobby
    (`LanLobbyMenu.layout`), the message boxes (`MessageBox.layout`, `QuitMessageBox.layout`: the box window itself is the
-   `dialog`, the button slots are arranged so the primary action lands at the right). ← **we are here**. Then Options,
-   Load/Save, Replay, Solo play (difficulty, challenge), credits and the score screen.
+   `dialog`, the button slots are arranged so the primary action lands at the right); passed 2026-10-24. Then, built the
+   same day, review pending: Options (`OptionsMenu.layout`: the shell opens it as a layout over the main menu and in game,
+   so it is a 1600 x 900 dialog on a scrim with the four groups in two columns and the advanced display window as a
+   second dialog), Load/Save (`SaveLoad.layout`, confirmations as dialogs), Replays (`ReplayMenu.layout`), the solo
+   custom-mission map select (`MapSelectMenu.layout`). ← **we are here**. Left as art for now: Generals' Challenge (the
+   general portraits sit on a painted map; a layout would only move its title and buttons), credits, the score screen.
 6. Package: fonts in the release zip, `-classicui` switch kept for one release, FEATURE-PARITY and CODE-MAP updated.
 
 Each step is a separate small commit, reviewed from screenshots before the next starts. Nothing in the simulation is touched;

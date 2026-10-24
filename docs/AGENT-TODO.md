@@ -51,9 +51,10 @@ These need the actual source tree or a Windows machine, so bootstrap.ps1 left th
       decorations now drawn per root from `GameWindowManager::winRepaint`. **Step 5 signed off 2026-10-24.** Next (5b): the
       remaining shell screens in co-op order. Built 2026-10-24, review pending: NetworkDirectConnect, LanGameOptionsMenu
       (shared blocks `GameSetup*.layout` + `MapSelectDialog.layout`, skirmish refactored onto them), LanMapSelectMenu,
-      LanLobbyMenu, MessageBox/QuitMessageBox (new `body` and `dialog` styles). Still to do: OptionsMenu, SaveLoad,
-      ReplayMenu, DifficultySelect, ChallengeMenu, SinglePlayerMenu + MapSelectMenu (solo custom-mission map select),
-      CreditsMenu, ScoreScreen. Notes: `PatchWindow.big` overrides MainMenu.wnd and MapSelectMenu.wnd, read window trees
+      LanLobbyMenu, MessageBox/QuitMessageBox (new `body` and `dialog` styles); all passed 2026-10-24. Then OptionsMenu
+      (dialog over main menu / game), SaveLoad, ReplayMenu, MapSelectMenu built the same day, review pending. Not done:
+      ChallengeMenu (art screen), CreditsMenu, ScoreScreen, the in-game popups (PopupSaveLoad, PopupReplay, QuitMenu) which
+      belong to the HUD pass; DifficultySelect.wnd and SinglePlayerMenu.wnd are not reachable from the shell. Notes: `PatchWindow.big` overrides MainMenu.wnd and MapSelectMenu.wnd, read window trees
       from there first; `scripts/bigtool.py` (extract) + `scripts/wndtree.py` dump a .wnd tree (root rect matters: a parent that does
       not cover its children swallows their clicks).
       Known: the shell shows its menu only once the window has focus and the pointer has moved; `run.ps1 -Screenshot` now
