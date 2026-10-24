@@ -175,7 +175,12 @@ boxes, lists and sliders follow with the skirmish screen. The old draw functions
 centre, right × top, middle, bottom), offsets and size in units, or places them in a vertical `stack` with a gap; `hide`
 swaps a window's draw function for a no-op (its children, input and the shell's show/hide logic are untouched: the
 main menu's submenu panels are hidden this way and still toggle their buttons); an optional style (`menu`, `button`,
-`primary`, `danger`, `label`) marks the windows the procedural renderers draw. Applied at the end of
+`primary`, `danger`, `label`, `caption`, `meta`, `section`, `title`, `panel`, `entry`, `dropdown`, `checkbox`, `list`,
+`slider`, `radio`) marks the windows the procedural renderers draw; `panel`, `rule` and `ruler` lines add decorations drawn
+under the windows (`InGameUI::postDraw`). Windows are named `Name`, `$Name` (short for `<Screen>.wnd:Name`), `text:<label key>`
+(an unnamed window by its label), `parent:<window>` or `at:l,t,r,b` (an unnamed window by its legacy 800x600 rectangle,
+matched before any ancestor moves). `include <file>` reads another layout file, so blocks shared between screens (the
+skirmish players table, the map and rules panels) are written once and used by the LAN and online setup screens too. Applied at the end of
 `winCreateFromScript`, before the screen's init callback, so callbacks and names are untouched and the init code
 sees the final positions. Windows not mentioned keep their legacy position. The content frame (`UIStyle::frame`) is
 16:9, centred: letterboxed by the scene on wider screens, bands on 16:10; one unit = frame height / 1080.
@@ -193,7 +198,9 @@ and set in the same face at 78% size, baseline-aligned by the ascent ratio; the 
 with the last glyph's overlap padding, measured per font as `2·w("H") − w("HH")` and subtracted at every join. Legacy
 screens keep the user's resolution font adjustment until they are redesigned; the new system sizes text in units only.
 
-6.6 **Dev tooling.** `-uiscreen <Layout.wnd>` (built) pushes that shell screen a moment after the main menu is up;
+6.6 **Dev tooling.** `-uiscreen <seq>` (built) runs a `;`-separated sequence a moment after the main menu is up: a
+`<Screen>.wnd` item pushes that shell screen, `click:<window>` presses a button on the top screen (so
+`SkirmishGameOptionsMenu.wnd;click:ButtonSelectMap` reaches map selection);
 `run.ps1 -Screenshot N` focuses the game, nudges the pointer and captures the game window; `-Click "x,y;..."` posts
 clicks but the shell did not act on them in testing, so `-uiscreen` is the way to reach a screen. `-uitest` draws the
 component sheet. Still to do: an overlay that shows anchors and unplaced windows.

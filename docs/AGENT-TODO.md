@@ -40,7 +40,12 @@ These need the actual source tree or a Windows machine, so bootstrap.ps1 left th
       panel/rule/ruler decorations, entry / dropdown / checkbox / list / slider renderers (chrome first, stock text drawing
       kept with cleared colours), `at:` and `text:` window matching, `-uiscreen`. A missing per-frame text-pool reset
       exhausted DXVK memory in ~30 s on real screens (fixed: `UIStyle::Text::beginFrame` from `InGameUI::postDraw`, pool
-      capped). Sign-off on skirmish pending (needs a click test), then the remaining shell screens.
+      capped). Review round 1 on skirmish (2026-10-23) fixed: combo chevron geometry, medal aspect, radio segments, map selection
+      (`SkirmishMapSelectMenu.layout`), `$Name` and `include`, `-uiscreen click:`. Round 2 (2026-10-24): managed entries centre
+      their text vertically (`W3DTextEntry.cpp`, plain draw), Color column widened to 140 units; `build.ps1` now stages exe,
+      PDB and the `config` folder into `gameDir` after a good build (skipped with a notice when the exe is locked). Sign-off on
+      skirmish + map selection pending (human look), then the remaining shell screens, reusing the skirmish blocks via
+      `include` for the LAN / online game-setup screens.
       Known: the shell shows its menu only once the window has focus and the pointer has moved; `run.ps1 -Screenshot` now
       focuses the window and nudges the cursor four seconds before the shot, which steals focus: only run it when the human
       has said the screen is free (they may be gaming).
