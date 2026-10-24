@@ -54,7 +54,7 @@ These need the actual source tree or a Windows machine, so bootstrap.ps1 left th
       LanLobbyMenu, MessageBox/QuitMessageBox (new `body` and `dialog` styles). Still to do: OptionsMenu, SaveLoad,
       ReplayMenu, DifficultySelect, ChallengeMenu, SinglePlayerMenu + MapSelectMenu (solo custom-mission map select),
       CreditsMenu, ScoreScreen. Notes: `PatchWindow.big` overrides MainMenu.wnd and MapSelectMenu.wnd, read window trees
-      from there first; the scratchpad `bigtool.py` + `wndtree.py` dump a .wnd tree (root rect matters: a parent that does
+      from there first; `scripts/bigtool.py` (extract) + `scripts/wndtree.py` dump a .wnd tree (root rect matters: a parent that does
       not cover its children swallows their clicks).
       Known: the shell shows its menu only once the window has focus and the pointer has moved; `run.ps1 -Screenshot` now
       focuses the window and nudges the cursor four seconds before the shot, which steals focus: only run it when the human
