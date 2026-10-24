@@ -307,6 +307,17 @@ void W3DGadgetTextEntryDraw( GameWindow *window, WinInstanceData *instData )
 	else
 		start.y = origin.y + startOffset;  // offset a little bit into the entry
 
+	// zh-pipeline @feature 2026-10-23 Menu UI system: an entry a layout manages is taller than its font, so the text
+	// sits vertically centred in the box with the control's inset, not 5 px from the top-left corner
+	if( UIStyle::isEnabled() && UILayout::effectiveStyle( window ) > UILayout::STYLE_HIDDEN )
+	{
+		startOffset = UIStyle::u( 12.0f ) - 2;	// drawTextEntryText adds 2 of its own
+		if( startOffset < 2 ) startOffset = 2;
+		width = size.x - (2 * startOffset);
+		start.x = origin.x + startOffset;
+		start.y = origin.y + ( size.y - fontHeight ) / 2;
+	}
+
 	// draw the edit text
 	drawTextEntryText( window, instData, textColor, textBorder, compositeColor, compositeBorder,
 										 start.x, start.y, width, fontHeight );
