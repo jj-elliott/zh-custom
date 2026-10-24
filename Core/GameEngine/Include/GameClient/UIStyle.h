@@ -66,6 +66,9 @@ namespace UIStyle
 		constexpr Real SliderTrack = 4.0f;
 		constexpr Real SliderKnobW = 10.0f;
 		constexpr Real SliderKnobH = 24.0f;
+		constexpr Real ScrollBarWidth = 24.0f;   // list scroll bar hit area (buttons, track window, thumb window)
+		constexpr Real ScrollBarStroke = 8.0f;   // drawn width of the track and the thumb bar
+		constexpr Real ScrollThumbMin = 48.0f;   // the thumb never gets shorter than this
 	}
 
 	// ---- colour helpers ------------------------------------------------------------------------------------------------
@@ -104,7 +107,8 @@ namespace UIStyle
 	{
 		void panel( Int x, Int y, Int w, Int h, Bool grid = TRUE, Bool brackets = TRUE );
 		void brackets( Int x, Int y, Int w, Int h, Real radiusUnits );
-		void grid( Int x, Int y, Int w, Int h );
+		void grid( Int x, Int y, Int w, Int h, Real alpha = 0.07f );
+		void band( Int x, Int y, Int w, Int h );   ///< a frame band: translucent fill, visible drafting grid, hairline edge
 		void twoToneRule( Int x, Int y, Int w );
 		void ruler( Int x, Int y, Int w );
 		void button( Int x, Int y, Int w, Int h, ControlState state, ButtonKind kind = BUTTON_NORMAL, Bool focused = FALSE );

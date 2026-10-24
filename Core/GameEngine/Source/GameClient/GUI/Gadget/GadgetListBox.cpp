@@ -62,6 +62,8 @@
 #include "GameClient/GadgetSlider.h"
 #include "GameClient/GameWindowGlobal.h"
 #include "GameClient/Keyboard.h"
+#include "GameClient/UIStyle.h"   // zh-pipeline Menu UI system: proportional scroll thumb
+#include "GameClient/UILayout.h"
 
 
 // DEFINES ////////////////////////////////////////////////////////////////////
@@ -269,6 +271,24 @@ static void adjustDisplay( GameWindow *window, Int adjustment,
 
 		child = list->slider->winGetChild();
 		child->winGetSize( &sliderChildSize.x, &sliderChildSize.y );
+
+		// zh-pipeline @feature 2026-10-24 Menu UI system: on a managed list the thumb's height follows the visible share of
+		// the content, with a minimum, instead of the fixed GADGET_SIZE. The slider reads the thumb size on every drag, so
+		// the range below stays consistent. Client-side list geometry only; no sim impact.
+		if( UIStyle::isEnabled() && list->totalHeight > 0 && UILayout::effectiveStyle( window ) > UILayout::STYLE_HIDDEN )
+		{
+			const Int visible = list->displayHeight - TOTAL_OUTLINE_HEIGHT;
+			Int th = (Int)( (Real)sliderSize.y * (Real)visible / (Real)list->totalHeight );
+			const Int tmin = UIStyle::u( UIStyle::Metric::ScrollThumbMin );
+			if( th < tmin ) th = tmin;
+			if( th > sliderSize.y ) th = sliderSize.y;
+			if( th != sliderChildSize.y )
+			{
+				child->winSetSize( sliderChildSize.x, th );
+				sliderChildSize.y = th;
+			}
+		}
+
 		sData->numTicks = (float)((sliderSize.y - sliderChildSize.y) / (float)sData->maxVal);
 
 		if( updateSlider )

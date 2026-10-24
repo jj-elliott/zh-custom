@@ -51,6 +51,33 @@ void drawPushButton( GameWindow *window, WinInstanceData *instData, UILayout::St
 	const Palette &p = palette();
 
 	// children of styled gadgets: the combo box arrow, the slider knob, the list box scroll buttons
+	GameWindow *parent = window->winGetParent();
+	const UnsignedInt parentStyle = parent ? parent->winGetStyle() : 0;
+	if( BitIsSet( parentStyle, GWS_VERT_SLIDER ) )
+	{
+		// a list scroll thumb (also inside a combo box's popup list): a bar, clearly lighter than its track
+		const Int bw = u( Metric::ScrollBarStroke );
+		const Color bar = ( state == STATE_DISABLED ) ? p.lineHair
+									 : ( state == STATE_PRESSED ) ? p.signalBlue
+									 : ( state == STATE_HOVER ) ? p.textPrimary : p.textSecondary;
+		TheDisplay->drawRoundedRect( origin.x + ( size.x - bw ) / 2, origin.y, bw, size.y, bw * 0.5f, bar );
+		return;
+	}
+	if( BitIsSet( parentStyle, GWS_SCROLL_LISTBOX ) )
+	{
+		// scroll buttons: a chevron, up above the list's centre, down below
+		ICoord2D po, ps; rectOf( parent, po, ps );
+		const Bool up = origin.y + size.y / 2 < po.y + ps.y / 2;
+		const Int half = u( 5.0f );
+		const Int cx = origin.x + size.x / 2, cy = origin.y + size.y / 2;
+		Coord2D pts[ 3 ];
+		pts[ 0 ].x = (Real)( cx - half ); pts[ 0 ].y = (Real)( up ? cy + half / 2 : cy - half / 2 );
+		pts[ 1 ].x = (Real)cx;            pts[ 1 ].y = (Real)( up ? cy - half / 2 : cy + half / 2 );
+		pts[ 2 ].x = (Real)( cx + half ); pts[ 2 ].y = pts[ 0 ].y;
+		TheDisplay->drawPolyline( pts, 3, uf( 2.0f ), ( state == STATE_DISABLED ) ? p.textDisabled
+														: ( state == STATE_REST ) ? p.textSecondary : p.textPrimary );
+		return;
+	}
 	if( style == UILayout::STYLE_DROPDOWN )
 		return;   // the combo's chrome draws the chevron at the box's right edge, whatever this button's rectangle is
 	if( style == UILayout::STYLE_SLIDER )
@@ -62,40 +89,6 @@ void drawPushButton( GameWindow *window, WinInstanceData *instData, UILayout::St
 		TheDisplay->drawRoundedRect( kx, ky, kw, kh, uf( 2.0f ), knob );
 		TheDisplay->drawRoundedOutline( kx, ky, kw, kh, uf( 2.0f ), uf( Metric::Hairline ), GameMakeColor( 0, 0, 0, 90 ) );
 		TheDisplay->drawLine( kx + kw / 2, ky + u( 5.0f ), kx + kw / 2, ky + kh - u( 5.0f ), uf( Metric::Hairline ), GameMakeColor( 0, 0, 0, 90 ) );
-		return;
-	}
-	if( style == UILayout::STYLE_LIST )
-	{
-		// scroll buttons: a small chevron, up above the parent's centre, down below; the slider thumb is a bar
-		GameWindow *parent = window->winGetParent();
-		Bool isThumb = FALSE;
-		if( parent )
-		{
-			// the thumb's parent is the vertical slider, whose parent is the list box
-			GameWindow *gp = parent->winGetParent();
-			isThumb = gp && UILayout::styleOf( gp ) == UILayout::STYLE_LIST;
-		}
-		if( isThumb )
-		{
-			const Int bw = u( 4.0f );
-			TheDisplay->drawRoundedRect( origin.x + ( size.x - bw ) / 2, origin.y, bw, size.y, bw * 0.5f,
-																	 ( state == STATE_DISABLED ) ? p.lineHair : ( ( state == STATE_HOVER || state == STATE_PRESSED ) ? p.signalBlue : p.lineStrong ) );
-			return;
-		}
-		Int pcy = origin.y;
-		if( parent )
-		{
-			ICoord2D po, ps; rectOf( parent, po, ps );
-			pcy = po.y + ps.y / 2;
-		}
-		const Bool up = origin.y + size.y / 2 < pcy;
-		const Int half = u( 3.0f );
-		const Int cx = origin.x + size.x / 2, cy = origin.y + size.y / 2;
-		Coord2D pts[ 3 ];
-		pts[ 0 ].x = (Real)( cx - half ); pts[ 0 ].y = (Real)( up ? cy + half / 2 : cy - half / 2 );
-		pts[ 1 ].x = (Real)cx;            pts[ 1 ].y = (Real)( up ? cy - half / 2 : cy + half / 2 );
-		pts[ 2 ].x = (Real)( cx + half ); pts[ 2 ].y = pts[ 0 ].y;
-		TheDisplay->drawPolyline( pts, 3, uf( 1.5f ), ( state == STATE_DISABLED ) ? p.textDisabled : p.textSecondary );
 		return;
 	}
 
@@ -195,11 +188,11 @@ void drawHorizontalSlider( GameWindow *window, WinInstanceData *instData )
 
 void drawVerticalSlider( GameWindow *window, WinInstanceData *instData )
 {
-	// list box scrollbar track: a hairline-thin channel; the thumb child draws the bar
+	// list box scrollbar track: a dim channel; the thumb child draws the bar
 	ICoord2D origin, size;
 	rectOf( window, origin, size );
-	const Int bw = u( 4.0f );
-	TheDisplay->drawRoundedRect( origin.x + ( size.x - bw ) / 2, origin.y, bw, size.y, bw * 0.5f, withAlpha( palette().lineHair, 0.5f ) );
+	const Int bw = u( Metric::ScrollBarStroke );
+	TheDisplay->drawRoundedRect( origin.x + ( size.x - bw ) / 2, origin.y, bw, size.y, bw * 0.5f, withAlpha( palette().lineHair, 0.6f ) );
 }
 
 void drawPanel( GameWindow *window, WinInstanceData *instData )

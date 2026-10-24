@@ -50,6 +50,8 @@
 #include "Common/Language.h"
 #include "GameClient/GameWindowManager.h"
 #include "GameClient/Gadget.h"
+#include "GameClient/UIStyle.h"   // zh-pipeline Menu UI system: scroll thumb minimum
+#include "GameClient/UILayout.h"
 
 // DEFINES ////////////////////////////////////////////////////////////////////
 
@@ -453,7 +455,19 @@ WindowMsgHandledType GadgetVerticalSliderSystem( GameWindow *window, UnsignedInt
 			GameWindow *thumb = window->winGetChild();
 
 			if( thumb )
-				thumb->winSetSize( width, GADGET_SIZE );
+			{
+				Int thumbHeight = GADGET_SIZE;
+				// zh-pipeline @feature 2026-10-24 Menu UI system: a managed list's thumb has a design-unit minimum; the list
+				// then sizes it proportionally to the visible share (GadgetListBox adjustDisplay)
+				if( UIStyle::isEnabled() && UILayout::effectiveStyle( window ) > UILayout::STYLE_HIDDEN )
+				{
+					Int tw = 0, th = 0;
+					thumb->winGetSize( &tw, &th );
+					thumbHeight = UIStyle::u( UIStyle::Metric::ScrollThumbMin );
+					if( th > thumbHeight ) thumbHeight = th;
+				}
+				thumb->winSetSize( width, thumbHeight );
+			}
 
 			break;
 
