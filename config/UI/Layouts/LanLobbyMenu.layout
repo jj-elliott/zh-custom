@@ -1,0 +1,30 @@
+# LAN lobby on the procedural UI system. Units: 1 = frame height / 1080. Title top-left; left panel: player name row,
+# the players and games lists side by side, the lobby chat under them; right panel: game info. Host, Join and Direct
+# Connect on the right of the bottom bar, Back on the left.
+hide $Line
+
+window text:GUI:LANLobby left top 64 40 560 48 title
+ruler left top 64 94 560
+
+panel left top 64 124 1104 832
+window text:GUI:PlayerName left top 84 150 300 24 meta
+window $TextEntryPlayerName left top 84 180 400 44 entry
+window $ButtonClear left top 500 180 140 44 button
+window text:GUI:Players left top 84 252 300 24 meta
+window $ListboxPlayers left top 84 280 500 260 list
+window text:GUI:Games left top 608 252 300 24 meta
+window $ListboxGames left top 608 280 540 260 list
+rule left top 84 564 1064
+window $ListboxChatWindowLanLobby left top 84 580 1064 260 list
+window $TextEntryChat left top 84 856 1004 40 entry
+window $ButtonEmote left top 1096 856 52 40
+
+panel right top 64 124 656 832
+window text:GUI:GameInfo right top 84 140 300 28 section
+rule right top 84 176 608
+window $StaticTextGameInfo right top 84 196 608 720 body
+
+window $ButtonBack left bottom 64 40 180 44 button
+window $ButtonDirectConnect right bottom 512 40 240 44 button
+window $ButtonJoin right bottom 288 40 200 44 button
+window $ButtonHost right bottom 64 40 200 44 primary

@@ -1,0 +1,19 @@
+# Direct connect on the procedural UI system. Units: 1 = frame height / 1080. Title top-left like every screen, then one
+# form panel centred on the shell map: player name, this machine's address, the remote address (an editable dropdown
+# with the history), and Back / Host / Join on the panel's bottom row.
+hide $Line
+
+window $StaticWindowLabel left top 64 40 560 48 title
+ruler left top 64 94 560
+
+panel centre middle 0 -60 800 480
+window $StaticPlayerNameDescription left top 584 268 500 24 meta
+window $EditPlayerName left top 584 296 752 44 entry
+window $StaticLocalIPDescription left top 584 364 500 24 meta
+window $StaticLocalIP left top 584 392 752 32 caption
+window $StaticRemoteIPDescription left top 584 448 500 24 meta
+window $ComboboxRemoteIP left top 584 476 752 44 dropdown
+
+window $ButtonBack left top 584 652 180 44 button
+window $ButtonHost left top 916 652 200 44 button
+window $ButtonJoin left top 1136 652 200 44 primary
