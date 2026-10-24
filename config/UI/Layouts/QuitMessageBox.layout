@@ -1,0 +1,12 @@
+# The quit confirmation: the message box with the game logo, a 640 x 480 dialog centred on a 40% scrim. Button slots as
+# in MessageBox.layout (slot 1 right, slot 3 left). The unnamed rule under the title is matched by its legacy rect.
+hide at:248,135,555,136
+scrim
+window $MessageBoxParent centre middle 0 0 640 480 dialog
+window $StaticTextTitle left top 664 324 592 32 section
+window $Logo left top 688 372 544 176
+window $StaticTextMessage left top 664 572 592 96 body
+window $ButtonCancel left top 664 712 180 44 button
+window $ButtonNo left top 870 712 180 44 button
+window $ButtonOk left top 1076 712 180 44 primary
+window $ButtonYes left top 1076 712 180 44 primary

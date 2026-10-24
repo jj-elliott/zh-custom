@@ -1,0 +1,15 @@
+# The message box (Yes/No, Ok, Ok/Cancel, ...): a 640 x 400 dialog centred on a 40% scrim. MessageBoxParent is the box
+# and is drawn as the dialog panel itself (gogoMessageBox may move it, e.g. the resolution prompt in a corner), its
+# children ride along. The button slots: gogoMessageBox reads the positions of ButtonOk (slot 1), ButtonNo (slot 2) and
+# ButtonCancel (slot 3) and moves the buttons it shows into them, Yes into slot 1 and a lone No into slot 3, so slot 1 is
+# at the right (the primary action) and slot 3 at the left. The unnamed title bar box is matched by its legacy rect
+# before the parent moves.
+hide at:252,100,552,150
+scrim
+window $MessageBoxParent centre middle 0 0 640 400 dialog
+window $StaticTextTitle left top 664 364 592 32 section
+window $StaticTextMessage left top 664 412 592 220 body
+window $ButtonCancel left top 664 672 180 44 button
+window $ButtonNo left top 870 672 180 44 button
+window $ButtonOk left top 1076 672 180 44 primary
+window $ButtonYes left top 1076 672 180 44 primary
