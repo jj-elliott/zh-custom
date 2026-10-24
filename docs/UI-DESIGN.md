@@ -251,7 +251,10 @@ component sheet. Still to do: an overlay that shows anchors and unplaced windows
    second dialog), Load/Save (`SaveLoad.layout`, confirmations as dialogs), Replays (`ReplayMenu.layout`), the solo
    custom-mission map select (`MapSelectMenu.layout`). ← **we are here**. Left as art for now: Generals' Challenge (the
    general portraits sit on a painted map; a layout would only move its title and buttons), credits, the score screen.
-6. Package: fonts in the release zip, `-classicui` switch kept for one release, FEATURE-PARITY and CODE-MAP updated.
+6. ~~Package: fonts in the release zip, `-classicui` switch kept for one release, FEATURE-PARITY and CODE-MAP updated.~~ Done
+   2026-10-24: `package.ps1` and `stage-install.ps1` copy `config/*`, so `Fonts\` and `UI\Layouts\` travel with the game zip and the
+   launcher extracts them with their folders; the asset manifest stays `.big`-only (layouts cannot desync a game). `-classicui` stays
+   for one release. Parity and code-map rows updated. Not in this unit: Generals' Challenge, credits, score screen, the in-game menus.
 
 Each step is a separate small commit, reviewed from screenshots before the next starts. Nothing in the simulation is touched;
 `verify.ps1` runs anyway at each step as the standing rule.
@@ -262,6 +265,9 @@ Each step is a separate small commit, reviewed from screenshots before the next 
   original strings only; small caps in homage to the all-caps original; slider redrawn as an instrument fader; the old
   blueprint frame removed from the backdrop.
 
+- 2026-10-24, later: direct connect, LAN setup and lobby, options, load/save, replays, solo map select and the message boxes
+  signed off after fixes for clipped button rows (containers moved first), the old frames on two screens, slider tick spacing
+  after a resize, the quit box height and the legacy transition art.
 - 2026-10-24: skirmish setup and map selection signed off (rounds 1 to 4 above); the main menu frame returns as grid bands
   at the owner's request.
 - 2026-10-23: engine main menu signed off.

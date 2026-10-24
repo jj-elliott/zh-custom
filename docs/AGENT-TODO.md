@@ -31,7 +31,7 @@ These need the actual source tree or a Windows machine, so bootstrap.ps1 left th
       decide Phase 4 step 2 (jitter term) from it. Not in the CRC. Launch args are now `-win -nologo` (skip logo + intro movie, keep the
       animated shell map); the human prefers that over `-quickstart`.
 - [x] **7. `/LARGEADDRESSAWARE`** — set 2026-10-22 (`GeneralsMD/Code/Main/CMakeLists.txt`); PE characteristics 0x122; CRC unchanged.
-- [~] **16. Menu UI system** (`render/ui`, spec `docs/UI-DESIGN.md`, mockups linked there). Done: primitives (`Display::drawRounded*`,
+- [x] **16. Menu UI system** (`render/ui`, spec `docs/UI-DESIGN.md`, mockups linked there). Done: primitives (`Display::drawRounded*`,
       `drawDisc`, `drawPolyline` in `W3DDisplay`), `UIStyle` tokens/renderers, `-uitest` component sheet, `-classicui` switch.
       Step 2 passed 2026-10-22. Step 3 done the same day: `config/Fonts` (Barlow, Barlow Semi Condensed, Saira Stencil One, OFL),
       `UIFonts` registration + legacy name substitution in `FontLibrary::getFont`, `UIStyle::Text` small caps.
@@ -57,6 +57,14 @@ These need the actual source tree or a Windows machine, so bootstrap.ps1 left th
       belong to the HUD pass; DifficultySelect.wnd and SinglePlayerMenu.wnd are not reachable from the shell. Notes: `PatchWindow.big` overrides MainMenu.wnd and MapSelectMenu.wnd, read window trees
       from there first; `scripts/bigtool.py` (extract) + `scripts/wndtree.py` dump a .wnd tree (root rect matters: a parent that does
       not cover its children swallows their clicks).
+      **Shell pass complete 2026-10-24**: every screen above passed the owner's review (rounds covered entry centring, column widths,
+      scroll bar, dialogs with scrim, frame bands, slider tick spacing on resize, legacy transition art skipped on managed screens).
+      Packaging (step 6): `package.ps1` already ships `config/*` (fonts, layouts) in the game zip; `-classicui` kept for one release;
+      FEATURE-PARITY and CODE-MAP updated.
+- [ ] **17. In-game UI pass** (after the shell): pause menu (`QuitMenu.wnd`, `QuitNoSave.wnd`), `PopupSaveLoad.wnd`, `PopupReplay.wnd`,
+      the score screen, then the HUD (control bar stays on the `340_`/`400_` add-on art until its own design round). Also the art-led
+      shell screens left out: `ChallengeMenu.wnd` (portraits on a painted map), `CreditsMenu.wnd`. Same method: `scripts/wndtree.py`
+      for the tree, a `.layout` per screen, containers moved first, one screen per commit, owner review from their own play.
       Known: the shell shows its menu only once the window has focus and the pointer has moved; `run.ps1 -Screenshot` now
       focuses the window and nudges the cursor four seconds before the shot, which steals focus: only run it when the human
       has said the screen is free (they may be gaming).
