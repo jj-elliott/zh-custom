@@ -102,7 +102,9 @@ Everything that made the 2003 shell recognisable is kept as a motif, redrawn as 
 
 - **The drafting grid.** `MainMenuRuler` was a translucent grey band with a fine blueprint grid. Panels now carry that grid as a
   faint pattern inside them (1-unit lines every 24 units at 7% of `line.hair` over `panel.fill`), so a panel reads as a sheet
-  on the drafting table rather than a web card.
+  on the drafting table rather than a web card. The frame itself comes back on the main menu (asked for 2026-10-24) as
+  `band` decorations: translucent `panel.fill` bands along the four edges of the 16:9 frame (32 units top and bottom, 24 at
+  the sides) with the same grid at 22% and a hairline edge, the ruler strip inside the bottom band.
 - **The ruler.** Tick strips (1 × 6 every 8 units, 1 × 10 every 40) run under every screen title, along the top of the map
   preview, and as a single full-width strip along the bottom edge of the main menu, where the old frame's ruler was.
 - **The two-tone rule.** The original button border was blue, cyan, blue. A panel title is underlined by a 1-unit `signal.blue`
@@ -132,6 +134,11 @@ All states: rest, hover, pressed, focused (keyboard), disabled, and for list ite
   `line.strong`) under the track at every step, a 10 × 24 rectangular knob (radius 2, `text.primary`, 1 border, centre line)
   and the value in a 56-wide read-out box to the right in tabular numerals. Keyboard: arrows step, Home/End.
 - **Table / list**: header row `text.secondary` 13, hairline below; rows 40, alternating fill 0 and 3%; selected row as above.
+  Scroll bar: a 24-unit column at the right edge (buttons, track and thumb windows all 24 wide, so it can be grabbed);
+  drawn as an 8-unit track in `line.hair` at 60% and an 8-unit thumb bar in `text.secondary` (hover `text.primary`,
+  drag `signal.blue`); the thumb's height follows the visible share of the content and never drops below 48 units;
+  scroll buttons are 5-unit chevrons. (Round 2 of the skirmish review: the 4-unit, 16 px thumb was fiddly and too close
+  to its track in colour.)
 - **Panel**: radius 10, `panel.fill`, hairline edge. Title inside the panel at 22.
 - **Swatch**: 20×20 radius 4 for player colour; a 24 emblem image for faction.
 - **Tooltip**: `panel.fill.raised`, 13 text, radius 6, 8 padding, no arrow.
@@ -176,7 +183,7 @@ centre, right × top, middle, bottom), offsets and size in units, or places them
 swaps a window's draw function for a no-op (its children, input and the shell's show/hide logic are untouched: the
 main menu's submenu panels are hidden this way and still toggle their buttons); an optional style (`menu`, `button`,
 `primary`, `danger`, `label`, `caption`, `meta`, `section`, `title`, `panel`, `entry`, `dropdown`, `checkbox`, `list`,
-`slider`, `radio`) marks the windows the procedural renderers draw; `panel`, `rule` and `ruler` lines add decorations drawn
+`slider`, `radio`) marks the windows the procedural renderers draw; `panel`, `band`, `rule` and `ruler` lines add decorations drawn
 under the windows (`InGameUI::postDraw`). Windows are named `Name`, `$Name` (short for `<Screen>.wnd:Name`), `text:<label key>`
 (an unnamed window by its label), `parent:<window>` or `at:l,t,r,b` (an unnamed window by its legacy 800x600 rectangle,
 matched before any ancestor moves). `include <file>` reads another layout file, so blocks shared between screens (the

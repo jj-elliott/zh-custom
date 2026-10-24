@@ -423,10 +423,10 @@ void brackets( Int x, Int y, Int w, Int h, Real radiusUnits )
 	cornerBracket( x + r,     y + h - r, r, 0.5f * kPi, kPi,       len, stroke, c );   // bottom-left
 }
 
-void grid( Int x, Int y, Int w, Int h )
+void grid( Int x, Int y, Int w, Int h, Real alpha )
 {
 	const Palette &p = palette();
-	const Color c = withAlpha( p.lineHair, 0.07f );
+	const Color c = withAlpha( p.lineHair, alpha );
 	const Int step = u( Metric::GridStep );
 	const Real hair = uf( Metric::Hairline );
 	const Int inset = u( 2.0f );
@@ -446,6 +446,15 @@ void panel( Int x, Int y, Int w, Int h, Bool withGrid, Bool withBrackets )
 	TheDisplay->drawRoundedOutline( x, y, w, h, r, uf( Metric::Hairline ), p.lineHair );
 	if( withBrackets )
 		brackets( x, y, w, h, Metric::RadiusPanel );
+}
+
+void band( Int x, Int y, Int w, Int h )
+{
+	// the old MainMenuRuler frame as geometry: a translucent band with the blueprint grid showing through
+	const Palette &p = palette();
+	TheDisplay->drawFillRect( x, y, w, h, p.panelFill );
+	grid( x, y, w, h, 0.22f );
+	TheDisplay->drawOpenRect( x, y, w, h, uf( Metric::Hairline ), p.lineHair );
 }
 
 void twoToneRule( Int x, Int y, Int w )

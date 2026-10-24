@@ -1,6 +1,14 @@
 # Main menu on the procedural UI system (docs/UI-DESIGN.md, mockup Main.dc.html). Units: 1 = frame height / 1080.
-# The blueprint frame is UI art and goes; the shell map fills the screen.
+# The blueprint frame (MainMenuRuler, UI art) is hidden and comes back as geometry below; the shell map fills the screen.
 hide MainMenu.wnd:MainMenuRuler
+# The frame: translucent bands with the drafting grid along the four edges of the 16:9 frame, the ruler strip in the
+# bottom band where the old frame's ruler was. Clear of the logo (right 59, top 77), the emblem row (bottom 40) and the
+# clock (bottom 36).
+band left top 0 0 1920 32
+band left bottom 0 0 1920 32
+band left top 0 32 24 1016
+band right top 0 32 24 1016
+ruler left bottom 0 10 1920
 # the dark squares behind each submenu panel (IMAGE BlackSquare): the column sits on the scene now
 hide MainMenu.wnd:EarthMap
 hide MainMenu.wnd:EarthMap1

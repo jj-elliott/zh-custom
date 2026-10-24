@@ -16,6 +16,7 @@
 //   panel  <ax> <ay> <x> <y> <w> <h>                   decoration: a panel (fill, grid, hairline, brackets) under the windows
 //   rule   <ax> <ay> <x> <y> <w>                       decoration: the two-tone rule
 //   ruler  <ax> <ay> <x> <y> <w>                       decoration: a tick strip
+//   band   <ax> <ay> <x> <y> <w> <h>                   decoration: a frame band (translucent, drafting grid, hairline edge)
 //   <window> may also be  text:<label key>  (a window whose TEXT label is that key, for unnamed windows) or
 //   parent:<window>  (the parent of that window).
 //   styles: menu, button, primary, danger (push buttons); label (centred), caption (left), meta, section, title (static
