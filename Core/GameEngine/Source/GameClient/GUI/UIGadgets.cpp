@@ -202,6 +202,13 @@ void drawPanel( GameWindow *window, WinInstanceData *instData )
 	Draw::panel( origin.x, origin.y, size.x, size.y );
 }
 
+void drawDialog( GameWindow *window, WinInstanceData *instData )
+{
+	ICoord2D origin, size;
+	rectOf( window, origin, size );
+	Draw::dialog( origin.x, origin.y, size.x, size.y );
+}
+
 void drawEntryChrome( GameWindow *window, WinInstanceData *instData )
 {
 	ICoord2D origin, size;

@@ -20,6 +20,7 @@ namespace UIGadgets
 	void drawHorizontalSlider( GameWindow *window, WinInstanceData *instData );
 	void drawVerticalSlider( GameWindow *window, WinInstanceData *instData );
 	void drawPanel( GameWindow *window, WinInstanceData *instData );
+	void drawDialog( GameWindow *window, WinInstanceData *instData );
 
 	// chrome only: the caller continues with its own text drawing
 	void drawEntryChrome( GameWindow *window, WinInstanceData *instData );

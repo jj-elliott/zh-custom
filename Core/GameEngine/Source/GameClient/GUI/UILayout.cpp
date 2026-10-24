@@ -69,6 +69,8 @@ namespace
 		if( stricmp( s, "list" ) == 0 ) return STYLE_LIST;
 		if( stricmp( s, "slider" ) == 0 ) return STYLE_SLIDER;
 		if( stricmp( s, "radio" ) == 0 ) return STYLE_RADIO;
+		if( stricmp( s, "body" ) == 0 ) return STYLE_BODY;
+		if( stricmp( s, "dialog" ) == 0 ) return STYLE_DIALOG;
 		return STYLE_NONE;
 	}
 
@@ -289,8 +291,14 @@ namespace
 				setPlainDraw( w, TheWindowManager->getStaticTextDrawFunc() );
 				clearChrome( w );
 				break;
-			case STYLE_PANEL:
+			case STYLE_PANEL: case STYLE_DIALOG:
 				clearChrome( w );
+				break;
+			case STYLE_BODY:
+				// the stock static-text draw wraps long text; it keeps drawing, in the body font and our colours
+				setPlainDraw( w, TheWindowManager->getStaticTextDrawFunc() );
+				clearChrome( w );
+				GadgetStaticTextSetFont( w, UIFonts::font( UIFonts::ROLE_BODY ) );
 				break;
 			default:
 				break;

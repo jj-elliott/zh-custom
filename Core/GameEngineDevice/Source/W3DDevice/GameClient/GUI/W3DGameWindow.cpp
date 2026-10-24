@@ -291,10 +291,15 @@ W3DGameWindow::~W3DGameWindow()
 //=============================================================================
 void W3DGameWinDefaultDraw( GameWindow *window, WinInstanceData *instData )
 {
-	// zh-pipeline: a USER window a layout styles as a panel
+	// zh-pipeline: a USER window a layout styles as a panel or a dialog
 	if( UIStyle::isEnabled() && UILayout::styleOf( window ) == UILayout::STYLE_PANEL )
 	{
 		UIGadgets::drawPanel( window, instData );
+		return;
+	}
+	if( UIStyle::isEnabled() && UILayout::styleOf( window ) == UILayout::STYLE_DIALOG )
+	{
+		UIGadgets::drawDialog( window, instData );
 		return;
 	}
 
