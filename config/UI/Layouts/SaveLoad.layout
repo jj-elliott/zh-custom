@@ -1,0 +1,43 @@
+# Load / save game on the procedural UI system (pushed by the main menu's Load Game and by the in-game menu). Title
+# top-left, the games list in one panel, Back at the left of the bottom bar, Delete / Save / Load at the right. The four
+# confirmation boxes (load, overwrite, save description, delete) are hidden children shown by code: each is a dialog of
+# its own. Units: 1 = frame height / 1080.
+hide $SaveLoadParent
+window $SaveLoadMenu left top 0 0 1920 1080
+hide $SaveLoadMenu
+window $MenuButtonFrame left top 0 0 1920 1080
+hide $MenuButtonFrame
+hide $line
+
+window text:GUI:SelectAGame left top 64 40 560 48 title
+ruler left top 64 94 560
+
+panel left top 64 124 1792 832
+window $ListboxGames left top 84 150 1752 780 list
+
+window $ButtonBack left bottom 64 40 180 44 button
+window $ButtonDelete right bottom 512 40 200 44 danger
+window $ButtonSave right bottom 288 40 200 44 button
+window $ButtonLoad right bottom 64 40 200 44 primary
+
+# confirmations: 760 x 320 centred (x 580..1340, y 380..700)
+window $LoadConfirmParent centre middle 0 0 760 320 dialog
+window text:GUI:LoadGameConfirmation left top 604 404 712 180 body
+window $ButtonLoadCancel left top 604 632 180 44 button
+window $ButtonLoadConfirm left top 1136 632 180 44 primary
+
+window $OverwriteConfirmParent centre middle 0 0 760 320 dialog
+window text:GUI:OverwriteSaveConfirmation left top 604 404 712 180 body
+window $ButtonOverwriteCancel left top 604 632 180 44 button
+window $ButtonOverwriteConfirm left top 1136 632 180 44 primary
+
+window $SaveDescParent centre middle 0 0 760 320 dialog
+window text:GUI:EnterSaveDesc left top 604 404 712 32 caption
+window $EntryDesc left top 604 452 712 44 entry
+window $ButtonSaveDescCancel left top 604 632 180 44 button
+window $ButtonSaveDescConfirm left top 1136 632 180 44 primary
+
+window $DeleteConfirmParent centre middle 0 0 760 320 dialog
+window text:GUI:ConfirmDelete left top 604 404 712 180 body
+window $ButtonDeleteCancel left top 604 632 180 44 button
+window $ButtonDeleteConfirm left top 1136 632 180 44 danger

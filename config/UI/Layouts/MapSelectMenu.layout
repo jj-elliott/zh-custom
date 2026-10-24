@@ -1,0 +1,20 @@
+# Custom mission map selection (solo play) on the procedural UI system. Title top-left; one panel with the map list,
+# the preview of the highlighted map (start positions placed on it by code) and the difficulty switch as a segmented
+# control; Back at the left of the bottom bar, Start at the right. Units: 1 = frame height / 1080.
+hide $MapSelectMenuParent
+window $SubParent left top 0 0 1920 1080
+hide $SubParent
+
+window text:GUI:CustomMission left top 64 40 560 48 title
+ruler left top 64 94 560
+
+panel left top 64 124 1792 832
+window $ListboxMap left top 84 150 1200 620 list
+window $WinMapPreview left top 1324 150 512 384
+window text:GUI:SelectDifficulty left top 84 800 400 24 meta
+window $RadioButtonEasyAI left top 84 832 220 40 radio
+window $RadioButtonMediumAI left top 308 832 220 40 radio
+window $RadioButtonHardAI left top 532 832 220 40 radio
+
+window $ButtonBack left bottom 64 40 180 44 button
+window $ButtonOK right bottom 64 40 280 44 primary

@@ -1,0 +1,20 @@
+# Replays on the procedural UI system. Title top-left, the replay list in one panel with Load / Copy / Delete stacked at
+# its right, Back in the bottom bar. GadgetParent and the unnamed box around the list hold the controls, so both are made
+# to cover them and draw nothing. Units: 1 = frame height / 1080.
+hide $ParentReplayMenu
+window $GadgetParent left top 0 0 1920 1080
+hide $GadgetParent
+window parent:$ListboxReplayFiles left top 0 0 1920 1080
+hide parent:$ListboxReplayFiles
+hide $Line
+
+window text:GUI:LoadReplay left top 64 40 560 48 title
+ruler left top 64 94 560
+
+panel left top 64 124 1792 832
+window $ListboxReplayFiles left top 84 150 1340 780 list
+window $ButtonLoadReplay left top 1456 150 380 44 primary
+window $ButtonCopyReplay left top 1456 210 380 44 button
+window $ButtonDeleteReplay left top 1456 270 380 44 danger
+
+window $ButtonBack left bottom 64 40 180 44 button
