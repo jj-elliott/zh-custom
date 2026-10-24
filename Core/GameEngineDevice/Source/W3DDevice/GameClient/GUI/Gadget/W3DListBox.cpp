@@ -458,6 +458,19 @@ static void drawListBoxText( GameWindow *window, WinInstanceData *instData,
 						height = list->listData[i].height;
 					if(j == 0)
 						width--;
+					// zh-pipeline: in a styled list an image fits its cell with its own aspect (the medal strip was stretched
+					// to the column width)
+					if( UIStyle::isEnabled() && UILayout::effectiveStyle( window ) > UILayout::STYLE_HIDDEN )
+					{
+						const Image *img = (const Image *)cells[j].data;
+						const Int iw = img->getImageWidth(), ih = img->getImageHeight();
+						if( iw > 0 && ih > 0 )
+						{
+							const Real scale = min( (Real)width / (Real)iw, (Real)height / (Real)ih );
+							width = (Int)( iw * scale );
+							height = (Int)( ih * scale );
+						}
+					}
 					Int offsetX,offsetY;
 					if(width < list->columnWidth[j])
 						offsetX = columnX + ((list->columnWidth[j] - width) / 2);

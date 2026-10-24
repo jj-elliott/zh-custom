@@ -16,6 +16,7 @@ namespace UIGadgets
 	void drawPushButton( GameWindow *window, WinInstanceData *instData, UILayout::Style style );
 	void drawStaticText( GameWindow *window, WinInstanceData *instData, UILayout::Style style );
 	void drawCheckBox( GameWindow *window, WinInstanceData *instData );
+	void drawRadioButton( GameWindow *window, WinInstanceData *instData );
 	void drawHorizontalSlider( GameWindow *window, WinInstanceData *instData );
 	void drawVerticalSlider( GameWindow *window, WinInstanceData *instData );
 	void drawPanel( GameWindow *window, WinInstanceData *instData );

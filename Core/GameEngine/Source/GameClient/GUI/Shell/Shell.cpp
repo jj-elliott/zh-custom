@@ -42,6 +42,8 @@
 #include "GameNetwork/GameSpyOverlay.h"
 #include "GameNetwork/GameSpy/PeerDefsImplementation.h"
 #include "GameClient/UIStyle.h"	// zh-pipeline -uiscreen
+#include "Common/NameKeyGenerator.h"
+#include "GameClient/GameWindow.h"
 
 // PUBLIC DATA ////////////////////////////////////////////////////////////////////////////////////
 Shell *TheShell = nullptr;  ///< the shell singleton definition
@@ -218,20 +220,41 @@ void Shell::update()
 
 		}
 
-		// zh-pipeline: -uiscreen opens a named screen once the main menu has been up for a moment (docs/UI-DESIGN.md 6.6)
+		// zh-pipeline: -uiscreen runs a comma-separated sequence once the main menu has been up for a moment, one step
+		// every 1.5 s: "X.wnd" pushes that screen, "click:<window>" presses that button (docs/UI-DESIGN.md 6.6)
 		{
 			static Int ticksWithShell = 0;
 			if( !UIStyle::devScreen().isEmpty() && m_screenCount >= 1 && ++ticksWithShell > 45 )
 			{
-				AsciiString name = UIStyle::devScreen();
-				UIStyle::setDevScreen( AsciiString::TheEmptyString );
-				if( strchr( name.str(), '/' ) == nullptr && strchr( name.str(), 92 ) == nullptr )
+				ticksWithShell = 0;
+				AsciiString rest = UIStyle::devScreen();
+				AsciiString step = rest;
+				const char *comma = strchr( rest.str(), ',' );
+				if( comma )
 				{
-					AsciiString full;
-					full.format( "Menus/%s", name.str() );
-					name = full;
+					step = AsciiString( rest.str() );
+					step.truncateBy( (Int)strlen( comma ) );
+					rest = AsciiString( comma + 1 );
 				}
-				push( name );
+				else
+					rest.clear();
+				UIStyle::setDevScreen( rest );
+				if( strncmp( step.str(), "click:", 6 ) == 0 )
+				{
+					GameWindow *w = TheWindowManager->winGetWindowFromId( nullptr, TheNameKeyGenerator->nameToKey( step.str() + 6 ) );
+					if( w )
+						TheWindowManager->winSendSystemMsg( w->winGetOwner(), GBM_SELECTED, (WindowMsgData)w, (WindowMsgData)w->winGetWindowId() );
+				}
+				else if( !step.isEmpty() )
+				{
+					if( strchr( step.str(), '/' ) == nullptr && strchr( step.str(), 92 ) == nullptr )
+					{
+						AsciiString full;
+						full.format( "Menus/%s", step.str() );
+						step = full;
+					}
+					push( step );
+				}
 			}
 		}
 		if(TheGlobalData->m_shellMapOn && m_shellMapOn &&m_background)

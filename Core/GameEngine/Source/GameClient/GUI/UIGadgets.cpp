@@ -52,10 +52,7 @@ void drawPushButton( GameWindow *window, WinInstanceData *instData, UILayout::St
 
 	// children of styled gadgets: the combo box arrow, the slider knob, the list box scroll buttons
 	if( style == UILayout::STYLE_DROPDOWN )
-	{
-		Draw::chevron( origin.x + size.x / 2, origin.y + size.y / 2, ( state == STATE_DISABLED ) ? p.textDisabled : p.textSecondary );
-		return;
-	}
+		return;   // the combo's chrome draws the chevron at the box's right edge, whatever this button's rectangle is
 	if( style == UILayout::STYLE_SLIDER )
 	{
 		// the knob: centred on the thumb window, fader proportions regardless of the thumb's own size
@@ -227,7 +224,28 @@ void drawComboChrome( GameWindow *window, WinInstanceData *instData )
 {
 	ICoord2D origin, size;
 	rectOf( window, origin, size );
-	Draw::control( origin.x, origin.y, size.x, size.y, stateOf( window, instData ), FALSE );
+	const ControlState state = stateOf( window, instData );
+	Draw::control( origin.x, origin.y, size.x, size.y, state, FALSE );
+	Draw::chevron( origin.x + size.x - u( 16.0f ), origin.y + size.y / 2,
+								 ( state == STATE_DISABLED ) ? palette().textDisabled : palette().textSecondary );
+}
+
+void drawRadioButton( GameWindow *window, WinInstanceData *instData )
+{
+	// one segment of a segmented control: the selected option reads as pressed
+	ICoord2D origin, size;
+	rectOf( window, origin, size );
+	ControlState state = stateOf( window, instData );
+	const Bool selected = BitIsSet( instData->getState(), WIN_STATE_SELECTED );
+	if( state != STATE_DISABLED )
+		state = selected ? STATE_PRESSED : ( ( state == STATE_HOVER ) ? STATE_HOVER : STATE_REST );
+	Draw::button( origin.x, origin.y, size.x, size.y, state, BUTTON_NORMAL, FALSE );
+	const UnicodeString text = instData->getText();
+	if( text.isEmpty() )
+		return;
+	const Palette &p = palette();
+	const Color c = ( state == STATE_DISABLED ) ? p.textDisabled : ( selected ? p.textPrimary : p.textSecondary );
+	Text::draw( origin.x + size.x / 2, origin.y, text, UIFonts::ROLE_LABEL, c, 1, size.y );
 }
 
 void drawListChrome( GameWindow *window, WinInstanceData *instData )

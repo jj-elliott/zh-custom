@@ -68,6 +68,7 @@ namespace
 		if( stricmp( s, "checkbox" ) == 0 ) return STYLE_CHECKBOX;
 		if( stricmp( s, "list" ) == 0 ) return STYLE_LIST;
 		if( stricmp( s, "slider" ) == 0 ) return STYLE_SLIDER;
+		if( stricmp( s, "radio" ) == 0 ) return STYLE_RADIO;
 		return STYLE_NONE;
 	}
 
@@ -132,10 +133,18 @@ namespace
 		return nullptr;
 	}
 
+	char s_stem[ 128 ] = "";   // the screen being laid out, for the `$Name` shorthand
+
 	GameWindow *find( GameWindow *root, const char *name )
 	{
 		if( TheWindowManager == nullptr || TheNameKeyGenerator == nullptr || name == nullptr )
 			return nullptr;
+		if( name[ 0 ] == '$' )
+		{
+			AsciiString full;
+			full.format( "%s.wnd:%s", s_stem, name + 1 );
+			return find( root, full.str() );
+		}
 		if( strncmp( name, "text:", 5 ) == 0 )
 			return findByLabel( root, name + 5 );
 		if( strncmp( name, "at:", 3 ) == 0 )
@@ -235,6 +244,14 @@ namespace
 				if( edit ) { setPlainDraw( edit, TheWindowManager->getTextEntryDrawFunc() ); clearChrome( edit ); }
 				if( btn ) { setPlainDraw( btn, TheWindowManager->getPushButtonDrawFunc() ); clearChrome( btn ); }
 				prepareList( GadgetComboBoxGetListBox( w ), UIFonts::ROLE_BODY );
+				// the arrow button keeps the size it was created with (the 800x600 rect scaled), which left the edit box
+				// a sliver wide; make it square and let the combo lay its children out again for the new size
+				{
+					Int cw = 0, ch = 0;
+					w->winGetSize( &cw, &ch );
+					if( btn ) btn->winSetSize( ch, ch );
+					TheWindowManager->winSendSystemMsg( w, GGM_RESIZED, (WindowMsgData)cw, (WindowMsgData)ch );
+				}
 				break;
 			}
 			case STYLE_LIST:
@@ -242,6 +259,10 @@ namespace
 				break;
 			case STYLE_CHECKBOX:
 				setPlainDraw( w, TheWindowManager->getCheckBoxDrawFunc() );
+				clearChrome( w );
+				break;
+			case STYLE_RADIO:
+				setPlainDraw( w, TheWindowManager->getRadioButtonDrawFunc() );
 				clearChrome( w );
 				break;
 			case STYLE_SLIDER:
@@ -300,6 +321,8 @@ namespace
 	}
 }
 
+static Bool parseFile( const AsciiString &path, GameWindow *root, Int depth );
+
 Bool apply( const AsciiString &wndFile, GameWindow *root )
 {
 	if( !UIStyle::isEnabled() || root == nullptr || TheFileSystem == nullptr )
@@ -310,13 +333,18 @@ Bool apply( const AsciiString &wndFile, GameWindow *root )
 	const char *base = f;
 	for( const char *c = f; *c; ++c )
 		if( *c == '\\' || *c == '/' ) base = c + 1;
-	char stem[ 128 ];
-	strlcpy( stem, base, sizeof( stem ) );
-	char *dot = strrchr( stem, '.' );
+	strlcpy( s_stem, base, sizeof( s_stem ) );
+	char *dot = strrchr( s_stem, '.' );
 	if( dot ) *dot = 0;
 	AsciiString path;
-	path.format( "UI\\Layouts\\%s.layout", stem );
+	path.format( "UI\\Layouts\\%s.layout", s_stem );
+	return parseFile( path, root, 0 );
+}
 
+static Bool parseFile( const AsciiString &path, GameWindow *root, Int depth )
+{
+	if( depth > 4 )
+		return FALSE;
 	File *file = TheFileSystem->openFile( path.str(), File::READ | File::TEXT );
 	if( file == nullptr )
 		return FALSE;
@@ -389,6 +417,12 @@ Bool apply( const AsciiString &wndFile, GameWindow *root )
 			else if( stricmp( tok[ 0 ], "end" ) == 0 )
 			{
 				inStack = FALSE;
+			}
+			else if( stricmp( tok[ 0 ], "include" ) == 0 && n >= 2 )
+			{
+				AsciiString inc;
+				inc.format( "UI\\Layouts\\%s", tok[ 1 ] );
+				parseFile( inc, root, depth + 1 );
 			}
 			else if( ( stricmp( tok[ 0 ], "panel" ) == 0 && n >= 7 ) || ( stricmp( tok[ 0 ], "rule" ) == 0 && n >= 6 ) || ( stricmp( tok[ 0 ], "ruler" ) == 0 && n >= 6 ) )
 			{

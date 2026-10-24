@@ -19,7 +19,8 @@
 //   <window> may also be  text:<label key>  (a window whose TEXT label is that key, for unnamed windows) or
 //   parent:<window>  (the parent of that window).
 //   styles: menu, button, primary, danger (push buttons); label (centred), caption (left), meta, section, title (static
-//   text); panel (a USER window drawn as a panel); entry, dropdown, checkbox, list, slider.
+//   text); panel (a USER window drawn as a panel); entry, dropdown, checkbox, list, slider, radio.
+//   `$Name` is short for `<Screen>.wnd:Name`; `include <file>` reads another file from UI\Layouts (shared blocks).
 #pragma once
 
 #include "Lib/BaseType.h"
@@ -47,7 +48,8 @@ namespace UILayout
 		STYLE_DROPDOWN,
 		STYLE_CHECKBOX,
 		STYLE_LIST,
-		STYLE_SLIDER
+		STYLE_SLIDER,
+		STYLE_RADIO          // radio buttons drawn as segments of a segmented control
 	};
 
 	/// Looks for UI\Layouts\<basename of wndFile>.layout and applies it under root. TRUE when a layout file was found.
