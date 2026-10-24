@@ -46,7 +46,9 @@ These need the actual source tree or a Windows machine, so bootstrap.ps1 left th
       PDB and the `config` folder into `gameDir` after a good build (skipped with a notice when the exe is locked); passed.
       Round 3 (2026-10-24): list scroll bar 24 units wide, thumb proportional with a 48-unit minimum (`GadgetListBox.cpp`
       adjustDisplay, `GadgetVerticalSlider.cpp` GGM_RESIZED, guarded by the layout style), thumb in `text.secondary`; the
-      main menu frame returns as `band` decorations (`MainMenu.layout`). Sign-off on those pending (human look), then the
+      main menu frame returns as `band` decorations (`MainMenu.layout`); passed. Round 4: map selection is a proper dialog
+      (`scrim` + `dialog` decorations, parent window moved over it so Accept/Cancel get clicks, preview beside the list);
+      decorations now drawn per root from `GameWindowManager::winRepaint`. Sign-off on that pending (human look), then the
       remaining shell screens, reusing the skirmish blocks via `include` for the LAN / online game-setup screens.
       Known: the shell shows its menu only once the window has focus and the pointer has moved; `run.ps1 -Screenshot` now
       focuses the window and nudges the cursor four seconds before the shot, which steals focus: only run it when the human

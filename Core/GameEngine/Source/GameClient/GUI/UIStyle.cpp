@@ -448,6 +448,21 @@ void panel( Int x, Int y, Int w, Int h, Bool withGrid, Bool withBrackets )
 		brackets( x, y, w, h, Metric::RadiusPanel );
 }
 
+void dialog( Int x, Int y, Int w, Int h )
+{
+	const Palette &p = palette();
+	const Real r = uf( Metric::RadiusPanel );
+	TheDisplay->drawRoundedRect( x, y, w, h, r, p.panelFillRaised );
+	grid( x, y, w, h );
+	TheDisplay->drawRoundedOutline( x, y, w, h, r, uf( Metric::Hairline ), p.lineStrong );
+	brackets( x, y, w, h, Metric::RadiusPanel );
+}
+
+void scrim()
+{
+	TheDisplay->drawFillRect( 0, 0, (Int)TheDisplay->getWidth(), (Int)TheDisplay->getHeight(), withAlpha( palette().ground, 0.4f ) );
+}
+
 void band( Int x, Int y, Int w, Int h )
 {
 	// the old MainMenuRuler frame as geometry: a translucent band with the blueprint grid showing through

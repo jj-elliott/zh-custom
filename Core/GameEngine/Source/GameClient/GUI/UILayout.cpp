@@ -29,7 +29,7 @@ namespace
 	struct Rec { const GameWindow *win; Style style; };
 	std::vector<Rec> s_styles;
 
-	enum DecoKind { DECO_PANEL, DECO_RULE, DECO_RULER, DECO_BAND };
+	enum DecoKind { DECO_PANEL, DECO_RULE, DECO_RULER, DECO_BAND, DECO_DIALOG, DECO_SCRIM };
 	struct Deco { const GameWindow *root; DecoKind kind; Int ax, ay; Real x, y, w, h; };
 	std::vector<Deco> s_decos;
 
@@ -436,16 +436,24 @@ static Bool parseFile( const AsciiString &path, GameWindow *root, Int depth )
 				inc.format( "UI\\Layouts\\%s", tok[ 1 ] );
 				parseFile( inc, root, depth + 1 );
 			}
-			else if( ( ( stricmp( tok[ 0 ], "panel" ) == 0 || stricmp( tok[ 0 ], "band" ) == 0 ) && n >= 7 )
+			else if( stricmp( tok[ 0 ], "scrim" ) == 0 )
+			{
+				Deco d;
+				d.root = root; d.kind = DECO_SCRIM; d.ax = d.ay = 0; d.x = d.y = d.w = d.h = 0.0f;
+				s_decos.push_back( d );
+			}
+			else if( ( ( stricmp( tok[ 0 ], "panel" ) == 0 || stricmp( tok[ 0 ], "band" ) == 0 || stricmp( tok[ 0 ], "dialog" ) == 0 ) && n >= 7 )
 							 || ( stricmp( tok[ 0 ], "rule" ) == 0 && n >= 6 ) || ( stricmp( tok[ 0 ], "ruler" ) == 0 && n >= 6 ) )
 			{
 				Deco d;
 				d.root = root;
 				d.kind = ( stricmp( tok[ 0 ], "panel" ) == 0 ) ? DECO_PANEL : ( stricmp( tok[ 0 ], "band" ) == 0 ) ? DECO_BAND
+							 : ( stricmp( tok[ 0 ], "dialog" ) == 0 ) ? DECO_DIALOG
 							 : ( stricmp( tok[ 0 ], "rule" ) == 0 ) ? DECO_RULE : DECO_RULER;
 				d.ax = anchorFrom( tok[ 1 ], FALSE ); d.ay = anchorFrom( tok[ 2 ], TRUE );
 				d.x = (Real)atof( tok[ 3 ] ); d.y = (Real)atof( tok[ 4 ] ); d.w = (Real)atof( tok[ 5 ] );
-				d.h = ( d.kind == DECO_PANEL || d.kind == DECO_BAND ) ? (Real)atof( tok[ 6 ] ) : ( ( d.kind == DECO_RULE ) ? 4.0f : 12.0f );
+				d.h = ( d.kind == DECO_PANEL || d.kind == DECO_BAND || d.kind == DECO_DIALOG ) ? (Real)atof( tok[ 6 ] )
+						: ( ( d.kind == DECO_RULE ) ? 4.0f : 12.0f );
 				s_decos.push_back( d );
 			}
 		}
@@ -508,16 +516,16 @@ void reset()
 	s_decos.clear();
 }
 
-void drawDecorations()
+void drawDecorations( const GameWindow *forRoot )
 {
-	if( !UIStyle::isEnabled() || s_decos.empty() )
+	if( !UIStyle::isEnabled() || s_decos.empty() || forRoot == nullptr || const_cast<GameWindow *>( forRoot )->winIsHidden() )
 		return;
 	for( size_t i = 0; i < s_decos.size(); ++i )
 	{
 		const Deco &d = s_decos[ i ];
-		GameWindow *root = const_cast<GameWindow *>( d.root );
-		if( root == nullptr || root->winIsHidden() )
+		if( d.root != forRoot )
 			continue;
+		if( d.kind == DECO_SCRIM ) { UIStyle::Draw::scrim(); continue; }
 		const Int x = screenX( d.ax, d.x, d.w ), y = screenY( d.ay, d.y, d.h );
 		const Int w = UIStyle::u( d.w ), h = UIStyle::u( d.h );
 		switch( d.kind )
@@ -526,6 +534,8 @@ void drawDecorations()
 			case DECO_RULE: UIStyle::Draw::twoToneRule( x, y, w ); break;
 			case DECO_RULER: UIStyle::Draw::ruler( x, y, w ); break;
 			case DECO_BAND: UIStyle::Draw::band( x, y, w, h ); break;
+			case DECO_DIALOG: UIStyle::Draw::dialog( x, y, w, h ); break;
+			case DECO_SCRIM: break;
 		}
 	}
 }

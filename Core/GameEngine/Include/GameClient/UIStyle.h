@@ -109,6 +109,8 @@ namespace UIStyle
 		void brackets( Int x, Int y, Int w, Int h, Real radiusUnits );
 		void grid( Int x, Int y, Int w, Int h, Real alpha = 0.07f );
 		void band( Int x, Int y, Int w, Int h );   ///< a frame band: translucent fill, visible drafting grid, hairline edge
+		void dialog( Int x, Int y, Int w, Int h ); ///< a panel on panelFillRaised, for dialogs over another screen
+		void scrim();                               ///< dims the whole display (40% ground) under a dialog
 		void twoToneRule( Int x, Int y, Int w );
 		void ruler( Int x, Int y, Int w );
 		void button( Int x, Int y, Int w, Int h, ControlState state, ButtonKind kind = BUTTON_NORMAL, Bool focused = FALSE );

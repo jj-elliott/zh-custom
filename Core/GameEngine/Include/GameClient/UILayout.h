@@ -17,6 +17,8 @@
 //   rule   <ax> <ay> <x> <y> <w>                       decoration: the two-tone rule
 //   ruler  <ax> <ay> <x> <y> <w>                       decoration: a tick strip
 //   band   <ax> <ay> <x> <y> <w> <h>                   decoration: a frame band (translucent, drafting grid, hairline edge)
+//   dialog <ax> <ay> <x> <y> <w> <h>                   decoration: a panel on the raised fill, for a dialog over a screen
+//   scrim                                              decoration: dims the whole display under the dialog
 //   <window> may also be  text:<label key>  (a window whose TEXT label is that key, for unnamed windows) or
 //   parent:<window>  (the parent of that window).
 //   styles: menu, button, primary, danger (push buttons); label (centred), caption (left), meta, section, title (static
@@ -62,6 +64,7 @@ namespace UILayout
 	void forget( const GameWindow *window );            ///< called when a window is destroyed
 	void reset();                                       ///< drop every record (shutdown)
 
-	/// Draws the decorations of every live, visible layout. Called before the window manager repaints.
-	void drawDecorations();
+	/// Draws the decorations of the layout whose root is this top-level window, right before the manager draws it, so
+	/// they sit under that screen's windows and over everything beneath it (a dialog's scrim over the screen below).
+	void drawDecorations( const GameWindow *root );
 }

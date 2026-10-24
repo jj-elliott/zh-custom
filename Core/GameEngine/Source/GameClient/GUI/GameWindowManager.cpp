@@ -1264,7 +1264,7 @@ void GameWindowManager::winRepaint()
 		next = window->m_prev;
 
 		if( BitIsSet( window->m_status, WIN_STATUS_BELOW ) )
-			drawWindow( window );
+			{ UILayout::drawDecorations( window ); drawWindow( window ); }	// zh-pipeline: layout decorations under their screen
 	}
 
 	// draw non-above and non-below windows
@@ -1274,7 +1274,7 @@ void GameWindowManager::winRepaint()
 
 		if (BitIsSet( window->m_status, WIN_STATUS_ABOVE |
 																	 WIN_STATUS_BELOW ) == FALSE)
-			drawWindow( window );
+			{ UILayout::drawDecorations( window ); drawWindow( window ); }	// zh-pipeline: layout decorations under their screen
 	}
 
 	// draw above windows
@@ -1283,7 +1283,7 @@ void GameWindowManager::winRepaint()
 		next = window->m_prev;
 
 		if( BitIsSet( window->m_status, WIN_STATUS_ABOVE ) )
-			drawWindow( window );
+			{ UILayout::drawDecorations( window ); drawWindow( window ); }	// zh-pipeline: layout decorations under their screen
 	}
 
 	if(TheTransitionHandler)

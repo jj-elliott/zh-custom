@@ -155,7 +155,10 @@ All states: rest, hover, pressed, focused (keyboard), disabled, and for list ite
   fills the whole screen. The only other element is the build tag, bottom-left, 13 units.
 - Form screens use a **two-column split** at 60/40 with a 32 gutter; the primary action is bottom-right, Back bottom-left,
   always the same positions on every screen.
-- Dialogs are centred, max 720 wide, on a 40% scrim.
+- Dialogs are centred, max 720 wide, on a 40% scrim (`scrim` + `dialog` decorations; the panel is on `panel.fill.raised`
+  with a `line.strong` edge). Map selection is the first: 1000 wide, since it holds the list and the map preview side by
+  side. A dialog's legacy parent window is moved over the dialog first, so its buttons are reachable (hit-testing only
+  descends into children of a window under the pointer).
 - Nothing is positioned by scaling an 800×600 rectangle. Redesigned screens get a layout description of their own (see 6.4).
 
 ## 6. Engine architecture
@@ -183,8 +186,11 @@ centre, right × top, middle, bottom), offsets and size in units, or places them
 swaps a window's draw function for a no-op (its children, input and the shell's show/hide logic are untouched: the
 main menu's submenu panels are hidden this way and still toggle their buttons); an optional style (`menu`, `button`,
 `primary`, `danger`, `label`, `caption`, `meta`, `section`, `title`, `panel`, `entry`, `dropdown`, `checkbox`, `list`,
-`slider`, `radio`) marks the windows the procedural renderers draw; `panel`, `band`, `rule` and `ruler` lines add decorations drawn
-under the windows (`InGameUI::postDraw`). Windows are named `Name`, `$Name` (short for `<Screen>.wnd:Name`), `text:<label key>`
+`slider`, `radio`) marks the windows the procedural renderers draw; `panel`, `band`, `dialog`, `rule`, `ruler` and `scrim`
+lines add decorations. Each layout's decorations are drawn by `GameWindowManager::winRepaint` right before its own
+root window, so they sit under that screen's windows and over every screen beneath it (a dialog's scrim dims the
+screen it opened from; drawing them all first, from `InGameUI::postDraw`, let the screen underneath paint over a
+dialog's panel). Windows are named `Name`, `$Name` (short for `<Screen>.wnd:Name`), `text:<label key>`
 (an unnamed window by its label), `parent:<window>` or `at:l,t,r,b` (an unnamed window by its legacy 800x600 rectangle,
 matched before any ancestor moves). `include <file>` reads another layout file, so blocks shared between screens (the
 skirmish players table, the map and rules panels) are written once and used by the LAN and online setup screens too. Applied at the end of

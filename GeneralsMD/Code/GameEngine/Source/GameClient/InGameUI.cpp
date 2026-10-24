@@ -3791,10 +3791,9 @@ void InGameUI::postWindowDraw()
 //-------------------------------------------------------------------------------------------------
 void InGameUI::postDraw()
 {
-	// zh-pipeline: the UI text pool is reused in draw order, once per frame; layout decorations (panels, rules, rulers)
-	// go under the windows the manager is about to draw
+	// zh-pipeline: the UI text pool is reused in draw order, once per frame. Layout decorations are drawn by
+	// GameWindowManager::winRepaint, each set right before its own screen's windows.
 	UIStyle::Text::beginFrame();
-	UILayout::drawDecorations();
 
 
 	// render our display strings for the messages if on
