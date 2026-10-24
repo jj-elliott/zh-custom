@@ -186,14 +186,18 @@ centre, right × top, middle, bottom), offsets and size in units, or places them
 swaps a window's draw function for a no-op (its children, input and the shell's show/hide logic are untouched: the
 main menu's submenu panels are hidden this way and still toggle their buttons); an optional style (`menu`, `button`,
 `primary`, `danger`, `label`, `caption`, `meta`, `section`, `title`, `panel`, `entry`, `dropdown`, `checkbox`, `list`,
-`slider`, `radio`) marks the windows the procedural renderers draw; `panel`, `band`, `dialog`, `rule`, `ruler` and `scrim`
-lines add decorations. Each layout's decorations are drawn by `GameWindowManager::winRepaint` right before its own
+`slider`, `radio`, `body` for word-wrapped message text on the stock draw, `dialog` for a USER window drawn as a dialog
+panel that follows the window when code moves it) marks the windows the procedural renderers draw; `panel`, `band`,
+`dialog`, `rule`, `ruler` and `scrim` lines add decorations. Each layout's decorations are drawn by `GameWindowManager::winRepaint` right before its own
 root window, so they sit under that screen's windows and over every screen beneath it (a dialog's scrim dims the
 screen it opened from; drawing them all first, from `InGameUI::postDraw`, let the screen underneath paint over a
 dialog's panel). Windows are named `Name`, `$Name` (short for `<Screen>.wnd:Name`), `text:<label key>`
 (an unnamed window by its label), `parent:<window>` or `at:l,t,r,b` (an unnamed window by its legacy 800x600 rectangle,
 matched before any ancestor moves). `include <file>` reads another layout file, so blocks shared between screens (the
-skirmish players table, the map and rules panels) are written once and used by the LAN and online setup screens too. Applied at the end of
+skirmish players table, the map and rules panels) are written once and used by the LAN and online setup screens too:
+`GameSetupPlayers`, `GameSetupMap`, `GameSetupRules` and `MapSelectDialog` are the shared blocks (built 2026-10-24),
+included by the skirmish and LAN screens, which add only what differs (battle honours and the game-speed slider on
+skirmish; accept markers and the lobby chat on LAN). Applied at the end of
 `winCreateFromScript`, before the screen's init callback, so callbacks and names are untouched and the init code
 sees the final positions. Windows not mentioned keep their legacy position. The content frame (`UIStyle::frame`) is
 16:9, centred: letterboxed by the scene on wider screens, bands on 16:10; one unit = frame height / 1080.
@@ -230,9 +234,15 @@ component sheet. Still to do: an overlay that shows anchors and unplaced windows
    and the shell's rectangle flash transitions are skipped on layout-managed windows).
 5. ~~Skirmish setup.~~ Built 2026-10-23: `SkirmishGameOptionsMenu.layout` with panel decorations, the entry, dropdown,
    check box, list and slider renderers, the medal strip (`ListboxInfo`) on the honours row; `-uiscreen <Layout.wnd>`
-   opens any screen for captures (`docs/ui-screens/skirmish-4k-at-1080.jpg`). Sign-off pending. Then, one screen per
-   step: Solo play, Load/Save, Replay, Multiplayer (LAN lobby, Direct connect, game options), Options dialog shell,
-   Quit/confirm dialogs.
+   opens any screen for captures (`docs/ui-screens/skirmish-4k-at-1080.jpg`). Signed off 2026-10-24 after four review
+   rounds (chevron geometry, medal aspect, entry text centring, Color column width, the list scroll bar, map selection as
+   a dialog with a scrim, the main menu frame bands).
+5b. Remaining shell screens, in the order the co-op flow meets them. Built 2026-10-24, review pending: Direct connect
+   (`NetworkDirectConnect.layout`, a centred form panel), LAN game options (`LanGameOptionsMenu.layout`, the shared
+   blocks plus accept markers and chat) and its map selection (`LanMapSelectMenu.layout`), LAN lobby
+   (`LanLobbyMenu.layout`), the message boxes (`MessageBox.layout`, `QuitMessageBox.layout`: the box window itself is the
+   `dialog`, the button slots are arranged so the primary action lands at the right). ← **we are here**. Then Options,
+   Load/Save, Replay, Solo play (difficulty, challenge), credits and the score screen.
 6. Package: fonts in the release zip, `-classicui` switch kept for one release, FEATURE-PARITY and CODE-MAP updated.
 
 Each step is a separate small commit, reviewed from screenshots before the next starts. Nothing in the simulation is touched;
@@ -244,6 +254,8 @@ Each step is a separate small commit, reviewed from screenshots before the next 
   original strings only; small caps in homage to the all-caps original; slider redrawn as an instrument fader; the old
   blueprint frame removed from the backdrop.
 
+- 2026-10-24: skirmish setup and map selection signed off (rounds 1 to 4 above); the main menu frame returns as grid bands
+  at the owner's request.
 - 2026-10-23: engine main menu signed off.
 - 2026-10-22, round 2: "reads as generic temp UI" and the battle-honour icons were missing. Added §3.4 motifs (grid, ruler,
   two-tone rule, corner brackets, stencil titles) and restored the medal strip with the real sprites.

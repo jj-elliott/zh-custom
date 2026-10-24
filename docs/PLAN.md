@@ -125,8 +125,9 @@ Reality check: every ZH fork is x86 (inline asm) and D3D8 fixed-function. No for
    (`scripts/make-texture-pack.ps1`); the UI atlases are no longer a target.
 3b. **Menu UI system (`render/ui`, design signed off 2026-10-22).** `docs/UI-DESIGN.md` is the spec. Procedural chrome drawn through new
    `Display` primitives, a style module (`GameClient/UIStyle`), per-gadget renderers, 16:9-native layout descriptions, a new typeface.
-   Delivery per the doc's §7: step 2 (primitives + style module + `-uitest` component sheet) built 2026-10-22; next: typeface, then the
-   main menu end to end, then skirmish setup, then the remaining shell screens. In-game HUD stays on sprites until its own pass.
+   Delivery per the doc's §7: steps 2 to 5 (primitives, style module, typeface, main menu, skirmish setup + map selection) built and
+   signed off 2026-10-22 to 2026-10-24; now the remaining shell screens (Direct connect and LAN game options first, since the co-op
+   flow goes through them). In-game HUD stays on sprites until its own pass.
 4. **Native D3D9 in `DX8Wrapper`.** Contained change, removes the translation layer, unlocks Shader Model 3 for normal maps and a post pass without touching fixed-function code. Optional if Phase 6 is going to happen anyway.
 5. Models: pilot one static building through an image-to-3D generator before touching any animated unit.
 
