@@ -1,0 +1,51 @@
+# Shared block: the players table of a game-setup screen (skirmish, LAN, online). Included by the screen's layout; `$`
+# names resolve against the including screen. Panel at left 64, top 124, 1104 x 832; header at 150, rule at 182, eight
+# rows of 40-tall controls from 204 at a pitch of 48. The first row is the local player: a name entry on the skirmish
+# screen (TextEntryPlayerName), a player slot combo elsewhere (ComboBoxPlayer0); whichever the screen has is placed.
+panel left top 64 124 1104 832
+rule left top 84 182 1064
+window $StaticTextPlayers left top 84 150 260 28 meta
+window $StaticTextColor left top 360 150 140 28 meta
+window $StaticTextFaction left top 516 150 400 28 meta
+window $StaticTextTeam left top 1046 150 110 28 meta
+
+window $TextEntryPlayerName left top 84 204 260 40 entry
+window $ComboBoxPlayer0 left top 84 204 260 40 dropdown
+window $ComboBoxColor0 left top 360 204 140 40 dropdown
+window $ComboBoxPlayerTemplate0 left top 516 204 514 40 dropdown
+window $ComboBoxTeam0 left top 1046 204 110 40 dropdown
+
+window $ComboBoxPlayer1 left top 84 252 260 40 dropdown
+window $ComboBoxColor1 left top 360 252 140 40 dropdown
+window $ComboBoxPlayerTemplate1 left top 516 252 514 40 dropdown
+window $ComboBoxTeam1 left top 1046 252 110 40 dropdown
+
+window $ComboBoxPlayer2 left top 84 300 260 40 dropdown
+window $ComboBoxColor2 left top 360 300 140 40 dropdown
+window $ComboBoxPlayerTemplate2 left top 516 300 514 40 dropdown
+window $ComboBoxTeam2 left top 1046 300 110 40 dropdown
+
+window $ComboBoxPlayer3 left top 84 348 260 40 dropdown
+window $ComboBoxColor3 left top 360 348 140 40 dropdown
+window $ComboBoxPlayerTemplate3 left top 516 348 514 40 dropdown
+window $ComboBoxTeam3 left top 1046 348 110 40 dropdown
+
+window $ComboBoxPlayer4 left top 84 396 260 40 dropdown
+window $ComboBoxColor4 left top 360 396 140 40 dropdown
+window $ComboBoxPlayerTemplate4 left top 516 396 514 40 dropdown
+window $ComboBoxTeam4 left top 1046 396 110 40 dropdown
+
+window $ComboBoxPlayer5 left top 84 444 260 40 dropdown
+window $ComboBoxColor5 left top 360 444 140 40 dropdown
+window $ComboBoxPlayerTemplate5 left top 516 444 514 40 dropdown
+window $ComboBoxTeam5 left top 1046 444 110 40 dropdown
+
+window $ComboBoxPlayer6 left top 84 492 260 40 dropdown
+window $ComboBoxColor6 left top 360 492 140 40 dropdown
+window $ComboBoxPlayerTemplate6 left top 516 492 514 40 dropdown
+window $ComboBoxTeam6 left top 1046 492 110 40 dropdown
+
+window $ComboBoxPlayer7 left top 84 540 260 40 dropdown
+window $ComboBoxColor7 left top 360 540 140 40 dropdown
+window $ComboBoxPlayerTemplate7 left top 516 540 514 40 dropdown
+window $ComboBoxTeam7 left top 1046 540 110 40 dropdown

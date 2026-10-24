@@ -1,100 +1,45 @@
 # Skirmish setup on the procedural UI system (docs/UI-DESIGN.md, mockup Skirmish.dc.html). Units: 1 = frame height / 1080.
 # Frame: title top-left, players panel (left, 1104 wide), map and rules panels (right, 656 wide), Back and Start in the
-# bottom bar. Panels are decorations drawn under the windows; every control keeps its name and callback.
+# bottom bar. The players table and the map and rules panels are shared blocks (GameSetup*.layout) used by the LAN setup
+# too; this file adds the battle honours, the game-speed slider and the skirmish-only hides.
 
 # the root draws the blueprint frame (IMAGE MainMenuRuler), the dialog frame draws a border, its rule line and two unnamed
 # grey boxes draw fills: none of them draw now. The two boxes are matched by their 800x600 rect, before SubParent moves.
-hide SkirmishGameOptionsMenu.wnd:SkirmishGameOptionsMenuParent
+hide $SkirmishGameOptionsMenuParent
 hide at:58,387,291,499
 hide at:300,387,746,499
-window SkirmishGameOptionsMenu.wnd:SubParent left top 0 0 1920 1080
-hide SkirmishGameOptionsMenu.wnd:SubParent
-hide SkirmishGameOptionsMenu.wnd:Line
-hide SkirmishGameOptionsMenu.wnd:ButtonResetFPS
+window $SubParent left top 0 0 1920 1080
+hide $SubParent
+hide $Line
+hide $ButtonResetFPS
 
 # title
-window SkirmishGameOptionsMenu.wnd:StaticTextTitle left top 64 40 560 48 title
+window $StaticTextTitle left top 64 40 560 48 title
 ruler left top 64 94 560
 
-# ---- players panel -------------------------------------------------------------------------------------------------
-panel left top 64 124 1104 832
-rule left top 84 182 1064
-window SkirmishGameOptionsMenu.wnd:StaticTextPlayers left top 84 150 260 28 meta
-window SkirmishGameOptionsMenu.wnd:StaticTextColor left top 360 150 140 28 meta
-window SkirmishGameOptionsMenu.wnd:StaticTextFaction left top 516 150 400 28 meta
-window SkirmishGameOptionsMenu.wnd:StaticTextTeam left top 1046 150 110 28 meta
-
-# rows: pitch 48 from 200; controls 40 tall
-window SkirmishGameOptionsMenu.wnd:TextEntryPlayerName left top 84 204 260 40 entry
-window SkirmishGameOptionsMenu.wnd:ComboBoxColor0 left top 360 204 140 40 dropdown
-window SkirmishGameOptionsMenu.wnd:ComboBoxPlayerTemplate0 left top 516 204 514 40 dropdown
-window SkirmishGameOptionsMenu.wnd:ComboBoxTeam0 left top 1046 204 110 40 dropdown
-
-window SkirmishGameOptionsMenu.wnd:ComboBoxPlayer1 left top 84 252 260 40 dropdown
-window SkirmishGameOptionsMenu.wnd:ComboBoxColor1 left top 360 252 140 40 dropdown
-window SkirmishGameOptionsMenu.wnd:ComboBoxPlayerTemplate1 left top 516 252 514 40 dropdown
-window SkirmishGameOptionsMenu.wnd:ComboBoxTeam1 left top 1046 252 110 40 dropdown
-
-window SkirmishGameOptionsMenu.wnd:ComboBoxPlayer2 left top 84 300 260 40 dropdown
-window SkirmishGameOptionsMenu.wnd:ComboBoxColor2 left top 360 300 140 40 dropdown
-window SkirmishGameOptionsMenu.wnd:ComboBoxPlayerTemplate2 left top 516 300 514 40 dropdown
-window SkirmishGameOptionsMenu.wnd:ComboBoxTeam2 left top 1046 300 110 40 dropdown
-
-window SkirmishGameOptionsMenu.wnd:ComboBoxPlayer3 left top 84 348 260 40 dropdown
-window SkirmishGameOptionsMenu.wnd:ComboBoxColor3 left top 360 348 140 40 dropdown
-window SkirmishGameOptionsMenu.wnd:ComboBoxPlayerTemplate3 left top 516 348 514 40 dropdown
-window SkirmishGameOptionsMenu.wnd:ComboBoxTeam3 left top 1046 348 110 40 dropdown
-
-window SkirmishGameOptionsMenu.wnd:ComboBoxPlayer4 left top 84 396 260 40 dropdown
-window SkirmishGameOptionsMenu.wnd:ComboBoxColor4 left top 360 396 140 40 dropdown
-window SkirmishGameOptionsMenu.wnd:ComboBoxPlayerTemplate4 left top 516 396 514 40 dropdown
-window SkirmishGameOptionsMenu.wnd:ComboBoxTeam4 left top 1046 396 110 40 dropdown
-
-window SkirmishGameOptionsMenu.wnd:ComboBoxPlayer5 left top 84 444 260 40 dropdown
-window SkirmishGameOptionsMenu.wnd:ComboBoxColor5 left top 360 444 140 40 dropdown
-window SkirmishGameOptionsMenu.wnd:ComboBoxPlayerTemplate5 left top 516 444 514 40 dropdown
-window SkirmishGameOptionsMenu.wnd:ComboBoxTeam5 left top 1046 444 110 40 dropdown
-
-window SkirmishGameOptionsMenu.wnd:ComboBoxPlayer6 left top 84 492 260 40 dropdown
-window SkirmishGameOptionsMenu.wnd:ComboBoxColor6 left top 360 492 140 40 dropdown
-window SkirmishGameOptionsMenu.wnd:ComboBoxPlayerTemplate6 left top 516 492 514 40 dropdown
-window SkirmishGameOptionsMenu.wnd:ComboBoxTeam6 left top 1046 492 110 40 dropdown
-
-window SkirmishGameOptionsMenu.wnd:ComboBoxPlayer7 left top 84 540 260 40 dropdown
-window SkirmishGameOptionsMenu.wnd:ComboBoxColor7 left top 360 540 140 40 dropdown
-window SkirmishGameOptionsMenu.wnd:ComboBoxPlayerTemplate7 left top 516 540 514 40 dropdown
-window SkirmishGameOptionsMenu.wnd:ComboBoxTeam7 left top 1046 540 110 40 dropdown
+include GameSetupPlayers.layout
 
 # battle honours: the medal strip (ListboxInfo holds the medal images) above the career record
 rule left top 84 740 1064
-window SkirmishGameOptionsMenu.wnd:ListboxInfo left top 84 752 1064 92 list
-window SkirmishGameOptionsMenu.wnd:StaticTextWins left top 84 868 200 28 meta
-window SkirmishGameOptionsMenu.wnd:StaticTextWinsValue left top 290 868 80 28 caption
-window SkirmishGameOptionsMenu.wnd:StaticTextLosses left top 84 900 200 28 meta
-window SkirmishGameOptionsMenu.wnd:StaticTextLossesValue left top 290 900 80 28 caption
-window SkirmishGameOptionsMenu.wnd:StaticTextBestStreak left top 420 868 200 28 meta
-window SkirmishGameOptionsMenu.wnd:StaticTextBestStreakValue left top 626 868 80 28 caption
-window SkirmishGameOptionsMenu.wnd:StaticTextStreak left top 420 900 200 28 meta
-window SkirmishGameOptionsMenu.wnd:StaticTextStreakValue left top 626 900 80 28 caption
-window SkirmishGameOptionsMenu.wnd:ButtonReset left top 1008 866 140 36 button
+window $ListboxInfo left top 84 752 1064 92 list
+window $StaticTextWins left top 84 868 200 28 meta
+window $StaticTextWinsValue left top 290 868 80 28 caption
+window $StaticTextLosses left top 84 900 200 28 meta
+window $StaticTextLossesValue left top 290 900 80 28 caption
+window $StaticTextBestStreak left top 420 868 200 28 meta
+window $StaticTextBestStreakValue left top 626 868 80 28 caption
+window $StaticTextStreak left top 420 900 200 28 meta
+window $StaticTextStreakValue left top 626 900 80 28 caption
+window $ButtonReset left top 1008 866 140 36 button
 
-# ---- map panel -----------------------------------------------------------------------------------------------------
-panel right top 64 124 656 320
-window SkirmishGameOptionsMenu.wnd:StaticTextMapPreview right top 84 140 300 28 section
-rule right top 84 176 608
-window SkirmishGameOptionsMenu.wnd:MapWindow right top 392 196 280 210
-window SkirmishGameOptionsMenu.wnd:TextEntryMapDisplay right top 84 196 292 44 caption
-window SkirmishGameOptionsMenu.wnd:ButtonSelectMap right top 196 252 180 44 button
+include GameSetupMap.layout
+include GameSetupRules.layout
 
-# ---- rules panel ---------------------------------------------------------------------------------------------------
-panel right top 64 468 656 488
-window text:GUI:StartingMoney right top 392 492 280 24 meta
-window SkirmishGameOptionsMenu.wnd:ComboBoxStartingCash right top 392 520 280 44 dropdown
-window SkirmishGameOptionsMenu.wnd:StaticTextBattleHonors1 right top 84 492 240 24 meta
-window SkirmishGameOptionsMenu.wnd:SliderGameSpeed right top 150 520 230 44 slider
-window SkirmishGameOptionsMenu.wnd:StaticTextGameSpeed right top 84 526 56 32 caption
-window SkirmishGameOptionsMenu.wnd:CheckboxLimitSuperweapons right top 272 592 400 40 checkbox
+# game speed, left half of the rules panel's top row (StaticTextBattleHonors1 is the Game Speed label in this .wnd)
+window $StaticTextBattleHonors1 right top 84 492 240 24 meta
+window $SliderGameSpeed right top 150 520 230 44 slider
+window $StaticTextGameSpeed right top 84 526 56 32 caption
 
-# ---- bottom bar ----------------------------------------------------------------------------------------------------
-window SkirmishGameOptionsMenu.wnd:ButtonBack left bottom 64 40 180 44 button
-window SkirmishGameOptionsMenu.wnd:ButtonStart right bottom 64 40 220 44 primary
+# bottom bar
+window $ButtonBack left bottom 64 40 180 44 button
+window $ButtonStart right bottom 64 40 220 44 primary

@@ -1,0 +1,5 @@
+# Map selection over the LAN game setup (Select Map): the shared dialog block, with the parent window moved over it
+# first (see SkirmishMapSelectMenu.layout).
+hide $LanMapSelectMenuParent
+window $LanMapSelectMenuParent left top 460 220 1000 640
+include MapSelectDialog.layout

@@ -1,20 +1,5 @@
-# Map selection, a dialog over the skirmish screen (Select Map): a 40% scrim, a raised panel with the title, the
-# System/User maps switch as a segmented control, the map list with the preview of the highlighted map beside it (the
-# start-position markers are placed on it by code), Cancel and Accept. Units: 1 = frame height / 1080; the dialog is
-# 1000 x 640 at left 460, top 220.
-# The legacy parent window covered 442..1920 x 18..580 units, which left the button row outside it: mouse hit-testing
-# only descends into children of a window under the pointer, and children are placed relative to their parent, so the
-# parent is moved over the dialog first.
+# Map selection over the skirmish screen (Select Map): the shared dialog block. The legacy parent window covered
+# 442..1920 x 18..580 units, which left the button row outside it, so it is moved over the dialog first.
 hide $SkirmishMapSelectMenuParent
 window $SkirmishMapSelectMenuParent left top 460 220 1000 640
-hide $WinGadgetBorder
-scrim
-dialog left top 460 220 1000 640
-window text:GUI:SelectAMapLowerCase left top 484 240 500 32 section
-rule left top 484 280 952
-window $RadioButtonSystemMaps left top 484 300 220 40 radio
-window $RadioButtonUserMaps left top 708 300 220 40 radio
-window $ListboxMap left top 484 356 620 400 list
-window $WinMapPreview left top 1128 356 308 231
-window $ButtonBack left top 484 792 180 44 button
-window $ButtonOK left top 1236 792 200 44 primary
+include MapSelectDialog.layout

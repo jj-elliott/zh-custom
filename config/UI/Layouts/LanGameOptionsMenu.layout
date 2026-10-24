@@ -1,0 +1,45 @@
+# LAN / direct-connect game setup on the procedural UI system. Units: 1 = frame height / 1080. The same frame as the
+# skirmish setup: title top-left, the players table (shared block) on the left with the lobby chat under it, the map and
+# rules panels (shared blocks) on the right, Back and Start in the bottom bar. Every row carries the player's accept
+# marker (ButtonAcceptN, the stock image) at its left edge, so the slot column starts at 116.
+
+# the root draws the blueprint frame; GadgetParent holds the controls (made frame-sized, draws nothing); LINE is the old rule
+hide $LanGameOptionsMenuParent
+window $GadgetParent left top 0 0 1920 1080
+hide $GadgetParent
+hide $LINE
+
+window $StaticTextTitle left top 64 40 560 48 title
+ruler left top 64 94 560
+
+include GameSetupPlayers.layout
+
+# accept markers and the narrower slot combos
+window $ButtonAccept0 left top 84 214 20 20
+window $ButtonAccept1 left top 84 262 20 20
+window $ButtonAccept2 left top 84 310 20 20
+window $ButtonAccept3 left top 84 358 20 20
+window $ButtonAccept4 left top 84 406 20 20
+window $ButtonAccept5 left top 84 454 20 20
+window $ButtonAccept6 left top 84 502 20 20
+window $ButtonAccept7 left top 84 550 20 20
+window $ComboBoxPlayer0 left top 116 204 228 40 dropdown
+window $ComboBoxPlayer1 left top 116 252 228 40 dropdown
+window $ComboBoxPlayer2 left top 116 300 228 40 dropdown
+window $ComboBoxPlayer3 left top 116 348 228 40 dropdown
+window $ComboBoxPlayer4 left top 116 396 228 40 dropdown
+window $ComboBoxPlayer5 left top 116 444 228 40 dropdown
+window $ComboBoxPlayer6 left top 116 492 228 40 dropdown
+window $ComboBoxPlayer7 left top 116 540 228 40 dropdown
+
+# lobby chat under the table
+rule left top 84 600 1064
+window $ListboxChatWindowLanGame left top 84 612 1064 268 list
+window $TextEntryChat left top 84 896 1004 40 entry
+window $ButtonEmote left top 1096 896 52 40
+
+include GameSetupMap.layout
+include GameSetupRules.layout
+
+window $ButtonBack left bottom 64 40 180 44 button
+window $ButtonStart right bottom 64 40 220 44 primary

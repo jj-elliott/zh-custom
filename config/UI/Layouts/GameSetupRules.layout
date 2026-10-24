@@ -1,0 +1,6 @@
+# Shared block: the rules panel of a game-setup screen (right column, bottom): starting cash and the superweapon limit.
+# A screen with a game-speed slider (skirmish) adds it in the left half of the top row.
+panel right top 64 468 656 488
+window text:GUI:StartingMoney right top 392 492 280 24 meta
+window $ComboBoxStartingCash right top 392 520 280 44 dropdown
+window $CheckboxLimitSuperweapons right top 272 592 400 40 checkbox

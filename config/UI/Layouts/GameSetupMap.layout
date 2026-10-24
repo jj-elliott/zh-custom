@@ -1,0 +1,8 @@
+# Shared block: the map panel of a game-setup screen (right column, top). Section title, rule, the preview (MapWindow,
+# start-position markers are its children and placed by code), the map name and the Select Map button.
+panel right top 64 124 656 320
+window $StaticTextMapPreview right top 84 140 300 28 section
+rule right top 84 176 608
+window $MapWindow right top 392 196 280 210
+window $TextEntryMapDisplay right top 84 196 292 44 caption
+window $ButtonSelectMap right top 196 252 180 44 button
