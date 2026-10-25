@@ -9,6 +9,14 @@ window $SoloParent left top 360 160 1200 760
 hide $SoloParent
 window $BuddiesParent left top 360 160 1200 760
 hide $BuddiesParent
+# in a solo game the code shows the solo container instead of the player rows: its list fills the same area; the
+# buddies container (online only) gets the same treatment so nothing stock-drawn can show; the mode radios stay hidden
+window $ListboxSolo left top 384 232 1152 600 list
+window $ListboxBuddies left top 384 232 1152 360 list
+window $ListboxBuddyChat left top 384 608 1152 200 list
+window $TextEntryChat left top 384 816 900 40 entry
+hide $RadioButtonInGame
+hide $RadioButtonBuddies
 
 window $StaticTextMuteTitle left top 384 184 60 24 meta
 window $StaticTextPlayerTitle left top 432 184 300 24 meta

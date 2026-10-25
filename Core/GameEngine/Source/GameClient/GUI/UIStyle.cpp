@@ -207,9 +207,30 @@ namespace
 	}
 
 	// split into runs; for small caps, lowercase letters become uppercase in the small font
-	void splitRuns( const UnicodeString &src, Bool smallCaps, Bool upper, std::vector<Run> &runs )
+	// this renderer sets one line: a string table entry that breaks itself ("Units \n Created", written for 74 px wide
+	// legacy windows) is flattened to single spaces first
+	UnicodeString oneLine( const UnicodeString &src )
+	{
+		UnicodeString out;
+		Bool pendingSpace = FALSE;
+		for( Int i = 0; i < src.getLength(); ++i )
+		{
+			const WideChar c = src.getCharAt( i );
+			if( c == L'\n' || c == L'\r' || c == L' ' || c == L'\t' )
+			{
+				pendingSpace = out.getLength() > 0;
+				continue;
+			}
+			if( pendingSpace ) { out.concat( L' ' ); pendingSpace = FALSE; }
+			out.concat( c );
+		}
+		return out;
+	}
+
+	void splitRuns( const UnicodeString &srcRaw, Bool smallCaps, Bool upper, std::vector<Run> &runs )
 	{
 		runs.clear();
+		const UnicodeString src = oneLine( srcRaw );
 		if( !smallCaps )
 		{
 			Run r; r.lowerRun = FALSE;

@@ -15,13 +15,13 @@ hide $Line
 
 # ---- statistics ------------------------------------------------------------------------------------------------------
 panel left top 64 64 1792 600
-window $CameoUnitsCreated left top 448 84 72 58
-window $CameoUnitsLost left top 656 84 72 58
-window $CameoUnitsDestroyed left top 864 84 72 58
-window $CameoBuildingCreated left top 1072 84 72 58
-window $CameoBuildingLost left top 1280 84 72 58
-window $CameoBuildingDestroyed left top 1488 84 72 58
-window $CameoSuppliesCollected left top 1696 84 72 58
+window $CameoUnitsCreated left top 380 84 72 58
+window $CameoUnitsLost left top 588 84 72 58
+window $CameoUnitsDestroyed left top 796 84 72 58
+window $CameoBuildingCreated left top 1004 84 72 58
+window $CameoBuildingLost left top 1212 84 72 58
+window $CameoBuildingDestroyed left top 1420 84 72 58
+window $CameoSuppliesCollected left top 1628 84 72 58
 window $StaticTextPlayerName left top 124 148 240 28 meta
 window $StaticTextUnitsBuilt left top 380 148 200 28 meta
 window $StaticTextUnitsLost left top 588 148 200 28 meta
@@ -122,11 +122,11 @@ window $StaticTextObserver7 left top 380 532 1456 40 caption
 
 # ---- chat / war school ----------------------------------------------------------------------------------------------
 panel left top 64 688 1792 268
-window $StaticTextWarSchool left top 84 700 1200 28 meta
-window $ListboxChatWindowScoreScreen left top 84 736 1752 148 list
-window $ListboxWarschoolAdvice left top 84 736 1752 148 list
-window $TextEntryChat left top 84 900 1700 40 entry
-window $ButtonEmote left top 1796 900 40 40
+window $StaticTextWarSchool left top 104 708 1200 28 meta
+window $ListboxChatWindowScoreScreen left top 104 744 1712 136 list
+window $ListboxWarschoolAdvice left top 104 744 1712 136 list
+window $TextEntryChat left top 104 896 1660 40 entry
+window $ButtonEmote left top 1780 896 36 40
 
 # ---- bottom bar ------------------------------------------------------------------------------------------------------
 window $ButtonSaveReplay left bottom 64 40 240 44 button
