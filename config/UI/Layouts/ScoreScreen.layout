@@ -1,15 +1,17 @@
 # Post-game score screen, pushed over the final game view: a 40% scrim, the statistics table in one panel (the unit
 # cameos stay as column icons, winner marks at the row edge), the chat (or the war-school advice in solo) in a second
 # panel, Save Replay / Buddies at the left of the bottom bar, Continue / Main Menu at the right. The header band is
-# matched by its legacy rect before its parent moves; MainBackdrop and GadgetParent hold the controls and are made
-# frame-sized. Units: 1 = frame height / 1080. Columns: player at 124 (240 wide), seven statistics from 380 at a pitch
+# matched by its legacy rect before its parent moves. MainBackdrop (header, cameos, chat) and GadgetParent (the rows)
+# hold the controls; the bottom-bar buttons are their siblings, so the two containers cover only their own content
+# (64..956 and 64..664) and leave the bottom bar to the buttons: a frame-sized sibling above them took every click.
+# Units: 1 = frame height / 1080. Columns: player at 124 (240 wide), seven statistics from 380 at a pitch
 # of 208; cameos, headings and values are centred in their columns.
 hide at:37,68,768,125
 hide $ParentScoreScreen
 scrim
-window $MainBackdrop left top 0 0 1920 1080
+window $MainBackdrop left top 64 64 1792 892
 hide $MainBackdrop
-window $GadgetParent left top 0 0 1920 1080
+window $GadgetParent left top 64 64 1792 600
 hide $GadgetParent
 hide $Line
 
