@@ -22,7 +22,8 @@
 //   <window> may also be  text:<label key>  (a window whose TEXT label is that key, for unnamed windows) or
 //   parent:<window>  (the parent of that window).
 //   styles: menu, button, primary, danger (push buttons); label (centred), caption (left), meta, section, title (static
-//   text, one line), body (static text, word-wrapped by the stock draw); panel / dialog (a USER window drawn as a panel
+//   text, one line), value / heading (centred table cell and column heading), body (static text, word-wrapped by the
+//   stock draw); panel / dialog (a USER window drawn as a panel
 //   or a raised dialog panel); entry, dropdown, checkbox, list, slider, radio.
 //   `$Name` is short for `<Screen>.wnd:Name`; `include <file>` reads another file from UI\Layouts (shared blocks).
 #pragma once
@@ -55,7 +56,9 @@ namespace UILayout
 		STYLE_SLIDER,
 		STYLE_RADIO,         // radio buttons drawn as segments of a segmented control
 		STYLE_BODY,          // static text kept on the stock draw (it word-wraps), body font, chrome cleared: message bodies
-		STYLE_DIALOG         // a USER window drawn as a dialog panel (raised fill); follows the window if code moves it
+		STYLE_DIALOG,        // a USER window drawn as a dialog panel (raised fill); follows the window if code moves it
+		STYLE_VALUE,         // static text, label role, centred, primary colour: a table cell
+		STYLE_HEADING        // static text, meta role, centred, secondary colour: a table column heading
 	};
 
 	/// Looks for UI\Layouts\<basename of wndFile>.layout and applies it under root. TRUE when a layout file was found.

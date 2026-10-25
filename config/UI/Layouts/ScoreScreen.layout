@@ -3,7 +3,7 @@
 # panel, Save Replay / Buddies at the left of the bottom bar, Continue / Main Menu at the right. The header band is
 # matched by its legacy rect before its parent moves; MainBackdrop and GadgetParent hold the controls and are made
 # frame-sized. Units: 1 = frame height / 1080. Columns: player at 124 (240 wide), seven statistics from 380 at a pitch
-# of 208.
+# of 208; cameos, headings and values are centred in their columns.
 hide at:37,68,768,125
 hide $ParentScoreScreen
 scrim
@@ -15,109 +15,109 @@ hide $Line
 
 # ---- statistics ------------------------------------------------------------------------------------------------------
 panel left top 64 64 1792 600
-window $CameoUnitsCreated left top 380 84 72 58
-window $CameoUnitsLost left top 588 84 72 58
-window $CameoUnitsDestroyed left top 796 84 72 58
-window $CameoBuildingCreated left top 1004 84 72 58
-window $CameoBuildingLost left top 1212 84 72 58
-window $CameoBuildingDestroyed left top 1420 84 72 58
-window $CameoSuppliesCollected left top 1628 84 72 58
+window $CameoUnitsCreated left top 448 84 72 58
+window $CameoUnitsLost left top 656 84 72 58
+window $CameoUnitsDestroyed left top 864 84 72 58
+window $CameoBuildingCreated left top 1072 84 72 58
+window $CameoBuildingLost left top 1280 84 72 58
+window $CameoBuildingDestroyed left top 1488 84 72 58
+window $CameoSuppliesCollected left top 1696 84 72 58
 window $StaticTextPlayerName left top 124 148 240 28 meta
-window $StaticTextUnitsBuilt left top 380 148 200 28 meta
-window $StaticTextUnitsLost left top 588 148 200 28 meta
-window $StaticTextUnitsDestroyed left top 796 148 200 28 meta
-window $StaticTextBuildingsConstructed left top 1004 148 200 28 meta
-window $StaticTextBuildingsLost left top 1212 148 200 28 meta
-window $StaticTextBuildingsDestroyed left top 1420 148 200 28 meta
-window $StaticTextSuppliesCollected left top 1628 148 200 28 meta
+window $StaticTextUnitsBuilt left top 380 148 208 28 heading
+window $StaticTextUnitsLost left top 588 148 208 28 heading
+window $StaticTextUnitsDestroyed left top 796 148 208 28 heading
+window $StaticTextBuildingsConstructed left top 1004 148 208 28 heading
+window $StaticTextBuildingsLost left top 1212 148 208 28 heading
+window $StaticTextBuildingsDestroyed left top 1420 148 208 28 heading
+window $StaticTextSuppliesCollected left top 1628 148 208 28 heading
 rule left top 84 182 1752
 
 window $GameWindowWinner0 left top 84 204 28 24
 window $StaticTextPlayer0 left top 124 196 240 40 caption
-window $StaticTextUnitsBuilt0 left top 380 196 200 40 caption
-window $StaticTextUnitsLost0 left top 588 196 200 40 caption
-window $StaticTextUnitsDestroyed0 left top 796 196 200 40 caption
-window $StaticTextBuildingsBuilt0 left top 1004 196 200 40 caption
-window $StaticTextBuildingsLost0 left top 1212 196 200 40 caption
-window $StaticTextBuildingsDestroyed0 left top 1420 196 200 40 caption
-window $StaticTextResources0 left top 1628 196 200 40 caption
+window $StaticTextUnitsBuilt0 left top 380 196 208 40 value
+window $StaticTextUnitsLost0 left top 588 196 208 40 value
+window $StaticTextUnitsDestroyed0 left top 796 196 208 40 value
+window $StaticTextBuildingsBuilt0 left top 1004 196 208 40 value
+window $StaticTextBuildingsLost0 left top 1212 196 208 40 value
+window $StaticTextBuildingsDestroyed0 left top 1420 196 208 40 value
+window $StaticTextResources0 left top 1628 196 208 40 value
 window $StaticTextObserver0 left top 380 196 1456 40 caption
 
 window $GameWindowWinner1 left top 84 252 28 24
 window $StaticTextPlayer1 left top 124 244 240 40 caption
-window $StaticTextUnitsBuilt1 left top 380 244 200 40 caption
-window $StaticTextUnitsLost1 left top 588 244 200 40 caption
-window $StaticTextUnitsDestroyed1 left top 796 244 200 40 caption
-window $StaticTextBuildingsBuilt1 left top 1004 244 200 40 caption
-window $StaticTextBuildingsLost1 left top 1212 244 200 40 caption
-window $StaticTextBuildingsDestroyed1 left top 1420 244 200 40 caption
-window $StaticTextResources1 left top 1628 244 200 40 caption
+window $StaticTextUnitsBuilt1 left top 380 244 208 40 value
+window $StaticTextUnitsLost1 left top 588 244 208 40 value
+window $StaticTextUnitsDestroyed1 left top 796 244 208 40 value
+window $StaticTextBuildingsBuilt1 left top 1004 244 208 40 value
+window $StaticTextBuildingsLost1 left top 1212 244 208 40 value
+window $StaticTextBuildingsDestroyed1 left top 1420 244 208 40 value
+window $StaticTextResources1 left top 1628 244 208 40 value
 window $StaticTextObserver1 left top 380 244 1456 40 caption
 
 window $GameWindowWinner2 left top 84 300 28 24
 window $StaticTextPlayer2 left top 124 292 240 40 caption
-window $StaticTextUnitsBuilt2 left top 380 292 200 40 caption
-window $StaticTextUnitsLost2 left top 588 292 200 40 caption
-window $StaticTextUnitsDestroyed2 left top 796 292 200 40 caption
-window $StaticTextBuildingsBuilt2 left top 1004 292 200 40 caption
-window $StaticTextBuildingsLost2 left top 1212 292 200 40 caption
-window $StaticTextBuildingsDestroyed2 left top 1420 292 200 40 caption
-window $StaticTextResources2 left top 1628 292 200 40 caption
+window $StaticTextUnitsBuilt2 left top 380 292 208 40 value
+window $StaticTextUnitsLost2 left top 588 292 208 40 value
+window $StaticTextUnitsDestroyed2 left top 796 292 208 40 value
+window $StaticTextBuildingsBuilt2 left top 1004 292 208 40 value
+window $StaticTextBuildingsLost2 left top 1212 292 208 40 value
+window $StaticTextBuildingsDestroyed2 left top 1420 292 208 40 value
+window $StaticTextResources2 left top 1628 292 208 40 value
 window $StaticTextObserver2 left top 380 292 1456 40 caption
 
 window $GameWindowWinner3 left top 84 348 28 24
 window $StaticTextPlayer3 left top 124 340 240 40 caption
-window $StaticTextUnitsBuilt3 left top 380 340 200 40 caption
-window $StaticTextUnitsLost3 left top 588 340 200 40 caption
-window $StaticTextUnitsDestroyed3 left top 796 340 200 40 caption
-window $StaticTextBuildingsBuilt3 left top 1004 340 200 40 caption
-window $StaticTextBuildingsLost3 left top 1212 340 200 40 caption
-window $StaticTextBuildingsDestroyed3 left top 1420 340 200 40 caption
-window $StaticTextResources3 left top 1628 340 200 40 caption
+window $StaticTextUnitsBuilt3 left top 380 340 208 40 value
+window $StaticTextUnitsLost3 left top 588 340 208 40 value
+window $StaticTextUnitsDestroyed3 left top 796 340 208 40 value
+window $StaticTextBuildingsBuilt3 left top 1004 340 208 40 value
+window $StaticTextBuildingsLost3 left top 1212 340 208 40 value
+window $StaticTextBuildingsDestroyed3 left top 1420 340 208 40 value
+window $StaticTextResources3 left top 1628 340 208 40 value
 window $StaticTextObserver3 left top 380 340 1456 40 caption
 
 window $GameWindowWinner4 left top 84 396 28 24
 window $StaticTextPlayer4 left top 124 388 240 40 caption
-window $StaticTextUnitsBuilt4 left top 380 388 200 40 caption
-window $StaticTextUnitsLost4 left top 588 388 200 40 caption
-window $StaticTextUnitsDestroyed4 left top 796 388 200 40 caption
-window $StaticTextBuildingsBuilt4 left top 1004 388 200 40 caption
-window $StaticTextBuildingsLost4 left top 1212 388 200 40 caption
-window $StaticTextBuildingsDestroyed4 left top 1420 388 200 40 caption
-window $StaticTextResources4 left top 1628 388 200 40 caption
+window $StaticTextUnitsBuilt4 left top 380 388 208 40 value
+window $StaticTextUnitsLost4 left top 588 388 208 40 value
+window $StaticTextUnitsDestroyed4 left top 796 388 208 40 value
+window $StaticTextBuildingsBuilt4 left top 1004 388 208 40 value
+window $StaticTextBuildingsLost4 left top 1212 388 208 40 value
+window $StaticTextBuildingsDestroyed4 left top 1420 388 208 40 value
+window $StaticTextResources4 left top 1628 388 208 40 value
 window $StaticTextObserver4 left top 380 388 1456 40 caption
 
 window $GameWindowWinner5 left top 84 444 28 24
 window $StaticTextPlayer5 left top 124 436 240 40 caption
-window $StaticTextUnitsBuilt5 left top 380 436 200 40 caption
-window $StaticTextUnitsLost5 left top 588 436 200 40 caption
-window $StaticTextUnitsDestroyed5 left top 796 436 200 40 caption
-window $StaticTextBuildingsBuilt5 left top 1004 436 200 40 caption
-window $StaticTextBuildingsLost5 left top 1212 436 200 40 caption
-window $StaticTextBuildingsDestroyed5 left top 1420 436 200 40 caption
-window $StaticTextResources5 left top 1628 436 200 40 caption
+window $StaticTextUnitsBuilt5 left top 380 436 208 40 value
+window $StaticTextUnitsLost5 left top 588 436 208 40 value
+window $StaticTextUnitsDestroyed5 left top 796 436 208 40 value
+window $StaticTextBuildingsBuilt5 left top 1004 436 208 40 value
+window $StaticTextBuildingsLost5 left top 1212 436 208 40 value
+window $StaticTextBuildingsDestroyed5 left top 1420 436 208 40 value
+window $StaticTextResources5 left top 1628 436 208 40 value
 window $StaticTextObserver5 left top 380 436 1456 40 caption
 
 window $GameWindowWinner6 left top 84 492 28 24
 window $StaticTextPlayer6 left top 124 484 240 40 caption
-window $StaticTextUnitsBuilt6 left top 380 484 200 40 caption
-window $StaticTextUnitsLost6 left top 588 484 200 40 caption
-window $StaticTextUnitsDestroyed6 left top 796 484 200 40 caption
-window $StaticTextBuildingsBuilt6 left top 1004 484 200 40 caption
-window $StaticTextBuildingsLost6 left top 1212 484 200 40 caption
-window $StaticTextBuildingsDestroyed6 left top 1420 484 200 40 caption
-window $StaticTextResources6 left top 1628 484 200 40 caption
+window $StaticTextUnitsBuilt6 left top 380 484 208 40 value
+window $StaticTextUnitsLost6 left top 588 484 208 40 value
+window $StaticTextUnitsDestroyed6 left top 796 484 208 40 value
+window $StaticTextBuildingsBuilt6 left top 1004 484 208 40 value
+window $StaticTextBuildingsLost6 left top 1212 484 208 40 value
+window $StaticTextBuildingsDestroyed6 left top 1420 484 208 40 value
+window $StaticTextResources6 left top 1628 484 208 40 value
 window $StaticTextObserver6 left top 380 484 1456 40 caption
 
 window $GameWindowWinner7 left top 84 540 28 24
 window $StaticTextPlayer7 left top 124 532 240 40 caption
-window $StaticTextUnitsBuilt7 left top 380 532 200 40 caption
-window $StaticTextUnitsLost7 left top 588 532 200 40 caption
-window $StaticTextUnitsDestroyed7 left top 796 532 200 40 caption
-window $StaticTextBuildingsBuilt7 left top 1004 532 200 40 caption
-window $StaticTextBuildingsLost7 left top 1212 532 200 40 caption
-window $StaticTextBuildingsDestroyed7 left top 1420 532 200 40 caption
-window $StaticTextResources7 left top 1628 532 200 40 caption
+window $StaticTextUnitsBuilt7 left top 380 532 208 40 value
+window $StaticTextUnitsLost7 left top 588 532 208 40 value
+window $StaticTextUnitsDestroyed7 left top 796 532 208 40 value
+window $StaticTextBuildingsBuilt7 left top 1004 532 208 40 value
+window $StaticTextBuildingsLost7 left top 1212 532 208 40 value
+window $StaticTextBuildingsDestroyed7 left top 1420 532 208 40 value
+window $StaticTextResources7 left top 1628 532 208 40 value
 window $StaticTextObserver7 left top 380 532 1456 40 caption
 
 # ---- chat / war school ----------------------------------------------------------------------------------------------

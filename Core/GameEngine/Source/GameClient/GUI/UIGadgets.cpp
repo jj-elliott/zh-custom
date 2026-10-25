@@ -130,6 +130,8 @@ void drawStaticText( GameWindow *window, WinInstanceData *instData, UILayout::St
 		case UILayout::STYLE_CAPTION: role = UIFonts::ROLE_LABEL; break;
 		case UILayout::STYLE_META:    role = UIFonts::ROLE_META; color = enabled ? p.textSecondary : p.textDisabled; break;
 		case UILayout::STYLE_SECTION: role = UIFonts::ROLE_SECTION; break;
+		case UILayout::STYLE_VALUE:   role = UIFonts::ROLE_LABEL; align = 1; break;
+		case UILayout::STYLE_HEADING: role = UIFonts::ROLE_META; align = 1; color = enabled ? p.textSecondary : p.textDisabled; break;
 		case UILayout::STYLE_TITLE:   role = UIFonts::ROLE_TITLE; break;
 		default: break;
 	}
@@ -265,7 +267,12 @@ void drawListChrome( GameWindow *window, WinInstanceData *instData )
 	if( parent && UILayout::styleOf( parent ) == UILayout::STYLE_DROPDOWN )
 		Draw::listPopup( origin.x, origin.y, size.x, size.y );      // the open dropdown
 	else
-		Draw::control( origin.x, origin.y, size.x, size.y, STATE_REST, FALSE );
+	{
+		// the stock list draws its rows 2 px from the window edge: the box is drawn around the window with an inset
+		// margin, so the text keeps a distance from the border (the window itself is the hit and scroll area)
+		const Int px = u( 12.0f ), py = u( 8.0f );
+		Draw::control( origin.x - px, origin.y - py, size.x + 2 * px, size.y + 2 * py, STATE_REST, FALSE );
+	}
 }
 
 } // namespace UIGadgets

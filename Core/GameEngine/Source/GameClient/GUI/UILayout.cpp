@@ -70,6 +70,8 @@ namespace
 		if( stricmp( s, "slider" ) == 0 ) return STYLE_SLIDER;
 		if( stricmp( s, "radio" ) == 0 ) return STYLE_RADIO;
 		if( stricmp( s, "body" ) == 0 ) return STYLE_BODY;
+		if( stricmp( s, "value" ) == 0 ) return STYLE_VALUE;
+		if( stricmp( s, "heading" ) == 0 ) return STYLE_HEADING;
 		if( stricmp( s, "dialog" ) == 0 ) return STYLE_DIALOG;
 		return STYLE_NONE;
 	}
@@ -288,6 +290,7 @@ namespace
 				break;
 			}
 			case STYLE_LABEL: case STYLE_CAPTION: case STYLE_META: case STYLE_SECTION: case STYLE_TITLE:
+			case STYLE_VALUE: case STYLE_HEADING:
 				setPlainDraw( w, TheWindowManager->getStaticTextDrawFunc() );
 				clearChrome( w );
 				break;
