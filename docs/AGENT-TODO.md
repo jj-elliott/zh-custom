@@ -61,10 +61,13 @@ These need the actual source tree or a Windows machine, so bootstrap.ps1 left th
       scroll bar, dialogs with scrim, frame bands, slider tick spacing on resize, legacy transition art skipped on managed screens).
       Packaging (step 6): `package.ps1` already ships `config/*` (fonts, layouts) in the game zip; `-classicui` kept for one release;
       FEATURE-PARITY and CODE-MAP updated.
-- [ ] **17. In-game UI pass** (after the shell): pause menu (`QuitMenu.wnd`, `QuitNoSave.wnd`), `PopupSaveLoad.wnd`, `PopupReplay.wnd`,
-      the score screen, then the HUD (control bar stays on the `340_`/`400_` add-on art until its own design round). Also the art-led
-      shell screens left out: `ChallengeMenu.wnd` (portraits on a painted map), `CreditsMenu.wnd`. Same method: `scripts/wndtree.py`
-      for the tree, a `.layout` per screen, containers moved first, one screen per commit, owner review from their own play.
+- [~] **17. In-game UI pass.** Built 2026-10-24, review pending: pause menu (`QuitMenu`, `QuitNoSave`), `PopupSaveLoad` (shares
+      `SaveLoadConfirms.layout` with the shell `SaveLoad`), `PopupReplay`, `ScoreScreen`, `DisconnectScreen`,
+      `EstablishConnectionsScreen`, `Diplomacy` (created as `Diplomacy.wnd` without the Menus/ prefix; the layout lookup uses the
+      basename). Owner's call: the next release waits for this pass so the game does not jump between looks. Not done: the HUD /
+      control bar (stays on the `340_`/`400_` add-on art), `GeneralsExpPoints.wnd` (cameo grid), `InGamePopupMessage.wnd` (scripted
+      missions, positioned by script), the victory/defeat banners (art), and the art-led shell screens `ChallengeMenu.wnd`,
+      `CreditsMenu.wnd`. Two-machine screens (disconnect, connection status) can only be checked in a real session.
       Known: the shell shows its menu only once the window has focus and the pointer has moved; `run.ps1 -Screenshot` now
       focuses the window and nudges the cursor four seconds before the shot, which steals focus: only run it when the human
       has said the screen is free (they may be gaming).

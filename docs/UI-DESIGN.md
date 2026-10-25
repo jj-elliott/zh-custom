@@ -251,6 +251,14 @@ component sheet. Still to do: an overlay that shows anchors and unplaced windows
    second dialog), Load/Save (`SaveLoad.layout`, confirmations as dialogs), Replays (`ReplayMenu.layout`), the solo
    custom-mission map select (`MapSelectMenu.layout`). ← **we are here**. Left as art for now: Generals' Challenge (the
    general portraits sit on a painted map; a layout would only move its title and buttons), credits, the score screen.
+5c. In-game menus (owner's call 2026-10-24: the next release waits for these, so the game does not jump between the two
+   looks). Built the same day, review pending: pause menu (`QuitMenu.layout`, `QuitNoSave.layout`: the box is the dialog,
+   the logo on top, the commands as a menu-button column), in-game save/load (`PopupSaveLoad.layout`, confirmations shared
+   with the shell screen through `SaveLoadConfirms.layout`), save replay (`PopupReplay.layout`), the score screen
+   (`ScoreScreen.layout`: statistics table with the unit cameos as column icons, chat or war-school panel), the multiplayer
+   disconnect dialog (`DisconnectScreen.layout`), the connection-status screen (`EstablishConnectionsScreen.layout`) and the
+   diplomacy overlay (`Diplomacy.layout`, no scrim: the game keeps running). Left as art: the victory / defeat banners,
+   the generals' points window, the scripted mission popup, the control bar.
 6. ~~Package: fonts in the release zip, `-classicui` switch kept for one release, FEATURE-PARITY and CODE-MAP updated.~~ Done
    2026-10-24: `package.ps1` and `stage-install.ps1` copy `config/*`, so `Fonts\` and `UI\Layouts\` travel with the game zip and the
    launcher extracts them with their folders; the asset manifest stays `.big`-only (layouts cannot desync a game). `-classicui` stays
