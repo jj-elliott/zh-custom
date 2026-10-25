@@ -1,0 +1,13 @@
+# In-game pause menu (Escape, when saving is possible): the box window itself is a 480 x 500 dialog centred on a 40%
+# scrim, the game logo on top and the commands as a column of menu buttons, in the original order. Units: 1 = frame
+# height / 1080.
+scrim
+window $QuitMenuParent centre middle 0 0 480 500 dialog
+window $WinLoad left top 758 314 404 110
+stack centre top 0 448 440 14
+  item $ButtonSaveLoad 52 menu
+  item $ButtonOptions 52 menu
+  item $ButtonRestart 52 menu
+  item $ButtonExit 52 menu
+  item $ButtonReturn 52 menu
+end
