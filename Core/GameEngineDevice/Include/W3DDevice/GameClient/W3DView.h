@@ -331,6 +331,7 @@ private:
 	void getAxisAlignedViewRegion(Region3D &axisAlignedRegion);	///< Find 3D Region enclosing all possible drawables.
 	void calcDeltaScroll(Coord2D &screenDelta);
 	bool getDesiredTerrainDrawSize(ICoord2D &dimensions) const;
+	bool getFrustumTerrainDrawSize(Int &drawSize) const;	///< zh-pipeline: draw size covering the view frustum's ground footprint
 	void updateTerrain();
 
 	// (gth) C&C3 animation controlled camera feature
