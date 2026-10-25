@@ -3701,6 +3701,46 @@ void W3DView::Add_Camera_Shake (const Coord3D & position,float radius,float dura
 	CameraShakerSystem.Add_Camera_Shake(vpos,radius,duration,power);
 }
 
+// zh-pipeline @fix 2026-10-24 Square terrain draw size (in vertices) that covers the ground footprint of the view
+// frustum, intersected with the lowest terrain height. The size is the largest distance between footprint corners,
+// so it does not change with camera rotation, and it is rounded up to whole vertex buffer tiles so zooming only
+// reallocates the terrain buffers when it crosses a tile boundary. Never smaller than the normal draw size.
+// Returns false when a corner ray does not reach the ground. Client-only, no effect on the logic CRC.
+bool W3DView::getFrustumTerrainDrawSize(Int &drawSize) const
+{
+	if (TheTerrainRenderObject == nullptr)
+		return false;
+
+	const Vector3 camPos = m_3DCamera->Get_Position();
+	const Real groundZ = TheTerrainRenderObject->getMinHeight();
+	const Vector2 corners[4] = { Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1) };
+	Vector2 hits[4];
+
+	for (Int i = 0; i < 4; ++i)
+	{
+		Vector3 viewPoint;
+		m_3DCamera->Un_Project(viewPoint, corners[i]);
+		const Vector3 dir = viewPoint - camPos;
+		if (dir.Z >= -0.001f || camPos.Z <= groundZ)
+			return false;
+		const Real t = (groundZ - camPos.Z) / dir.Z;
+		hits[i].Set(camPos.X + dir.X * t, camPos.Y + dir.Y * t);
+	}
+
+	Real maxDistSqr = 0.0f;
+	for (Int i = 0; i < 4; ++i)
+		for (Int j = i + 1; j < 4; ++j)
+			maxDistSqr = std::max(maxDistSqr, (hits[i] - hits[j]).Length2());
+
+	// Margin for the 4-tile sampling steps of the visibility search in HeightMapRenderObjClass::updateCenter.
+	const Int marginTiles = 8;
+	const Int tiles = (Int)ceilf(sqrtf(maxDistSqr) / MAP_XY_FACTOR) + marginTiles;
+	const Int bufferTiles = (tiles + VERTEX_BUFFER_TILE_LENGTH - 1) / VERTEX_BUFFER_TILE_LENGTH;
+
+	drawSize = std::max(1 + bufferTiles * VERTEX_BUFFER_TILE_LENGTH, (Int)WorldHeightMap::NORMAL_DRAW_WIDTH);
+	return true;
+}
+
 bool W3DView::getDesiredTerrainDrawSize(ICoord2D &dimensions) const
 {
 	if (TheGlobalData && TheGlobalData->m_drawEntireTerrain)
@@ -3719,12 +3759,24 @@ bool W3DView::getDesiredTerrainDrawSize(ICoord2D &dimensions) const
 
 	const Real cameraPitch = asin(fabs(m_3DCamera->Get_Forward_Dir().Z));
 
-	if (cameraPitch > ViewDefaultLowPitchRadians || !m_isUserControlled)
+	if (!m_isUserControlled)
 	{
 		// TheSuperHackers @info The scripted camera always uses the regular draw sizes
 		// and uses terrain oversize if it needs to enlarge.
 		dimensions.x = WorldHeightMap::NORMAL_DRAW_WIDTH;
 		dimensions.y = WorldHeightMap::NORMAL_DRAW_HEIGHT;
+		return true;
+	}
+
+	if (cameraPitch > ViewDefaultLowPitchRadians)
+	{
+		// zh-pipeline @fix 2026-10-24 The normal draw size only covers the view up to the retail camera ceiling;
+		// with CameraHeightScale the far corners of the view fell outside it. Size the draw area from the frustum.
+		Int drawSize = WorldHeightMap::NORMAL_DRAW_WIDTH;
+		if (!getFrustumTerrainDrawSize(drawSize))
+			drawSize = WorldHeightMap::LOW_ANGLE_DRAW_WIDTH;
+		dimensions.x = drawSize;
+		dimensions.y = drawSize;
 		return true;
 	}
 
