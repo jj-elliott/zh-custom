@@ -1,0 +1,19 @@
+# Save replay (after a game): a 1200 x 800 dialog centred on a 40% scrim (x 360..1560, y 140..940): title, the list of
+# existing replays, the name entry, Back and Save. The "replay saved" notice is a small dialog of its own, shown by code.
+hide $PopupReplayMenu
+scrim
+window $PopupReplaySubMenu centre middle 0 0 1200 800 dialog
+window $MenuButtonFrame left top 360 140 1200 800
+hide $MenuButtonFrame
+hide $Line
+
+window $StaticTextTitle left top 384 164 800 32 section
+rule left top 384 204 1152
+window $ListboxGames left top 384 220 1152 520 list
+window $TextEntryReplayName left top 384 764 1152 44 entry
+
+window $ButtonBack left top 384 860 180 44 button
+window $ButtonSave left top 1356 860 180 44 primary
+
+window $PopupReplaySaved centre middle 0 0 760 200 dialog
+window $StaticReplaySaved left top 604 520 712 40 label

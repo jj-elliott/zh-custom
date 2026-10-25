@@ -1,0 +1,23 @@
+# Shared block: the four confirmation boxes of the save/load screens (load, overwrite, save description, delete). Hidden
+# children shown by code; each is a 760 x 320 dialog centred (x 580..1340, y 380..700). Used by SaveLoad (shell) and
+# PopupSaveLoad (in game), which have the same window names.
+window $LoadConfirmParent centre middle 0 0 760 320 dialog
+window text:GUI:LoadGameConfirmation left top 604 404 712 180 body
+window $ButtonLoadCancel left top 604 632 180 44 button
+window $ButtonLoadConfirm left top 1136 632 180 44 primary
+
+window $OverwriteConfirmParent centre middle 0 0 760 320 dialog
+window text:GUI:OverwriteSaveConfirmation left top 604 404 712 180 body
+window $ButtonOverwriteCancel left top 604 632 180 44 button
+window $ButtonOverwriteConfirm left top 1136 632 180 44 primary
+
+window $SaveDescParent centre middle 0 0 760 320 dialog
+window text:GUI:EnterSaveDesc left top 604 404 712 32 caption
+window $EntryDesc left top 604 452 712 44 entry
+window $ButtonSaveDescCancel left top 604 632 180 44 button
+window $ButtonSaveDescConfirm left top 1136 632 180 44 primary
+
+window $DeleteConfirmParent centre middle 0 0 760 320 dialog
+window text:GUI:ConfirmDelete left top 604 404 712 180 body
+window $ButtonDeleteCancel left top 604 632 180 44 button
+window $ButtonDeleteConfirm left top 1136 632 180 44 danger

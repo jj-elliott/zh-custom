@@ -1,0 +1,19 @@
+# In-game save / load (from the pause menu): the box window is a 1200 x 800 dialog centred on a 40% scrim (x 360..1560,
+# y 140..940): title, the games list, Back at the left of the bottom row, Delete / Save / Load at the right. The
+# confirmation boxes are the shared block. MenuButtonFrame holds the buttons, so it is moved over the dialog first.
+scrim
+window $SaveLoadMenu centre middle 0 0 1200 800 dialog
+window $MenuButtonFrame left top 360 140 1200 800
+hide $MenuButtonFrame
+hide $line
+
+window text:GUI:SelectAGame left top 384 164 800 32 section
+rule left top 384 204 1152
+window $ListboxGames left top 384 220 1152 600 list
+
+window $ButtonBack left top 384 860 180 44 button
+window $ButtonDelete left top 948 860 180 44 danger
+window $ButtonSave left top 1152 860 180 44 button
+window $ButtonLoad left top 1356 860 180 44 primary
+
+include SaveLoadConfirms.layout
