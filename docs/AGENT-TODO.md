@@ -61,7 +61,8 @@ These need the actual source tree or a Windows machine, so bootstrap.ps1 left th
       scroll bar, dialogs with scrim, frame bands, slider tick spacing on resize, legacy transition art skipped on managed screens).
       Packaging (step 6): `package.ps1` already ships `config/*` (fonts, layouts) in the game zip; `-classicui` kept for one release;
       FEATURE-PARITY and CODE-MAP updated.
-- [~] **17. In-game UI pass.** Built 2026-10-24, review pending: pause menu (`QuitMenu`, `QuitNoSave`), `PopupSaveLoad` (shares
+- [x] **17. In-game UI pass.** Passed 2026-10-25 (three review rounds; the two-machine screens are unseen until a real
+      session). Built 2026-10-24: pause menu (`QuitMenu`, `QuitNoSave`), `PopupSaveLoad` (shares
       `SaveLoadConfirms.layout` with the shell `SaveLoad`), `PopupReplay`, `ScoreScreen`, `DisconnectScreen`,
       `EstablishConnectionsScreen`, `Diplomacy` (created as `Diplomacy.wnd` without the Menus/ prefix; the layout lookup uses the
       basename). Owner's call: the next release waits for this pass so the game does not jump between looks. Not done: the HUD /

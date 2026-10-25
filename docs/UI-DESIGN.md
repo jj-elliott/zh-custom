@@ -201,6 +201,10 @@ skirmish; accept markers and the lobby chat on LAN). Applied at the end of
 `winCreateFromScript`, before the screen's init callback, so callbacks and names are untouched and the init code
 sees the final positions. Windows not mentioned keep their legacy position. The content frame (`UIStyle::frame`) is
 16:9, centred: letterboxed by the scene on wider screens, bands on 16:10; one unit = frame height / 1080.
+Containers: hit-testing only descends into children of a window under the pointer, and the first child under the pointer
+in z-order takes the event. So a container must cover its children (the skirmish `SubParent`, the lobby `GadgetParent`,
+a map-select parent: made frame-sized), but a container that has siblings must not cover them (the score screen's
+`MainBackdrop` beside the bottom-bar buttons: sized to its content). `scripts/wndtree.py` shows the nesting.
 Shell transitions (`WindowTransitions.ini`): on a screen that has a layout, the styles that animate a window's legacy
 image (flash and button-flash boxes, window fades, the scale-ups, the full-fade black box) jump to their end state
 instead of playing, because what they draw is art the screen no longer has (`TransitionWindow::update`, 2026-10-24,
@@ -258,7 +262,12 @@ component sheet. Still to do: an overlay that shows anchors and unplaced windows
    (`ScoreScreen.layout`: statistics table with the unit cameos as column icons, chat or war-school panel), the multiplayer
    disconnect dialog (`DisconnectScreen.layout`), the connection-status screen (`EstablishConnectionsScreen.layout`) and the
    diplomacy overlay (`Diplomacy.layout`, no scrim: the game keeps running). Left as art: the victory / defeat banners,
-   the generals' points window, the scripted mission popup, the control bar.
+   the generals' points window, the scripted mission popup, the control bar. **Passed 2026-10-25** after three rounds:
+   string-table entries with embedded line breaks are flattened by the one-line renderer; the pause menus lost their logo
+   slot; the diplomacy overlay's solo/buddies lists are styled; layout-managed windows no longer slide in (the animation
+   manager registers nothing for them); centred `value` / `heading` styles for tables; list boxes draw their border
+   outside the window so rows keep a margin; score-screen containers cover only their content (see 6.4). The two-machine
+   screens (disconnect, connection status) are laid out but unseen until a real session.
 6. ~~Package: fonts in the release zip, `-classicui` switch kept for one release, FEATURE-PARITY and CODE-MAP updated.~~ Done
    2026-10-24: `package.ps1` and `stage-install.ps1` copy `config/*`, so `Fonts\` and `UI\Layouts\` travel with the game zip and the
    launcher extracts them with their folders; the asset manifest stays `.big`-only (layouts cannot desync a game). `-classicui` stays
@@ -273,6 +282,8 @@ Each step is a separate small commit, reviewed from screenshots before the next 
   original strings only; small caps in homage to the all-caps original; slider redrawn as an instrument fader; the old
   blueprint frame removed from the backdrop.
 
+- 2026-10-25: the in-game pass signed off (pause menu, in-game save/load, save replay, score screen, diplomacy overlay;
+  disconnect and connection status unseen). Fixes along the way are listed under §7 5c.
 - 2026-10-24, later: direct connect, LAN setup and lobby, options, load/save, replays, solo map select and the message boxes
   signed off after fixes for clipped button rows (containers moved first), the old frames on two screens, slider tick spacing
   after a resize, the quit box height and the legacy transition art.
