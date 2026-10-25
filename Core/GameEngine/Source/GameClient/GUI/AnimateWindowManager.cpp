@@ -58,6 +58,8 @@
 #include "GameClient/Display.h"
 #include "GameClient/ProcessAnimateWindow.h"
 #include "Common/FramePacer.h"
+#include "GameClient/UIStyle.h"   // zh-pipeline Menu UI system: no slide-in on layout-managed windows
+#include "GameClient/UILayout.h"
 //-----------------------------------------------------------------------------
 // DEFINES ////////////////////////////////////////////////////////////////////
 //-----------------------------------------------------------------------------
@@ -250,6 +252,13 @@ void AnimateWindowManager::registerGameWindow(GameWindow *win, AnimTypes animTyp
 		DEBUG_CRASH(("an Invalid WIN_ANIMATION type was passed into registerGameWindow... please fix me "));
 		return;
 	}
+
+	// zh-pipeline @feature 2026-10-25 Menu UI system: a window a layout manages does not slide in. Its decorations are
+	// drawn where the layout put it, so a slide showed them before the window arrived (the communicator's rule lines).
+	// Nothing is registered; the manager still reports finished / reversed exactly as before, because an empty list
+	// finishes on the next update, so callers that wait for the animation before hiding keep working.
+	if( UIStyle::isEnabled() && UILayout::isManagedTree( win ) )
+		return;
 
 	// Create a new AnimateWindow class and fill in it's data.
 	wnd::AnimateWindow *animWin = wnd::AnimateWindow::createNewInstance();
