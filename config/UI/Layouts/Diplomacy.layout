@@ -1,0 +1,69 @@
+# In-game diplomacy / players overlay (toggled during play, the game keeps running, so no scrim): the box window is a
+# 1200 x 760 dialog centred (x 360..1560, y 160..920): column titles, one row per player (mute mark as the stock icon,
+# name, side, team, status), the close button bottom-right. The three containers (in-game, solo, buddies) are moved over
+# the dialog first; only the in-game one is shown in a skirmish or LAN game. Units: 1 = frame height / 1080.
+window $Parent centre middle 0 0 1200 760 dialog
+window $InGameParent left top 360 160 1200 760
+hide $InGameParent
+window $SoloParent left top 360 160 1200 760
+hide $SoloParent
+window $BuddiesParent left top 360 160 1200 760
+hide $BuddiesParent
+
+window $StaticTextMuteTitle left top 384 184 60 24 meta
+window $StaticTextPlayerTitle left top 432 184 300 24 meta
+window $StaticTextSideTitle left top 756 184 400 24 meta
+window $StaticTextTeamTitle left top 1180 184 100 24 meta
+window $StaticTextStatusTitle left top 1300 184 220 24 meta
+rule left top 384 216 1152
+
+window $ButtonMute0 left top 384 238 28 28
+window $ButtonUnMute0 left top 384 238 28 28
+window $StaticTextPlayer0 left top 432 232 300 40 caption
+window $StaticTextSide0 left top 756 232 400 40 caption
+window $StaticTextTeam0 left top 1180 232 100 40 caption
+window $StaticTextStatus0 left top 1300 232 220 40 caption
+window $ButtonMute1 left top 384 290 28 28
+window $ButtonUnMute1 left top 384 290 28 28
+window $StaticTextPlayer1 left top 432 284 300 40 caption
+window $StaticTextSide1 left top 756 284 400 40 caption
+window $StaticTextTeam1 left top 1180 284 100 40 caption
+window $StaticTextStatus1 left top 1300 284 220 40 caption
+window $ButtonMute2 left top 384 342 28 28
+window $ButtonUnMute2 left top 384 342 28 28
+window $StaticTextPlayer2 left top 432 336 300 40 caption
+window $StaticTextSide2 left top 756 336 400 40 caption
+window $StaticTextTeam2 left top 1180 336 100 40 caption
+window $StaticTextStatus2 left top 1300 336 220 40 caption
+window $ButtonMute3 left top 384 394 28 28
+window $ButtonUnMute3 left top 384 394 28 28
+window $StaticTextPlayer3 left top 432 388 300 40 caption
+window $StaticTextSide3 left top 756 388 400 40 caption
+window $StaticTextTeam3 left top 1180 388 100 40 caption
+window $StaticTextStatus3 left top 1300 388 220 40 caption
+window $ButtonMute4 left top 384 446 28 28
+window $ButtonUnMute4 left top 384 446 28 28
+window $StaticTextPlayer4 left top 432 440 300 40 caption
+window $StaticTextSide4 left top 756 440 400 40 caption
+window $StaticTextTeam4 left top 1180 440 100 40 caption
+window $StaticTextStatus4 left top 1300 440 220 40 caption
+window $ButtonMute5 left top 384 498 28 28
+window $ButtonUnMute5 left top 384 498 28 28
+window $StaticTextPlayer5 left top 432 492 300 40 caption
+window $StaticTextSide5 left top 756 492 400 40 caption
+window $StaticTextTeam5 left top 1180 492 100 40 caption
+window $StaticTextStatus5 left top 1300 492 220 40 caption
+window $ButtonMute6 left top 384 550 28 28
+window $ButtonUnMute6 left top 384 550 28 28
+window $StaticTextPlayer6 left top 432 544 300 40 caption
+window $StaticTextSide6 left top 756 544 400 40 caption
+window $StaticTextTeam6 left top 1180 544 100 40 caption
+window $StaticTextStatus6 left top 1300 544 220 40 caption
+window $ButtonMute7 left top 384 602 28 28
+window $ButtonUnMute7 left top 384 602 28 28
+window $StaticTextPlayer7 left top 432 596 300 40 caption
+window $StaticTextSide7 left top 756 596 400 40 caption
+window $StaticTextTeam7 left top 1180 596 100 40 caption
+window $StaticTextStatus7 left top 1300 596 220 40 caption
+
+window $ButtonHide left top 1336 852 200 44 button

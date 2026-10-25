@@ -1,0 +1,45 @@
+# Multiplayer disconnect screen (a player stopped responding): the box window is a 1400 x 920 dialog centred on a 40%
+# scrim (x 260..1660, y 80..1000): header, one row per player (vote to kick, votes, name, timeout), the packet-router
+# timeout, the message list and the chat entry, Quit Game bottom-right. Units: 1 = frame height / 1080.
+scrim
+window $DisconnectWindow centre middle 0 0 1400 920 dialog
+hide $Line
+window text:GUI:InternetDisconnectionMenuHeaderCaps left top 284 104 1000 32 section
+rule left top 284 144 1352
+
+window $ButtonKickPlayer1 left top 284 168 120 40 button
+window $StaticPlayer1Votes left top 420 168 80 40 caption
+window $StaticPlayer1Name left top 520 168 400 40 caption
+window $StaticPlayer1Timeout left top 940 168 160 40 caption
+window $ButtonKickPlayer2 left top 284 216 120 40 button
+window $StaticPlayer2Votes left top 420 216 80 40 caption
+window $StaticPlayer2Name left top 520 216 400 40 caption
+window $StaticPlayer2Timeout left top 940 216 160 40 caption
+window $ButtonKickPlayer3 left top 284 264 120 40 button
+window $StaticPlayer3Votes left top 420 264 80 40 caption
+window $StaticPlayer3Name left top 520 264 400 40 caption
+window $StaticPlayer3Timeout left top 940 264 160 40 caption
+window $ButtonKickPlayer4 left top 284 312 120 40 button
+window $StaticPlayer4Votes left top 420 312 80 40 caption
+window $StaticPlayer4Name left top 520 312 400 40 caption
+window $StaticPlayer4Timeout left top 940 312 160 40 caption
+window $ButtonKickPlayer5 left top 284 360 120 40 button
+window $StaticPlayer5Votes left top 420 360 80 40 caption
+window $StaticPlayer5Name left top 520 360 400 40 caption
+window $StaticPlayer5Timeout left top 940 360 160 40 caption
+window $ButtonKickPlayer6 left top 284 408 120 40 button
+window $StaticPlayer6Votes left top 420 408 80 40 caption
+window $StaticPlayer6Name left top 520 408 400 40 caption
+window $StaticPlayer6Timeout left top 940 408 160 40 caption
+window $ButtonKickPlayer7 left top 284 456 120 40 button
+window $StaticPlayer7Votes left top 420 456 80 40 caption
+window $StaticPlayer7Name left top 520 456 400 40 caption
+window $StaticPlayer7Timeout left top 940 456 160 40 caption
+
+window $StaticPacketRouterTimeoutLabel left top 1120 168 500 24 meta
+window $StaticPacketRouterTimeout left top 1120 196 500 32 caption
+
+rule left top 284 520 1352
+window $ListboxTextDisplay left top 284 536 1352 300 list
+window $TextEntry left top 284 852 1352 40 entry
+window $ButtonQuitGame left top 1436 932 200 44 danger

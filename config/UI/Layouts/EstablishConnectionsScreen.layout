@@ -1,0 +1,28 @@
+# Connection status before a multiplayer game starts: title top-left, one panel with a row per player (name, status),
+# Quit (hidden until needed) bottom-right. The unnamed box holding the rows is moved over the panel first; the root drew a
+# half-dark fill and is replaced by the scrim. Units: 1 = frame height / 1080.
+hide $EstablishConnectionsWindow
+scrim
+window parent:$StaticPlayer1Name left top 64 124 1792 480
+hide parent:$StaticPlayer1Name
+
+window $StaticWindowTitle left top 64 40 900 48 title
+ruler left top 64 94 560
+
+panel left top 64 124 1792 480
+window $StaticPlayer1Name left top 84 150 600 40 caption
+window $StaticPlayer1Status left top 700 150 1100 40 caption
+window $StaticPlayer2Name left top 84 194 600 40 caption
+window $StaticPlayer2Status left top 700 194 1100 40 caption
+window $StaticPlayer3Name left top 84 238 600 40 caption
+window $StaticPlayer3Status left top 700 238 1100 40 caption
+window $StaticPlayer4Name left top 84 282 600 40 caption
+window $StaticPlayer4Status left top 700 282 1100 40 caption
+window $StaticPlayer5Name left top 84 326 600 40 caption
+window $StaticPlayer5Status left top 700 326 1100 40 caption
+window $StaticPlayer6Name left top 84 370 600 40 caption
+window $StaticPlayer6Status left top 700 370 1100 40 caption
+window $StaticPlayer7Name left top 84 414 600 40 caption
+window $StaticPlayer7Status left top 700 414 1100 40 caption
+
+window $ButtonQuit right bottom 64 40 200 44 danger
