@@ -178,6 +178,7 @@ W3DView::W3DView()
 	m_CameraArrivedAtWaypointOnPathFlag = false;	// Scripts for polling camera reached targets
 	m_isCameraSlaved = false;						// This is for 3DSMax camera playback
 	m_useRealZoomCam = false;						// true;	//WST 10/18/2002
+	m_terrainDrawSize = 0;
 	m_shakerAngles.X =0.0f;							// Proper camera shake generator & sources
 	m_shakerAngles.Y =0.0f;
 	m_shakerAngles.Z =0.0f;
@@ -3759,31 +3760,24 @@ bool W3DView::getDesiredTerrainDrawSize(ICoord2D &dimensions) const
 
 	const Real cameraPitch = asin(fabs(m_3DCamera->Get_Forward_Dir().Z));
 
-	if (!m_isUserControlled)
+	// zh-pipeline @fix 2026-10-24 The normal draw size only covers the view up to the retail camera ceiling;
+	// with CameraHeightScale the far corners of the view fell outside it. Size the draw area from the frustum.
+	// 2026-10-27 Scripted cameras too (shell map, cutscenes): they kept the normal size and culled the view edges.
+	// Terrain oversize from scripts still applies on top (setTerrainDrawSize takes the larger of the two).
+	Int drawSize = WorldHeightMap::NORMAL_DRAW_WIDTH;
+	if (!getFrustumTerrainDrawSize(drawSize))
 	{
-		// TheSuperHackers @info The scripted camera always uses the regular draw sizes
-		// and uses terrain oversize if it needs to enlarge.
-		dimensions.x = WorldHeightMap::NORMAL_DRAW_WIDTH;
-		dimensions.y = WorldHeightMap::NORMAL_DRAW_HEIGHT;
-		return true;
+		drawSize = WorldHeightMap::LOW_ANGLE_DRAW_WIDTH;
+	}
+	else if (m_isUserControlled && cameraPitch <= ViewDefaultLowPitchRadians)
+	{
+		// TheSuperHackers @tweak xezon 31/12/2025 Increases visible terrain area when lowering the camera pitch.
+		// Note: The default camera pitch in Generals was 37.5, which we prefer to keep the normal draw size for.
+		drawSize = std::max(drawSize, (Int)WorldHeightMap::LOW_ANGLE_DRAW_WIDTH);
 	}
 
-	if (cameraPitch > ViewDefaultLowPitchRadians)
-	{
-		// zh-pipeline @fix 2026-10-24 The normal draw size only covers the view up to the retail camera ceiling;
-		// with CameraHeightScale the far corners of the view fell outside it. Size the draw area from the frustum.
-		Int drawSize = WorldHeightMap::NORMAL_DRAW_WIDTH;
-		if (!getFrustumTerrainDrawSize(drawSize))
-			drawSize = WorldHeightMap::LOW_ANGLE_DRAW_WIDTH;
-		dimensions.x = drawSize;
-		dimensions.y = drawSize;
-		return true;
-	}
-
-	// TheSuperHackers @tweak xezon 31/12/2025 Increases visible terrain area when lowering the camera pitch.
-	// Note: The default camera pitch in Generals was 37.5, which we prefer to keep the normal draw size for.
-	dimensions.x = WorldHeightMap::LOW_ANGLE_DRAW_WIDTH;
-	dimensions.y = WorldHeightMap::LOW_ANGLE_DRAW_HEIGHT;
+	dimensions.x = drawSize;
+	dimensions.y = drawSize;
 	return true;
 }
 
@@ -3795,6 +3789,14 @@ void W3DView::updateTerrain()
 
 	if (getDesiredTerrainDrawSize(drawSize))
 	{
+		// zh-pipeline @tweak 2026-10-27 Shrink only by two or more vertex buffer tiles. Every size change reallocates the
+		// terrain buffers, and a moving cutscene camera would otherwise flip between neighbouring sizes.
+		if (drawSize.x < m_terrainDrawSize && drawSize.x > m_terrainDrawSize - 2 * VERTEX_BUFFER_TILE_LENGTH)
+		{
+			drawSize.x = m_terrainDrawSize;
+			drawSize.y = m_terrainDrawSize;
+		}
+		m_terrainDrawSize = drawSize.x;
 		TheTerrainRenderObject->setTerrainDrawSize(drawSize.x, drawSize.y);
 	}
 

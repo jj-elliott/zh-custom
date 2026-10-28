@@ -275,6 +275,7 @@ private:
 	Bool m_CameraArrivedAtWaypointOnPathFlag;
 
 	Real		m_FXPitch;															///< Camera effects pitch.  0 = flat, infinite = look down, 1 = normal.
+	Int			m_terrainDrawSize;													///< zh-pipeline: last terrain draw size this view asked for (shrink hysteresis)
 
 	Bool		m_freezeTimeForCameraMovement;
 	Int			m_timeMultiplier;												///< Time speedup multiplier.
