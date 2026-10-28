@@ -90,6 +90,9 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
 - [x] **9. Camera height scale** — done 2026-10-21, merged to `main` (3a417b362): `Core/GameEngine/Include/Common/CameraHeightScale.h` (+cpp),
       `DefaultScale = 1.5` (310 → 465) for everyone in network games, `Options.ini` `CameraHeightScale` honoured offline. CRC-verified no-op;
       human play-tested: "feels right". Pitch left at retail 37.5 (GenTool's 37 was the same).
+      2026-10-27: scale now 2.3 (713). Terrain draw area sized from the view frustum for every camera (user, shell map,
+      cutscenes), so the higher ceiling has no culled corners (`W3DView::getFrustumTerrainDrawSize`). Campaign `SET_FPS_LIMIT`
+      now paces the logic only (`FramePacer::setScriptLogicFpsLimit`): cutscenes keep retail timing, render stays uncapped.
 - [x] **10. Add-ons in the release zip** — done 2026-10-21. Archives are assets of release `addons-v1` in `jj-elliott/zh-custom` (public),
       fetched by `fetch-addons.ps1` (gh), layered by `stage-install.ps1`, packaged by `package.ps1`. Map pack `maps-v1` published, installed by
       the launcher. **Still open (small):** test `310_ExpandedLANLobbyMenu` against upstream's lobby; confirm borderless 3840×2160 and pin

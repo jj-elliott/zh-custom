@@ -29,9 +29,9 @@
 
 namespace CameraHeightScale
 {
-	/// Baked default, applied to everyone in network games. 2.0x the retail ceiling (Zero Hour: 310 -> 620).
-	/// History: 1.5 play-tested 2026-10-21 "feels right" but the human asked for more; 2.0 next. Tune by play-test.
-	constexpr Real DefaultScale = 2.0f;
+	/// Baked default, applied to everyone in network games. 2.3x the retail ceiling (Zero Hour: 310 -> 713).
+	/// History: 1.5 play-tested 2026-10-21 "feels right" but the human asked for more; 2.0 next; 2026-10-27 +15% -> 2.3.
+	constexpr Real DefaultScale = 2.3f;
 
 	/// Call once after Options.ini has been read (per-machine override; <= 0 means "not set").
 	void SetUserScale(Real scale);
