@@ -37,6 +37,7 @@ FramePacer::FramePacer()
 
 	m_maxFPS = BaseFps;
 	m_logicTimeScaleFPS = LOGICFRAMES_PER_SECOND;
+	m_scriptLogicFpsLimit = 0;
 	m_updateTime = 1.0f / (Real)BaseFps; // initialized to something to avoid division by zero on first use
 	m_logicFramePhase = 1.0f;
 	m_enableFpsLimit = FALSE;
@@ -210,13 +211,28 @@ Int FramePacer::getActualLogicTimeScaleFps(LogicTimeQueryFlags flags) const
 		return TheNetwork->getFrameRate();
 	}
 
-	if (isLogicTimeScaleEnabled())
+	// Returns uncapped value to align with the render update as per the original game behavior.
+	Int fps = isLogicTimeScaleEnabled() ? getLogicTimeScaleFps() : (Int)RenderFpsPreset::UncappedFpsValue;
+
+	// zh-pipeline @fix 2026-10-27 Campaign cutscenes set a 20 fps limit by script. In retail the logic ran once per render
+	// frame, so that slowed the scene's game time to 20 Hz; apply it to the logic rate only, so the timing is kept and
+	// the render stays uncapped.
+	if (m_scriptLogicFpsLimit > 0)
 	{
-		return getLogicTimeScaleFps();
+		fps = min(fps, m_scriptLogicFpsLimit);
 	}
 
-	// Returns uncapped value to align with the render update as per the original game behavior.
-	return RenderFpsPreset::UncappedFpsValue;
+	return fps;
+}
+
+void FramePacer::setScriptLogicFpsLimit( Int fps )
+{
+	m_scriptLogicFpsLimit = max(fps, 0);
+}
+
+Int FramePacer::getScriptLogicFpsLimit() const
+{
+	return m_scriptLogicFpsLimit;
 }
 
 Real FramePacer::getActualLogicTimeScaleRatio(LogicTimeQueryFlags flags) const

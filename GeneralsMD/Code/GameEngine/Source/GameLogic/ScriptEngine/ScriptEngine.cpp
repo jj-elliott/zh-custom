@@ -5266,6 +5266,8 @@ void ScriptEngine::reset()
 	// setting FPS limit in case a script had changed it
 	if (TheFramePacer && TheGlobalData)
 		TheFramePacer->setFramesPerSecondLimit(TheGlobalData->m_framesPerSecondLimit);
+	if (TheFramePacer)
+		TheFramePacer->setScriptLogicFpsLimit(0);	// zh-pipeline: see ScriptAction::SET_FPS_LIMIT
 
 	if (TheScriptActions) {
 		TheScriptActions->reset();

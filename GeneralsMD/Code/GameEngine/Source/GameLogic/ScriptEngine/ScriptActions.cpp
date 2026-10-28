@@ -7197,16 +7197,10 @@ void ScriptActions::executeAction( ScriptAction *pAction )
 			doSetStoppingDistance(pAction->getParameter(0)->getString(), pAction->getParameter(1)->getReal());
 			return;
 		case ScriptAction::SET_FPS_LIMIT:
-			if (!pAction->getParameter(0)->getInt())
-			{
-				TheFramePacer->setFramesPerSecondLimit(TheGlobalData->m_framesPerSecondLimit);
-			}
-			else
-			{
-				TheFramePacer->setFramesPerSecondLimit(pAction->getParameter(0)->getInt());
-			}
-			// Setting the fps limit doesn't do much good if we don't use it.  jba.
-			TheWritableGlobalData->m_useFpsLimit = true;
+			// zh-pipeline @fix 2026-10-27 The script limit paces the logic, not the render: retail capped the render (and with
+			// it the once-per-frame logic) and forced the cap on, which left campaign cutscenes at 20 fps and the rest of the
+			// mission at 30 fps. 0 clears it. Pacing only: the logic frames and their contents are unchanged.
+			TheFramePacer->setScriptLogicFpsLimit(pAction->getParameter(0)->getInt());
 			return;
 
 		case ScriptAction::DISABLE_SPECIAL_POWER_DISPLAY:

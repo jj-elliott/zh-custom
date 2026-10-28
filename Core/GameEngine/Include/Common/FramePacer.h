@@ -69,12 +69,16 @@ public:
 
 	Real getLogicFramePhase() const; ///< Get how far the current render step reaches into the current logic frame, in [0,1]. Used to interpolate render updates between logic updates.
 
+	void setScriptLogicFpsLimit( Int fps ); ///< zh-pipeline: map script SET_FPS_LIMIT, applied to the logic rate instead of the render rate. 0 clears it.
+	Int  getScriptLogicFpsLimit() const;
+
 protected:
 
 	FrameRateLimit m_frameRateLimit;
 
 	Int m_maxFPS; ///< Maximum frames per second for rendering
 	Int m_logicTimeScaleFPS; ///< Maximum frames per second for logic time scale
+	Int m_scriptLogicFpsLimit; ///< zh-pipeline: logic fps cap set by a map script, 0 = none
 
 	Real m_updateTime; ///< Last update delta time in seconds
 	Real m_logicFramePhase; ///< How far the current render step reaches into the current logic frame, ranging 0 to 1.
