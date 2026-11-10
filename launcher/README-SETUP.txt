@@ -22,7 +22,8 @@ Windows Security > App & browser control > Smart App Control settings > Off. (Wi
 turned back on without reinstalling Windows; that is expected.) Then run the shortcut again.
 
 If it says "Not launching": read the lines above it, they name the exact file that differs. The usual cause is a game
-file changed by GenTool/GenPatcher. Fix: in Steam, right-click Zero Hour > Properties > Installed Files > Verify integrity
+file changed by GenTool/GenPatcher. The launcher first tries to take the original back from the Steam folder (GenPatcher
+keeps it there as <name>.bak); if that was not possible, fix it by hand: in Steam, right-click Zero Hour > Properties > Installed Files > Verify integrity
 of game files, then run the desktop shortcut again. If the game crashes, the launcher mentions a crash dump next time;
 send the small CrashM*.dmp file plus BUILD_VERSION.txt.
 

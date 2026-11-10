@@ -274,10 +274,13 @@ if (File.Exists(manifest))
         if (parts.Length != 2) continue;
         var (want, rel) = (parts[0].Trim().ToLowerInvariant(), parts[1].Trim());
         var file = Path.Combine(dir, rel);
-        if (!File.Exists(file)) { problems.Add($"Missing asset: {rel}"); continue; }
-        using var fs = File.OpenRead(file);
-        var got = Convert.ToHexString(SHA256.HashData(fs)).ToLowerInvariant();
-        if (got != want) problems.Add($"Asset differs from release: {rel} (yours {got[..8]}, expected {want[..8]})");
+        var got = File.Exists(file) ? Sha256Of(file) : null;
+        if (got == want) continue;
+        // Self-repair: GenPatcher removes or rewrites some of Steam's originals (PatchWindow.big, WindowZH.big) but keeps
+        // the original beside it as <name>.bak. Take the file from the Steam folder when its hash is the expected one.
+        if (TryRestoreFromSteam(rel, want, file)) continue;
+        problems.Add(got is null ? $"Missing asset: {rel}"
+                                 : $"Asset differs from release: {rel} (yours {got[..8]}, expected {want[..8]})");
     }
     Log(problems.Count == 0 ? "Assets match release manifest." : "Asset check FAILED.");
 }
@@ -328,6 +331,35 @@ void Log(string s)
     if (LogFile is not null) { try { File.AppendAllText(LogFile, line + Environment.NewLine); } catch { } }
 }
 
+static string Sha256Of(string path)
+{
+    using var fs = File.OpenRead(path);
+    return Convert.ToHexString(SHA256.HashData(fs)).ToLowerInvariant();
+}
+
+// Copy <rel> into this folder from the Steam install when Steam has a copy with the expected hash, either under its own
+// name or as the <name>.bak GenPatcher leaves behind. Steam's folder is only read. Returns true when the file is now right.
+bool TryRestoreFromSteam(string rel, string want, string dest)
+{
+    try
+    {
+        var steam = FindSteamZeroHour();
+        if (steam is null || Path.GetFullPath(steam).TrimEnd('\\').Equals(Path.GetFullPath(dir).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
+            return false;
+        var src = Path.Combine(steam, rel.Replace('/', Path.DirectorySeparatorChar));
+        foreach (var cand in new[] { src, src + ".bak" })
+        {
+            if (!File.Exists(cand) || Sha256Of(cand) != want) continue;
+            Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+            File.Copy(cand, dest, overwrite: true);
+            Log($"Restored {rel} from {cand}");
+            return true;
+        }
+    }
+    catch (Exception ex) { Log($"Could not restore {rel} from the Steam folder: {ex.Message}"); }
+    return false;
+}
+
 // Steam writes the game's registry key (installScript.vdf); fall back to scanning the Steam library folders.
 static string? FindSteamZeroHour()
 {
@@ -374,7 +406,8 @@ int CopyGameFolder(string src, string dst)
         var rel = Path.GetRelativePath(src, file);
         var top = rel.Split(Path.DirectorySeparatorChar)[0];
         if (skipDir.Contains(top) && rel.Contains(Path.DirectorySeparatorChar)) continue;
-        if (skipFile.IsMatch(Path.GetFileName(file)) && !rel.Contains(Path.DirectorySeparatorChar)) continue;   // top level only; Data\INI\INIZH.big stays (engine ignores it)
+        if (skipFile.IsMatch(Path.GetFileName(file)) && !rel.Contains(Path.DirectorySeparatorChar)) continue;   // top level only
+        if (rel.Equals(@"Data\INI\INIZH.big", StringComparison.OrdinalIgnoreCase)) continue;   // stale pre-1.04 duplicate; the engine skips it, GenPatcher deletes it
         var to = Path.Combine(dst, rel);
         Directory.CreateDirectory(Path.GetDirectoryName(to)!);
         var si = new FileInfo(file);

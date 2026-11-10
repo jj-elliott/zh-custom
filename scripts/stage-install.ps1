@@ -27,7 +27,7 @@ param(
   ),
   [string[]]$ExcludeDirs = @("launcher"),                        # GenLauncher residue: never copied, purged from the dev copy
   [string[]]$PreserveDirs = @("logs", "crashdumps"),             # ours in the dev copy (netlogs!): never mirrored from Steam, never purged
-  [string[]]$PreserveFiles = @("ZHLauncher.exe", "ZHLauncher.exe.old", "launcher.json", "generalszh.exe.prev", "*.log")  # same, files
+  [string[]]$PreserveFiles = @("ZHLauncher.exe", "ZHLauncher.exe.old", "launcher.json", "generalszh.exe.prev", "*.log", "600_HD*ZH.big")  # same, files; 600_HD*: local texture packs (make-texture-pack.ps1)
 )
 $ErrorActionPreference = "Stop"
 $repo = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -59,9 +59,31 @@ $rcArgs = @($SteamZHPath, $DevDir, "/MIR", "/NFL", "/NDL", "/NJH", "/NJS", "/NP"
 & robocopy @rcArgs | Out-Null
 if ($LASTEXITCODE -ge 8) { throw "robocopy failed with exit code $LASTEXITCODE" }   # 0-7 = success variants
 $removed = @()
-foreach ($pat in $ExcludeFiles) { Get-ChildItem $DevDir -File -Filter $pat -ErrorAction SilentlyContinue | ForEach-Object { $removed += $_.Name; Remove-Item $_.FullName -Force } }
+# PreserveFiles wins over ExcludeFiles: 600_HD*ZH.big (local texture packs) also matches the GenPatcher pattern 6??_*.big.
+foreach ($pat in $ExcludeFiles) {
+  Get-ChildItem $DevDir -File -Filter $pat -ErrorAction SilentlyContinue |
+    Where-Object { $n = $_.Name; -not ($PreserveFiles | Where-Object { $n -like $_ }) } |
+    ForEach-Object { $removed += $_.Name; Remove-Item $_.FullName -Force }
+}
 foreach ($d in $ExcludeDirs) { $p = Join-Path $DevDir $d; if (Test-Path $p) { $removed += "$d\"; Remove-Item $p -Recurse -Force } }
 if ($removed) { Write-Host "Removed from dev copy: $($removed -join ', ')" }
+
+# GenPatcher removes or rewrites some Steam originals (PatchWindow.big, WindowZH.big) and keeps the original as <name>.bak.
+# Where the dev copy now lacks or differs from a file the committed manifest lists, take the Steam file or its .bak if that
+# has the recorded hash (same rule as the launcher's TryRestoreFromSteam), so a GenPatcher run does not move the baseline.
+$committed = Join-Path $repo "assets.sha256"
+if (Test-Path $committed) {
+  foreach ($line in Get-Content $committed | Where-Object { $_ -and $_ -notmatch '^#' }) {
+    $want, $rel = $line -split '\s+', 2
+    $dest = Join-Path $DevDir $rel
+    if ((Test-Path $dest) -and (Get-FileHash $dest -Algorithm SHA256).Hash -ieq $want) { continue }
+    $bak = (Join-Path $SteamZHPath $rel) + ".bak"
+    if ((Test-Path $bak) -and (Get-FileHash $bak -Algorithm SHA256).Hash -ieq $want) {
+      Copy-Item $bak $dest -Force
+      Write-Host "Restored $rel from Steam's $([IO.Path]::GetFileName($bak))"
+    }
+  }
+}
 
 # Layer our deliberate add-ons on top of vanilla (the /XF list above strips any copies that came with the Steam folder).
 # They only get here after sha256 verification, so the dev copy matches what the release zip will carry.
