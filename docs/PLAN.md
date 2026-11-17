@@ -169,7 +169,7 @@ Three parts, each doing one job, and everything they replace switched off:
 | **Contact rules** | only what the other two can't: idle ally steps aside, stacked idle units spread out, push priority, 2 s escape when blocked by standing allies | `AIUpdate.cpp` (`processCollision`, `blockedBy`, `hasHigherPathPriority`, `shouldAskToYield`, `isSteeredPair`) |
 
 - **Traffic map.** When a ground unit gets a path, every cell under it (unit width) is stamped with the frame the unit expects
-  to be there and a load count. The A* adds 1 per other unit (max 3; a cell costs 10) for cells stamped within 5 s of our own
+  to be there and a load count. The A* adds 2 per other unit (max 2; a cell costs 10) for cells stamped within 5 s of our own
   estimated arrival; the half-price "beeline to goal" shortcut pays the same; and at most one path node in eight running alongside
   traffic is pinned (`setCanOptimize(false)`) so the line-of-sight smoother can't cut back through it. Stamps lapse by time, nothing
   is erased. Arrival time = straight-line cells from the search start × frames per cell at top speed.
@@ -225,6 +225,13 @@ loaded from a save record no replay.
   leaving stair-stepped paths, now at most one in eight; tracked vehicles carried 30% speed to 90 degrees, now 20% and pivot
   from 110. The user's guess (pathfind grid too coarse) was not the cause: the grid is 10 units, about half a tank.
   A test save now exists (`movetest.ps1 -Name pathfinding`).
+
+- **Second (2026-11-16, from the `pathfinding` test save, no replay):** "still a bit sticky, units not flowing enough". No detail on
+  where. Changed on the likeliest causes: queueing used the padded avoidance radius and the whole front half-plane, so units
+  abreast were permanently paced by whichever neighbour was a nose ahead (now: within 85% of the bare combined radius and 45
+  degrees of dead ahead); slowing/stopping cost 1.5/3.0 against going round (now 2.5/5.0); jam escape after 1 s (was 2 s);
+  traffic penalty 2 per unit, max +4 (was 1, max +3). If it is still sticky, ask *where*: setting off, mid-route, at a
+  choke, or on arrival; each points at a different part.
 
 ### Open
 

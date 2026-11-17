@@ -43,15 +43,23 @@ namespace
 	const Int MAX_NEIGHBOURS = 24;
 
 	const Real COST_COLLISION = 10.0f;	// a collision right now; falls off with the square of the time left.
-	const Real COST_HALF_SPEED = 1.5f;
-	const Real COST_STOP = 3.0f;
+	// Second play-test of the unified system: "sticky, not flowing enough". Slowing and stopping were too cheap next
+	// to going round (was 1.5 / 3.0), so units braked for each other where they had room to pass.
+	const Real COST_HALF_SPEED = 2.5f;
+	const Real COST_STOP = 5.0f;
 	const Real START_COST = 0.6f;				// a threat milder than this (about 1.1 s away) doesn't start a manoeuvre...
 	const UnsignedInt STEERING_RECENT = LOGICFRAMES_PER_SECOND/2;	// ...but one under way is seen through.
 	const UnsignedInt COMMIT_FRAMES = LOGICFRAMES_PER_SECOND;			// how long a chosen side stays chosen.
 	const Real COST_CHANGE_SIDE = 4.0f;	// switching side while committed: only to dodge something imminent.
 	const Real BONUS_SAME_SIDE = 0.8f;
 	const Real EASE = 0.25f;						// share of the wanted turn applied per frame; the rest is last frame's.
-	const UnsignedInt ESCAPE_AFTER = 2*LOGICFRAMES_PER_SECOND;		// held at a standstill this long = jammed.
+	const UnsignedInt ESCAPE_AFTER = LOGICFRAMES_PER_SECOND;			// held at a standstill this long = jammed (was 2 s).
+	// Queueing applies to a unit we are really into, not merely beside: within 85% of the bare combined radius and
+	// inside 45 degrees of dead ahead. (It used the padded avoidance radius and the whole front half-plane, so units
+	// travelling abreast were permanently "queued" behind whichever neighbour was a nose in front, and any that
+	// turned or slowed dragged its neighbours down with it.)
+	const Real QUEUE_CONTACT = 0.85f / CLEARANCE;	// of n.radius, which is padded by CLEARANCE.
+	const Real QUEUE_CONE = 0.70710678f;					// cos 45.
 
 	// Candidate directions: the path direction rotated by these angles. cos/sin as constants, so no runtime trig.
 	struct Turn
@@ -94,9 +102,15 @@ namespace
 		return geom.getMajorRadius();
 	}
 
-	inline Bool touching( const Neighbour& n )
+	// In front of us (direction dirX, dirY) and overlapping enough to queue behind.
+	inline Bool queuedBehind( const Neighbour& n, Real dirX, Real dirY )
 	{
-		return n.x*n.x + n.y*n.y <= n.radius*n.radius;
+		Real distSqr = n.x*n.x + n.y*n.y;
+		Real reach = n.radius * QUEUE_CONTACT;
+		if (distSqr > reach*reach)
+			return FALSE;
+		Real ahead = n.x*dirX + n.y*dirY;
+		return ahead > 0.0f && ahead*ahead >= QUEUE_CONE*QUEUE_CONE*distSqr;
 	}
 
 	// Frames until we touch n when moving with velocity (vx, vy); HORIZON or more = nothing to avoid. Units that
@@ -189,7 +203,7 @@ static Bool choose( Object *obj, AIUpdateInterface *ai, Real dirX, Real dirY, Re
 
 		// Queueing: a unit under way that we already touch and that is in front of us sets our pace. A unit with
 		// nowhere to go doesn't (slowing never gets us past it; the contact rules deal with it).
-		if (ahead > 0.0f && touching(n) && aiOther->isMoving())
+		if (queuedBehind(n, dirX, dirY) && aiOther->isMoving())
 		{
 			Real pace = n.vx*dirX + n.vy*dirY;	// its speed in our direction.
 			if (pace < 0.0f)

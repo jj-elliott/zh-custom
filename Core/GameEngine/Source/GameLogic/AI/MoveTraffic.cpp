@@ -36,8 +36,10 @@ namespace
 	// First play-test of the unified system: at 6 per unit (up to +18 on a 10-cost cell) units over-spread, some
 	// setting off sideways or backwards to get round the whole group. The penalty only has to break the tie between
 	// "the same line as everyone" and "the free line next to it", so it is small: at most +3, a 30% longer way round.
-	const Int COST_PER_UNIT = 1;														// extra cost per other unit due in a cell...
-	const Int MAX_COUNTED = 3;															// ...up to this many, so a real choke stays affordable.
+	// Second play-test: at 1 per unit units no longer over-spread but shared lines again and got in each other's way.
+	// 2 per unit, at most +4 (a 40% longer way round), now that the other two causes of over-spreading are gone.
+	const Int COST_PER_UNIT = 2;														// extra cost per other unit due in a cell...
+	const Int MAX_COUNTED = 2;															// ...up to this many, so a real choke stays affordable.
 	const Int MAX_LOAD = 250;
 
 	struct Cell
