@@ -201,6 +201,24 @@ units that end up overlapping should spread apart once they stop, as in StarCraf
     Open questions for the next session: is the queue speed right (0.9 / 0.5), does the zipper look natural, does spread-out fire
     when expected (it depends on idle units still receiving collision callbacks), does a long queue ever wrongly count as stalled.
 
+**Second play-test 2026-11-16 (level 4, `tests/replays/move-02.rep`, reproduces at `-moverules 4`):** "much better, still a bit too
+much overlap". **But level 4 as played never queue-followed:** `m_flowFrame` started at 0, so from frame 90 every unit counted as stalled
+and `followInFlow` was never reached (found because `move-02.rep` replayed identically with the first level 5 change, which only touched
+`followInFlow`). What was actually played and liked: retail blocking between same-heading units, plus steps 1–2, the 2 s jam fail-safe
+(the source of the remaining overlap) and spread-out. Worth remembering if level 5 feels worse: that combination is a known-good fallback.
+
+- **Step 3, third cut (level 5, the default; level 4 keeps the inert behaviour so `move-02.rep` stays a baseline):**
+  - *Fix:* a queue episode starts its stall clock at first contact with a flow partner (`m_flowContactFrame`; a 1 s gap = new episode)
+    and the unit's own movement refreshes it even while stalled. Queue-following now really runs.
+  - *Tight spacing:* the follower's cap is leader speed × room, where room falls from 1 at first touch to 0 at 15% penetration
+    (measured against the centre distance at which two boxes with these headings first touch), ×0.5 when the leader is alongside;
+    the follower's velocity is cut to the cap immediately (`scrubVelocity2D`) instead of braking down to it.
+  - With following working, a moving queue no longer feeds the jam fail-safe, so ghosting should now only happen in a genuinely
+    stalled queue (3 s without movement ahead, then 2 s blocked).
+  - Not play-tested. Level 5 diverges from the level 4 recording of `move-02.rep` at frame 3600, identically on two runs.
+    Watch for: followers halting too abruptly (the immediate velocity cut), stop-and-go pulsing in a queue, 15% being too
+    strict or too loose, single-file squeezing where formation neighbours merely brush sides.
+
 Budget: steps 1–3 a couple of weekends; 4 another couple; 5 a month or two of evenings; 6 another month. Cheaper than Phase 6 and independent of it; can run in parallel on a `move/*` branch.
 
 ## Adjustments pulled forward to make Phase 6 cheap later

@@ -242,6 +242,7 @@ AIUpdateInterface::AIUpdateInterface( Thing *thing, const ModuleData* moduleData
 	m_jamLastFrame = 0;
 	m_flowSpeedLimit = FAST_AS_POSSIBLE;
 	m_flowFrame = 0;
+	m_flowContactFrame = 0;
 	m_queueForPathFrame = 0;
 	m_finalPosition.zero();
 	m_repulsor1 = INVALID_ID;
@@ -1413,9 +1414,43 @@ void AIUpdateInterface::followInFlow(Object *other)
 			leaderSpeed = 0.0f;
 		}
 	}
+	Real dist = toOther.length();
 	toOther.normalize();
 	Real bearing = toOther.x*ourDir->x + toOther.y*ourDir->y;	// 1 = dead ahead, 0 = alongside.
 	Real limit = leaderSpeed * (bearing > 0.7f ? 0.9f : 0.5f);
+
+	// zh-pipeline @feature 2026-11-16 Phase 7 step 3 (third cut, level 5). Level 4 still let followers sink well into
+	// the unit ahead: contact is only reported once the shapes already intersect, 0.9x the leader's speed barely
+	// reopens that, and the locomotor brakes gradually. Now the cap scales with how deep we are: full leader speed at
+	// first touch, zero once 15% inside, and our velocity is cut to the cap at once rather than braked down to it.
+	// Depth is measured against the distance at which two boxes with these headings would first touch along the line
+	// between the centres (half length and half width projected onto it), so nose-to-tail and side-by-side both work.
+	if (MoveRules::tightQueue())
+	{
+		const GeometryInfo& ourGeom = obj->getGeometryInfo();
+		const GeometryInfo& theirGeom = other->getGeometryInfo();
+		Real ourLen = ourGeom.getMajorRadius();
+		Real ourWid = (ourGeom.getGeomType() == GEOMETRY_BOX) ? ourGeom.getMinorRadius() : ourLen;
+		Real theirLen = theirGeom.getMajorRadius();
+		Real theirWid = (theirGeom.getGeomType() == GEOMETRY_BOX) ? theirGeom.getMinorRadius() : theirLen;
+		Real touchDist =
+			ourLen * WWMath::Fabs(toOther.x*ourDir->x + toOther.y*ourDir->y) +
+			ourWid * WWMath::Fabs(toOther.x*ourDir->y - toOther.y*ourDir->x) +
+			theirLen * WWMath::Fabs(toOther.x*theirDir->x + toOther.y*theirDir->y) +
+			theirWid * WWMath::Fabs(toOther.x*theirDir->y - toOther.y*theirDir->x);
+		const Real MAX_DEPTH = 0.15f;	// fraction of touchDist we may be inside before we must stand still.
+		Real room = 0.0f;							// 1 at first touch, 0 at MAX_DEPTH or deeper.
+		if (touchDist > 0.0f) {
+			room = (dist/touchDist - (1.0f - MAX_DEPTH)) / MAX_DEPTH;
+			if (room < 0.0f) room = 0.0f;
+			if (room > 1.0f) room = 1.0f;
+		}
+		limit = leaderSpeed * room * (bearing > 0.7f ? 1.0f : 0.5f);
+		if (ourPhysics) {
+			ourPhysics->scrubVelocity2D(limit);
+		}
+	}
+
 	if (limit < m_flowSpeedLimit) {
 		m_flowSpeedLimit = limit;
 	}
@@ -1641,10 +1676,31 @@ Bool AIUpdateInterface::processCollision(PhysicsBehavior *physics, Object *other
 	if (selfMoving)
 	{
 		// zh-pipeline @feature 2026-11-16 Phase 7 step 3 (level 4): queue with an ally going our way.
-		if (MoveRules::softFlow() && isFlowPair(other) && !isFlowStalled())
+		if (MoveRules::softFlow() && isFlowPair(other))
 		{
-			followInFlow(other);
-			return FALSE;
+			// Level 5 bugfix: m_flowFrame starts at 0, so from frame 90 on every unit counted as "stalled" before it had
+			// ever queued, and followInFlow (the only place that refreshed it) was never reached: level 4 as played in
+			// move-02.rep never queue-followed at all. A queue episode now starts its stall clock at first contact, and
+			// our own movement refreshes it here, also while stalled, so a queue that gets going again is a queue again.
+			// Level 4 keeps the inert behaviour so that replay still reproduces.
+			if (MoveRules::tightQueue())
+			{
+				UnsignedInt now = TheGameLogic->getFrame();
+				if (now - m_flowContactFrame > LOGICFRAMES_PER_SECOND)
+				{
+					m_flowFrame = now;
+				}
+				m_flowContactFrame = now;
+				if (physics->getVelocityMagnitude() > 0.05f)
+				{
+					m_flowFrame = now;
+				}
+			}
+			if (!isFlowStalled())
+			{
+				followInFlow(other);
+				return FALSE;
+			}
 		}
 
 		Bool blocked = blockedBy(other);

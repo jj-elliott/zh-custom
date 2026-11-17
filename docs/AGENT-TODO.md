@@ -132,6 +132,9 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       **2026-11-16 play-test of level 3:** flow good, overlap too free (chokes stop mattering). Level 4 (default) replaces overlap with
       queue-following plus spread-out of stacked idle units; `move-01.rep` imported as the level 3 baseline. **Open, human:** play again at
       the default level, watch a column at a choke and a group stopping; import as `move-02`.
+      **2026-11-16 second play-test (level 4):** better, still some overlap; level 4 turned out never to queue-follow (stale stall
+      timer). Level 5 (default) fixes that and tightens spacing; `move-02.rep` is the level 4 baseline. **Open, human:** play at level 5,
+      import as `move-03`. If it feels worse than the second game, say so: that game's behaviour is still available as `-moverules 4`.
 
 ## Findings from source inspection (2026-10-21, before first build) — read before starting the items above
 

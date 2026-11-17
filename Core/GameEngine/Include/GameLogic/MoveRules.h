@@ -45,8 +45,9 @@ namespace MoveRules
 		PRIORITY = 2,			///< step 2: push priority (player order > auto-move, then heavier Mass) decides who gives way
 		PASS_THROUGH = 3,	///< step 3, first cut: allies moving the same way pass through each other; a unit blocked past 2 s drops collision for itself
 		SOFT_FLOW = 4,		///< step 3, second cut: same-way allies queue behind each other instead of overlapping, without the stuck/repath churn; stacked idle units spread out
+		TIGHT_QUEUE = 5,	///< step 3, third cut: a follower's speed cap falls to zero as it sinks into the unit ahead, and is applied at once
 
-		LATEST = SOFT_FLOW
+		LATEST = TIGHT_QUEUE
 	};
 
 	Int getLevel();
@@ -56,4 +57,5 @@ namespace MoveRules
 	inline Bool pushPriority() { return getLevel() >= PRIORITY; }
 	inline Bool passThrough() { return getLevel() >= PASS_THROUGH; }	///< step 3 in either form (also gates the stuck fail-safe)
 	inline Bool softFlow() { return getLevel() >= SOFT_FLOW; }				///< queue-following replaces the level 3 overlap
+	inline Bool tightQueue() { return getLevel() >= TIGHT_QUEUE; }		///< depth-scaled, immediate speed cap for followers
 }
