@@ -271,6 +271,30 @@ units touch and can only slow, wait or repath. Decision: build step 4.
   changed); vehicles ignore infantry entirely; "stuck between buildings" is unexplained and may or may not be touched by this
   (candidates: jam fail-safe or a path-around leaving a unit in a gap) — needs a skirmish replay of it to look at.
 
+**Fifth play-test 2026-11-16 (level 7, `tests/replays/move-04.rep`, 6:46, reproduces at `-moverules 7`; the interesting part starts
+around 4:00, a group going around a cliff):** flows better, but (1) a mixed infantry + vehicle group flowed badly, apparently the
+retail "infantry get out of the vehicle's way" shove, which the user expected steering to subsume; wheeled vehicles suffered most;
+(2) one unit in a clump spun in circles; (3) Humvees + Crusaders on the curves jittered, flicking left/right frame to frame, "not
+enough stickiness"; (4) units are still not willing enough to flow out wide around a tight curve. Units reversing to reach a nearby
+spot was seen and judged a feature.
+
+- **Step 4, second cut (level 8, the default; level 7 kept for `move-04.rep`):**
+  - *Commitment.* A chosen side is kept for 1 s: same side −0.8, other side +4 (only to dodge something imminent).
+  - *Eased turn.* The applied turn moves a quarter of the way toward the wanted one each frame, in and back out
+    (`AISteering::State::offCos/offSin`), instead of jumping between 15° steps.
+  - *Later start.* A threat milder than cost 0.6 (roughly more than 1.1 s away) doesn't start a manoeuvre; one under way continues.
+  - *No orbiting.* A neighbour we already overlap is left to the contact rules instead of scoring as "collision now" (which made
+    only "directly away" acceptable and, as the path direction swung round, kept the unit turning); non-tracked vehicles are
+    limited to ±60° (infantry keep ±90°, tracked ±45°).
+  - *Infantry are obstacles for vehicles* that cannot crush them; infantry still walk through infantry. The retail shove on
+    contact remains underneath.
+  - Stalled-queue repath patience 1 s → 2 s, since steering now does most of that job.
+  - Soaked at level 8: all five recordings run to the end, no crash, identical final CRCs on two runs. Not play-tested.
+- **Not addressed, on purpose:** (4) flowing out wide on a curve. Steering only reacts to units, it has no notion of "there is
+  room outside the corner, use it"; every unit's path hugs the same inside line and steering spreads them only as they conflict.
+  The real fix is in where units aim, not how they dodge: per-unit lateral offsets along a shared path for a group order, or a
+  flow field for the group (step 6). Worth doing next if level 8's smoothing is not enough.
+
 Budget: steps 1–3 a couple of weekends; 4 another couple; 5 a month or two of evenings; 6 another month. Cheaper than Phase 6 and independent of it; can run in parallel on a `move/*` branch.
 
 ## Adjustments pulled forward to make Phase 6 cheap later

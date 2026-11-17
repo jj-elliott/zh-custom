@@ -244,7 +244,6 @@ AIUpdateInterface::AIUpdateInterface( Thing *thing, const ModuleData* moduleData
 	m_flowSpeedLimit = FAST_AS_POSSIBLE;
 	m_flowFrame = 0;
 	m_flowContactFrame = 0;
-	m_steerSide = 0;
 	m_queueForPathFrame = 0;
 	m_finalPosition.zero();
 	m_repulsor1 = INVALID_ID;
@@ -1394,7 +1393,11 @@ Bool AIUpdateInterface::isStoppedToAttack(Object *other) const
 Bool AIUpdateInterface::isFlowStalled() const
 {
 	// Level 6: 1 s, and the answer to a stall is an immediate path-around (processCollision), not the slow retail wait.
+	// Level 8: 2 s. With steering already taking units around whatever stands in the way, a repath every second on
+	// top of it was one of the things making groups twitch on curves.
 	UnsignedInt patience = MoveRules::easedFlow() ? LOGICFRAMES_PER_SECOND : 3*LOGICFRAMES_PER_SECOND;
+	if (MoveRules::steeringSticky())
+		patience = 2*LOGICFRAMES_PER_SECOND;
 	return TheGameLogic->getFrame() - m_flowFrame > patience;
 }
 
@@ -2635,7 +2638,7 @@ UpdateSleepTime AIUpdateInterface::doLocomotor()
 							StateID state = m_stateMachine->getCurrentStateID();
 							if (state != AI_FOLLOW_EXITPRODUCTION_PATH && state != AI_DOCK && state != AI_ENTER)
 							{
-								AISteering::steer(getObject(), this, goalPos, speed, m_steerSide);
+								AISteering::steer(getObject(), this, goalPos, speed, m_steer);
 							}
 						}
 

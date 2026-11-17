@@ -44,11 +44,20 @@ struct Coord3D;
 
 namespace AISteering
 {
+	/// What one unit remembers between frames. Transient: not saved, not in the CRC stream; lockstep keeps it equal.
+	struct State
+	{
+		Int side;								///< which way we last turned: -1 left, 0 none, +1 right.
+		UnsignedInt sideFrame;	///< frame of that choice (level 8: we stay committed to the side for a while).
+		Real offCos, offSin;		///< level 8: the turn currently applied, as a rotation of the path direction; eased frame to frame.
+
+		State() : side(0), sideFrame(0), offCos(1.0f), offSin(0.0f) { }
+	};
+
 	/**
 		Adjust this frame's aim point and speed so that obj avoids the units around it.
 		goalPos / speed: in = what the path follower wants, out = what to give the Locomotor.
-		side: the caller's memory of which way we last turned (-1 left, 0 none, +1 right); keeps a choice stable.
 		Returns TRUE if anything was changed.
 	*/
-	Bool steer( Object *obj, AIUpdateInterface *ai, Coord3D& goalPos, Real& speed, Int& side );
+	Bool steer( Object *obj, AIUpdateInterface *ai, Coord3D& goalPos, Real& speed, State& state );
 }

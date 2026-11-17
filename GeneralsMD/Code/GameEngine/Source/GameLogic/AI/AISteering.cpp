@@ -29,6 +29,7 @@
 #include "GameLogic/AIPathfind.h"
 #include "GameLogic/Locomotor.h"
 #include "GameLogic/Module/AIUpdate.h"
+#include "GameLogic/MoveRules.h"
 #include "GameLogic/Module/PhysicsUpdate.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/PartitionManager.h"
@@ -44,6 +45,15 @@ namespace
 	const Real COST_HALF_SPEED = 1.5f;
 	const Real COST_STOP = 3.0f;
 	const Real BONUS_SAME_SIDE = 0.3f;	// keep turning the way we already turn.
+
+	// Level 8 (fifth play-test: units flicked left/right from frame to frame on curves, one spun in circles).
+	const Real START_COST = 0.6f;										// don't start steering for a threat milder than this (about 1.1 s away).
+	const UnsignedInt STEERING_RECENT = LOGICFRAMES_PER_SECOND/2;	// ... but keep steering once started until clear this long.
+	const UnsignedInt COMMIT_FRAMES = LOGICFRAMES_PER_SECOND;			// how long a chosen side stays chosen.
+	const Real COST_CHANGE_SIDE = 4.0f;							// switching side while committed: only to dodge something imminent.
+	const Real BONUS_SAME_SIDE_STICKY = 0.8f;
+	const Real EASE = 0.25f;												// share of the wanted turn applied per frame; the rest is last frame's.
+	const Int NUM_TURNS_VEHICLE = 9;								// wheeled and other vehicles: nothing beyond 60 degrees (90 made them orbit).
 
 	// Candidate directions: the path direction rotated by these angles. cos/sin as constants, so no runtime trig.
 	struct Turn
@@ -87,7 +97,7 @@ namespace
 	}
 
 	// Frames until we touch n when moving with velocity (vx, vy); HORIZON or more = no collision worth caring about.
-	Real timeToCollision( const Neighbour& n, Real vx, Real vy )
+	Real timeToCollision( const Neighbour& n, Real vx, Real vy, Bool sticky )
 	{
 		Real ux = vx - n.vx;	// our velocity relative to it.
 		Real uy = vy - n.vy;
@@ -96,7 +106,13 @@ namespace
 			return HORIZON;
 		Real c = n.x*n.x + n.y*n.y - n.radius*n.radius;
 		if (c <= 0.0f)
-			return 0.0f;	// already inside it and still closing.
+		{
+			// Already inside it and still closing. Level 7 scored that as a collision now, which made every direction
+			// except "directly away" maximally bad: the unit turned 90 degrees, and as its path direction swung with it,
+			// kept turning - the spinning unit of the fifth play-test. Level 8 leaves units that already touch to the
+			// contact rules, which exist for exactly that.
+			return sticky ? HORIZON : 0.0f;
+		}
 		Real a = ux*ux + uy*uy;
 		Real disc = closing*closing - a*c;
 		if (disc < 0.0f || a <= 0.0f)
@@ -116,22 +132,19 @@ namespace AISteering
 {
 
 //-------------------------------------------------------------------------------------------------
-Bool steer( Object *obj, AIUpdateInterface *ai, Coord3D& goalPos, Real& speed, Int& side )
+// Decide what to do this frame. Returns FALSE for "carry on as the path says"; otherwise bestTurn (index into TURNS)
+// and bestSpeedFactor hold the choice. dirX/dirY is the direction the path follower wants.
+static Bool choose( Object *obj, AIUpdateInterface *ai, Real dirX, Real dirY, Real speed, const State& state,
+										Bool sticky, UnsignedInt now, Int& bestTurn, Real& bestSpeedFactor )
 {
 	const Coord3D *pos = obj->getPosition();
-	Real dx = goalPos.x - pos->x;
-	Real dy = goalPos.y - pos->y;
-	Real aimDist = WWMath::Sqrtf(dx*dx + dy*dy);
-	if (aimDist < 1.0f || speed < STANDING_SPEED)
-	{
-		side = 0;
-		return FALSE;
-	}
-	Real dirX = dx / aimDist;	// the direction the path follower wants.
-	Real dirY = dy / aimDist;
+	Int side = state.side;
+	Bool committed = sticky && side != 0 && (now - state.sideFrame) <= COMMIT_FRAMES;
+	Bool alreadySteering = sticky && (state.offSin != 0.0f || (now - state.sideFrame) <= STEERING_RECENT);
 
 	const Locomotor *loco = ai->getCurLocomotor();
 	Bool treads = (loco != nullptr && loco->getAppearance() == LOCO_TREADS);
+	Bool weAreInfantry = obj->isKindOf(KINDOF_INFANTRY);
 	Real ourRadius = steerRadius(obj);
 	ObjectID ignoreID = ai->getIgnoredObstacleID();
 	const Object *goalObj = ai->getGoalObject();
@@ -160,7 +173,10 @@ Bool steer( Object *obj, AIUpdateInterface *ai, Coord3D& goalPos, Real& speed, I
 		// As in the retail collision rules: infantry walk through infantry, vehicles don't steer around infantry
 		// (allied infantry step aside for them, enemy infantry get run over), and nothing avoids what it can crush.
 		// So infantry is never an obstacle here; infantry themselves do steer around vehicles.
-		if (other->isKindOf(KINDOF_INFANTRY))
+		// Level 8: vehicles do steer around infantry they cannot crush. Leaving a mixed group to "vehicle bumps
+		// infantry, infantry is told to scatter" was the worst-flowing case of the fifth play-test. Infantry still
+		// walk through infantry.
+		if (other->isKindOf(KINDOF_INFANTRY) && (!sticky || weAreInfantry))
 			continue;
 		if (obj->canCrushOrSquish(other, TEST_CRUSH_OR_SQUISH))
 			continue;
@@ -181,10 +197,7 @@ Bool steer( Object *obj, AIUpdateInterface *ai, Coord3D& goalPos, Real& speed, I
 		++count;
 	}
 	if (count == 0)
-	{
-		side = 0;
 		return FALSE;
-	}
 
 	//
 	// Is there anything to do? Carrying straight on at full speed must hit something within the horizon.
@@ -193,15 +206,16 @@ Bool steer( Object *obj, AIUpdateInterface *ai, Coord3D& goalPos, Real& speed, I
 	Int i;
 	for (i = 0; i < count; ++i)
 	{
-		Real cost = collisionCost(timeToCollision(neighbours[i], dirX*speed, dirY*speed));
+		Real cost = collisionCost(timeToCollision(neighbours[i], dirX*speed, dirY*speed, sticky));
 		if (cost > straightCost)
 			straightCost = cost;
 	}
 	if (straightCost <= 0.0f)
-	{
-		side = 0;
 		return FALSE;
-	}
+	// Level 8: a far-off, mild threat doesn't start a manoeuvre (at that range the best answer flips with every small
+	// change in the picture); one already under way is seen through.
+	if (sticky && !alreadySteering && straightCost < START_COST)
+		return FALSE;
 
 	//
 	// Score the candidates. A standing neighbour is always scored at full speed: slowing down never gets us past
@@ -211,9 +225,11 @@ Bool steer( Object *obj, AIUpdateInterface *ai, Coord3D& goalPos, Real& speed, I
 	LocomotorSurfaceTypeMask surfaces = ai->getLocomotorSet().getValidSurfaces();
 	Real probe = 2.0f*PATHFIND_CELL_SIZE_F + ourRadius;	// how far a turned direction must be passable.
 	Real bestCost = straightCost;
-	Int bestTurn = 0;
-	Real bestSpeedFactor = 1.0f;
+	bestTurn = 0;
+	bestSpeedFactor = 1.0f;
 	Int numTurns = treads ? NUM_TURNS_TREADS : NUM_TURNS;
+	if (sticky && !treads && !weAreInfantry)
+		numTurns = NUM_TURNS_VEHICLE;
 	for (Int t = 0; t < numTurns; ++t)
 	{
 		const Turn& turn = TURNS[t];
@@ -230,8 +246,16 @@ Bool steer( Object *obj, AIUpdateInterface *ai, Coord3D& goalPos, Real& speed, I
 			Real cost = turn.cost * (treads ? 1.5f : 1.0f);
 			if (s == 1) cost += COST_HALF_SPEED;
 			if (s == 2) cost += COST_STOP;
-			if (turn.side != 0 && turn.side == side)
-				cost -= BONUS_SAME_SIDE;
+			if (!sticky)
+			{
+				if (turn.side != 0 && turn.side == side)
+					cost -= BONUS_SAME_SIDE;
+			}
+			else if (committed && turn.side != 0)
+			{
+				// Level 8: having picked a side we stay on it for a second, unless the other side is the only way out.
+				cost += (turn.side == side) ? -BONUS_SAME_SIDE_STICKY : COST_CHANGE_SIDE;
+			}
 			if (cost >= bestCost)
 				continue;	// cannot win even with no collision at all.
 
@@ -240,7 +264,7 @@ Bool steer( Object *obj, AIUpdateInterface *ai, Coord3D& goalPos, Real& speed, I
 			{
 				const Neighbour& n = neighbours[i];
 				Real v = n.standing ? speed : speed*factor;
-				Real c = collisionCost(timeToCollision(n, cx*v, cy*v));
+				Real c = collisionCost(timeToCollision(n, cx*v, cy*v, sticky));
 				if (c > worst)
 					worst = c;
 			}
@@ -264,20 +288,105 @@ Bool steer( Object *obj, AIUpdateInterface *ai, Coord3D& goalPos, Real& speed, I
 		}
 	}
 
-	if (bestTurn == 0 && bestSpeedFactor >= 1.0f)
+	// FALSE: nothing beats carrying on; the contact rules take it from here.
+	return !(bestTurn == 0 && bestSpeedFactor >= 1.0f);
+}
+
+//-------------------------------------------------------------------------------------------------
+Bool steer( Object *obj, AIUpdateInterface *ai, Coord3D& goalPos, Real& speed, State& state )
+{
+	Bool sticky = MoveRules::steeringSticky();
+	UnsignedInt now = TheGameLogic->getFrame();
+	const Coord3D *pos = obj->getPosition();
+	Real dx = goalPos.x - pos->x;
+	Real dy = goalPos.y - pos->y;
+	Real aimDist = WWMath::Sqrtf(dx*dx + dy*dy);
+	if (aimDist < 1.0f || speed < STANDING_SPEED)
 	{
-		side = 0;
-		return FALSE;	// nothing beats carrying on; the contact rules take it from here.
+		state.side = 0;
+		state.offCos = 1.0f;
+		state.offSin = 0.0f;
+		return FALSE;
+	}
+	Real dirX = dx / aimDist;	// the direction the path follower wants.
+	Real dirY = dy / aimDist;
+
+	Int bestTurn = 0;
+	Real bestSpeedFactor = 1.0f;
+	Bool chose = choose(obj, ai, dirX, dirY, speed, state, sticky, now, bestTurn, bestSpeedFactor);
+
+	if (!sticky)
+	{
+		// Level 7: apply the choice as is, forget it the moment there is none.
+		if (!chose)
+		{
+			state.side = 0;
+			return FALSE;
+		}
+		const Turn& chosen = TURNS[bestTurn];
+		state.side = chosen.side;
+		Real outX = dirX*chosen.cosA - dirY*chosen.sinA;
+		Real outY = dirX*chosen.sinA + dirY*chosen.cosA;
+		goalPos.x = pos->x + outX*aimDist;	// same distance away, so the locomotor's braking sums are unchanged.
+		goalPos.y = pos->y + outY*aimDist;
+		speed *= bestSpeedFactor;
+		return TRUE;
 	}
 
-	const Turn& chosen = TURNS[bestTurn];
-	side = chosen.side;
-	Real outX = dirX*chosen.cosA - dirY*chosen.sinA;
-	Real outY = dirX*chosen.sinA + dirY*chosen.cosA;
-	goalPos.x = pos->x + outX*aimDist;	// same distance away, so the locomotor's braking sums are unchanged.
-	goalPos.y = pos->y + outY*aimDist;
-	speed *= bestSpeedFactor;
-	return TRUE;
+	// Level 8: remember the side for COMMIT_FRAMES, and ease the applied turn toward the wanted one instead of
+	// jumping to it, both on the way in and on the way back to the path direction.
+	Real wantCos = 1.0f;
+	Real wantSin = 0.0f;
+	if (chose)
+	{
+		const Turn& chosen = TURNS[bestTurn];
+		wantCos = chosen.cosA;
+		wantSin = chosen.sinA;
+		if (chosen.side != 0)
+		{
+			state.side = chosen.side;
+			state.sideFrame = now;
+		}
+	}
+	else if ((now - state.sideFrame) > COMMIT_FRAMES)
+	{
+		state.side = 0;
+	}
+
+	state.offCos += (wantCos - state.offCos) * EASE;
+	state.offSin += (wantSin - state.offSin) * EASE;
+	Real len = WWMath::Sqrtf(state.offCos*state.offCos + state.offSin*state.offSin);
+	if (len > 0.0001f)
+	{
+		state.offCos /= len;
+		state.offSin /= len;
+	}
+	else
+	{
+		state.offCos = wantCos;
+		state.offSin = wantSin;
+	}
+	if (wantSin == 0.0f && WWMath::Fabs(state.offSin) < 0.02f)
+	{
+		state.offCos = 1.0f;	// close enough to straight: done.
+		state.offSin = 0.0f;
+	}
+
+	Bool changed = FALSE;
+	if (state.offSin != 0.0f)
+	{
+		Real outX = dirX*state.offCos - dirY*state.offSin;
+		Real outY = dirX*state.offSin + dirY*state.offCos;
+		goalPos.x = pos->x + outX*aimDist;
+		goalPos.y = pos->y + outY*aimDist;
+		changed = TRUE;
+	}
+	if (chose && bestSpeedFactor < 1.0f)
+	{
+		speed *= bestSpeedFactor;
+		changed = TRUE;
+	}
+	return changed;
 }
 
 }

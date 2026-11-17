@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include "GameLogic/AISteering.h"	// zh-pipeline Phase 7 step 4
 #include "GameLogic/Module/UpdateModule.h"
 #include "GameLogic/AI.h"
 #include "GameLogic/AIStateMachine.h"
@@ -741,7 +742,7 @@ private:
 	UnsignedInt	m_jamLastFrame;							///< Last frame we were blocked by an ally.
 	Real				m_flowSpeedLimit;						///< Speed cap from the ally we are queueing behind this frame (FAST_AS_POSSIBLE = none).
 	UnsignedInt	m_flowFrame;								///< Last frame we, or anyone ahead of us in our queue, actually moved.
-	Int					m_steerSide;								///< zh-pipeline Phase 7 step 4: which way AISteering last turned us (-1, 0, +1). Transient, not in xfer.
+	AISteering::State	m_steer;							///< zh-pipeline Phase 7 step 4: AISteering's memory for this unit. Transient, not in xfer.
 	UnsignedInt	m_flowContactFrame;					///< Last frame we touched a flow partner; a gap of a second starts a new queue episode.
 	/**
 		If nonzero and >= now, frame when we should queueForPath.

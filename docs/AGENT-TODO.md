@@ -143,6 +143,10 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       avoidance (`AISteering`, PLAN step 4) and a wider rolling-turn angle for tracked vehicles (step 5, part). **Open, human:** play a
       *skirmish* (campaign missions leave no replay) at level 7, import as `move-04`; if units stick between buildings, say where and when.
       **Open, agent:** tune `AISteering` weights from that; `-replaysoak` at the new level on all baselines is the crash/repeatability gate.
+      **2026-11-16 fifth play-test (level 7, `move-04.rep`, look from 4:00):** jitter, one unit spinning, mixed infantry/vehicle groups
+      flow badly, units don't swing wide on curves. Level 8 (default): committed + eased steering, later start, no orbiting, vehicles steer
+      around infantry. **Open, human:** play level 8, import as `move-05`. **Next candidate:** group lateral offsets / flow field so a
+      group uses the width of a curve (PLAN step 6), if curves still bunch.
 
 ## Findings from source inspection (2026-10-21, before first build) — read before starting the items above
 
