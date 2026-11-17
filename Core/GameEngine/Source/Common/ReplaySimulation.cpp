@@ -32,6 +32,7 @@
 Bool ReplaySimulation::s_isRunning = false;
 UnsignedInt ReplaySimulation::s_replayIndex = 0;
 UnsignedInt ReplaySimulation::s_replayCount = 0;
+Bool ReplaySimulation::s_soak = false;
 
 namespace
 {
@@ -85,6 +86,7 @@ int ReplaySimulation::simulateReplaysInThisProcess(const std::vector<AsciiString
 		if (TheRecorder->simulateReplay(filename))
 		{
 			UnsignedInt totalTimeSec = TheRecorder->getPlaybackFrameCount() / LOGICFRAMES_PER_SECOND;
+			Bool mismatchCounted = false;
 			while (TheRecorder->isPlaybackInProgress())
 			{
 				const int progressFrameInterval = 10*60*LOGICFRAMES_PER_SECOND;
@@ -100,9 +102,21 @@ int ReplaySimulation::simulateReplaysInThisProcess(const std::vector<AsciiString
 				TheGameLogic->UPDATE();
 				if (TheRecorder->sawCRCMismatch())
 				{
-					numErrors++;
-					break;
+					if (!mismatchCounted)
+					{
+						numErrors++;
+						mismatchCounted = true;
+					}
+					if (!s_soak)
+						break;
+					// zh-pipeline -replaysoak: the recorder paused the game on the mismatch; carry on to the end.
+					if (TheGameLogic->isGamePaused())
+						TheGameLogic->setGamePaused(FALSE, FALSE, FALSE);
 				}
+			}
+			if (s_soak)
+			{
+				printf("Soak: final frame %d, final CRC %8.8X\n", TheGameLogic->getFrame(), TheGameLogic->getCRC(CRC_RECALC));
 			}
 			UnsignedInt gameTimeSec = TheGameLogic->getFrame() / LOGICFRAMES_PER_SECOND;
 			UnsignedInt realTimeSec = (GetTickCount()-startTimeMillis) / 1000;
@@ -172,10 +186,11 @@ int ReplaySimulation::simulateReplaysInWorkerProcesses(const std::vector<AsciiSt
 			UnicodeString command;
 			// Pass -useCwd, so that the worker keeps the working directory that it inherits from this process.
 			// zh-pipeline: the movement rules level is sim state, so the workers must simulate at this process's level.
-			command.format(L"\"%s\"%s%s -useCwd -moverules %d -replay \"%s\"",
+			command.format(L"\"%s\"%s%s%s -useCwd -moverules %d -replay \"%s\"",
 				exePath,
 				TheGlobalData->m_windowed ? L" -win" : L"",
 				TheGlobalData->m_headless ? L" -headless" : L"",
+				s_soak ? L" -replaysoak" : L"",
 				MoveRules::getLevel(),
 				filenameWide.str());
 

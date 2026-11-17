@@ -28,6 +28,7 @@
 #include "Common/ArchiveFileSystem.h"
 #include "GameNetwork/NetLog.h"	// zh-pipeline netlog
 #include "GameLogic/MoveRules.h"	// zh-pipeline -moverules
+#include "Common/ReplaySimulation.h"	// zh-pipeline -replaysoak
 #include "GameNetwork/NetSim.h"	// zh-pipeline
 #include "Common/OptionPreferences.h"	// zh-pipeline
 #include "GameNetwork/LANAPI.h"	// zh-pipeline
@@ -505,6 +506,13 @@ Int parseMoveRules(char *args[], int num)
 		MoveRules::setLevel(atoi(args[1]));
 		return 2;
 	}
+	return 1;
+}
+
+// zh-pipeline -replaysoak: headless replays run to the end despite CRC mismatches (Common/ReplaySimulation.h).
+Int parseReplaySoak(char *[], int)
+{
+	ReplaySimulation::setSoak(TRUE);
 	return 1;
 }
 
@@ -1279,6 +1287,7 @@ static CommandLineParam paramsForStartup[] =
 	// zh-pipeline @feature 2026-11-16 Unit movement rules level (PLAN.md Phase 7): 0 = retail, default = newest.
 	// For replay verification and bisecting only; in a network game both sides must use the same value.
 	{ "-moverules", parseMoveRules },
+	{ "-replaysoak", parseReplaySoak },
 
 	// zh-pipeline @feature 2026-10-21 Solo netcode rig and LAN-over-tailnet:
 	//  -multiinstance  allow a second copy on this machine (it gets Options_Instance02.ini)

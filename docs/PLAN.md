@@ -239,6 +239,38 @@ units crawled and stuttered in column although there was room. (3) The halting w
     them into range. It does not make them pick a firing position around the target. If the encirclement still doesn't emerge,
     that is attack-state work (choose an approach point on the range circle that isn't occupied), a separate item.
 
+**Fourth play-test 2026-11-16 (level 6, a campaign mission, so no replay: campaign games are not recorded):** stop-and-go much better,
+but units got stuck between buildings, a whole group queued behind one slow damaged unit instead of flowing around it, tracked
+vehicles were the worst, and the flow is still not SC2's. Verdict: tuning contact rules is whack-a-mole, because they only act once
+units touch and can only slow, wait or repath. Decision: build step 4.
+
+- **Step 4 as built (level 7, the default): `AISteering`** (`GeneralsMD/.../GameLogic/AISteering.h/.cpp`), called from
+  `AIUpdateInterface::doLocomotor` between the path follower's aim point and the `Locomotor`. Not ORCA proper but a sampled
+  velocity-obstacle scheme, chosen because it is short, has no solver to get wrong, and is deterministic by inspection:
+  - Neighbours: non-infantry ground units with AI and physics within reach of a 1.5 s horizon, nearest 24; not structures (the
+    pathfinder's job), not what we can crush, not our goal or ignored obstacle, not moving units behind us (they avoid us).
+  - If carrying straight on at full speed hits nothing within 1.5 s, nothing happens (the common case, one partition query).
+  - Otherwise score: path direction turned 0/±15/±30/±45/±60/±90° (tracked: up to ±45°) at full or half speed, or stop.
+    Cost = collision urgency (10 × (1 − t/horizon)²) + straying (0.4 … 3.5, ×1.5 for tracked) + speed given up (1.5 half, 3 stop)
+    − 0.3 for the side we already turned to. Right is listed before left, so a head-on pair both go right.
+  - A standing neighbour is always scored at full speed: slowing never gets past something that isn't moving, and stopping short
+    would keep the contact rules (yield request, path around a shooter) from ever firing.
+  - A turned direction must be `isLinePassable` for two cells plus our radius, so steering never leaves the walkable area.
+  - Output is only this frame's aim point (same distance, new direction) and speed.
+  - Off for: the last three cells before the goal, aircraft taxiing, projectiles, wanderers, ultra-accurate locomotors, production
+    exits, docking, entering, and while collisions are deliberately ignored.
+- **Step 5, first part (level 7):** tracked vehicles (`moveTowardsPositionTreads`) kept losing all speed at 45° off their aim point
+  and pivoting on the spot; now 60°, so they keep rolling through the course changes steering asks for. Reverse rule and
+  rotate-in-place cheat not done.
+- Steps 1–3 stay underneath as the contact-level safety net (yield, priority, eased queue cap, path-around, jam fail-safe, spread-out).
+- **Verification:** all four baselines reproduce at their own levels. New `-replaysoak` engine flag (headless replay keeps running
+  after the first CRC mismatch and prints the final logic CRC): every baseline soaked at level 7 runs its whole game with no crash,
+  and two runs give the same final CRC each time (skirmish-01 9CF3F214, move-01 D25EC9E2, move-02 B57D12E4, move-03 930C1B3B).
+  Steering engages early: level 7 diverges from every recording between frames 1500 and 2300. Not play-tested.
+- **Known unknowns for the play-test:** weights are first guesses; tracked vehicles may still be clumsy (only the stop angle
+  changed); vehicles ignore infantry entirely; "stuck between buildings" is unexplained and may or may not be touched by this
+  (candidates: jam fail-safe or a path-around leaving a unit in a gap) — needs a skirmish replay of it to look at.
+
 Budget: steps 1–3 a couple of weekends; 4 another couple; 5 a month or two of evenings; 6 another month. Cheaper than Phase 6 and independent of it; can run in parallel on a `move/*` branch.
 
 ## Adjustments pulled forward to make Phase 6 cheap later

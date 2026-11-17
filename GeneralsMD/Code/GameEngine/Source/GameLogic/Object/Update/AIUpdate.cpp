@@ -55,6 +55,7 @@
 #include "GameLogic/AI.h"
 #include "GameLogic/AIPathfind.h"
 #include "GameLogic/MoveRules.h"	// zh-pipeline Phase 7
+#include "GameLogic/AISteering.h"	// zh-pipeline Phase 7 step 4
 #include "GameLogic/Locomotor.h"
 #include "GameLogic/Module/AIUpdate.h"
 #include "GameLogic/Module/BodyModule.h"
@@ -243,6 +244,7 @@ AIUpdateInterface::AIUpdateInterface( Thing *thing, const ModuleData* moduleData
 	m_flowSpeedLimit = FAST_AS_POSSIBLE;
 	m_flowFrame = 0;
 	m_flowContactFrame = 0;
+	m_steerSide = 0;
 	m_queueForPathFrame = 0;
 	m_finalPosition.zero();
 	m_repulsor1 = INVALID_ID;
@@ -2617,6 +2619,23 @@ UpdateSleepTime AIUpdateInterface::doLocomotor()
 							}
 							if (speed>m_bumpSpeedLimit) {
 								speed = m_bumpSpeedLimit;
+							}
+						}
+
+						// zh-pipeline @feature 2026-11-16 Phase 7 step 4 (level 7): local avoidance bends this frame's aim
+						// point and speed around the units ahead. Not for the last three cells (units settle on their goal
+						// cells by the retail rules), not while we are deliberately ignoring collisions, and not for
+						// movement that must follow its path exactly (taxiing aircraft, production exits, docking, entering).
+						if (MoveRules::steering() && isDoingGroundMovement() && !isAiInDeadState()
+								&& onPathDistToGoal+getPathExtraDistance() > 3.0f*PATHFIND_CELL_SIZE_F
+								&& !m_canPathThroughUnits && m_ignoreCollisionsUntil <= TheGameLogic->getFrame()
+								&& !getObject()->isKindOf(KINDOF_AIRCRAFT) && !getObject()->isKindOf(KINDOF_PROJECTILE)
+								&& m_curLocomotor->getWanderWidthFactor() == 0.0f && !m_curLocomotor->isUltraAccurate())
+						{
+							StateID state = m_stateMachine->getCurrentStateID();
+							if (state != AI_FOLLOW_EXITPRODUCTION_PATH && state != AI_DOCK && state != AI_ENTER)
+							{
+								AISteering::steer(getObject(), this, goalPos, speed, m_steerSide);
 							}
 						}
 

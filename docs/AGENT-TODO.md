@@ -139,6 +139,10 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       stopped to shoot. Level 6 (default): eased, smoothed cap; 1 s stall → path around; stopped shooters are obstacles. `move-03.rep` is
       the level 5 baseline. **Open, human:** play at level 6, import as `move-04`. **Possible follow-up:** firing-position selection around
       a target (attack state), if going around stopped shooters is not enough to get the encirclement.
+      **2026-11-16 fourth play-test (level 6, campaign, no replay):** contact rules judged whack-a-mole. Level 7 (default) adds local
+      avoidance (`AISteering`, PLAN step 4) and a wider rolling-turn angle for tracked vehicles (step 5, part). **Open, human:** play a
+      *skirmish* (campaign missions leave no replay) at level 7, import as `move-04`; if units stick between buildings, say where and when.
+      **Open, agent:** tune `AISteering` weights from that; `-replaysoak` at the new level on all baselines is the crash/repeatability gate.
 
 ## Findings from source inspection (2026-10-21, before first build) — read before starting the items above
 

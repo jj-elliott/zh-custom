@@ -30,6 +30,12 @@ public:
 
 	static void stop() { s_isRunning = false; }
 
+	// zh-pipeline @feature 2026-11-16 "-replaysoak": a headless replay keeps simulating after its first CRC mismatch
+	// and prints the final logic CRC. For exercising a deliberate sim change (PLAN.md Phase 7) on recorded games:
+	// the recording stops matching, but the whole game still runs, so crashes and hangs show up, and two runs must
+	// print the same final CRC. Still exits 1 on a mismatch.
+	static void setSoak(Bool soak) { s_soak = soak; }
+
 	static Bool isRunning() { return s_isRunning; }
 	static UnsignedInt getCurrentReplayIndex() { return s_replayIndex; }
 	static UnsignedInt getReplayCount() { return s_replayCount; }
@@ -45,4 +51,5 @@ private:
 	static Bool s_isRunning;
 	static UnsignedInt s_replayIndex;
 	static UnsignedInt s_replayCount;
+	static Bool s_soak;
 };

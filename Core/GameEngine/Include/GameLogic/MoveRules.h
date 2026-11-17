@@ -47,8 +47,9 @@ namespace MoveRules
 		SOFT_FLOW = 4,		///< step 3, second cut: same-way allies queue behind each other instead of overlapping, without the stuck/repath churn; stacked idle units spread out
 		TIGHT_QUEUE = 5,	///< step 3, third cut: a follower's speed cap falls to zero as it sinks into the unit ahead, and is applied at once
 		EASED_FLOW = 6,		///< step 3, fourth cut: light contact is free, the cap eases in with depth and relaxes gradually; a stalled queue or a stopped shooter ahead is pathed around after 1 s
+		STEERING = 7,			///< step 4: local avoidance (AISteering): units steer around each other before contact; tracked vehicles keep rolling through wider turns
 
-		LATEST = EASED_FLOW
+		LATEST = STEERING
 	};
 
 	Int getLevel();
@@ -60,4 +61,5 @@ namespace MoveRules
 	inline Bool softFlow() { return getLevel() >= SOFT_FLOW; }				///< queue-following replaces the level 3 overlap
 	inline Bool tightQueue() { return getLevel() >= TIGHT_QUEUE; }		///< working queue-following (level 5 form: depth-scaled, immediate speed cap)
 	inline Bool easedFlow() { return getLevel() >= EASED_FLOW; }			///< eased, smoothed cap; quick path-around when the queue ahead stops
+	inline Bool steering() { return getLevel() >= STEERING; }					///< local avoidance before contact (GameLogic/AISteering.h)
 }

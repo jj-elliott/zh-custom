@@ -38,6 +38,7 @@
 #include "Common/INI.h"
 #include "GameLogic/GameLogic.h"
 #include "GameLogic/PartitionManager.h"
+#include "GameLogic/MoveRules.h"	// zh-pipeline Phase 7
 #include "GameLogic/Locomotor.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/AI.h"
@@ -1285,7 +1286,12 @@ void Locomotor::moveTowardsPositionTreads(Object* obj, PhysicsBehavior *physics,
 	// Modulate speed according to turning. The more we have to turn, the slower we go
 	//
 	const Real QUAETERPI = PI / 4.0f;
-	Real angleCoeff = (Real)WWMath::Fabs( relAngle ) / QUAETERPI;
+	// zh-pipeline @feature 2026-11-16 Phase 7 step 5 (first part, level 7): retail tanks lose speed in proportion to
+	// the turn and stand still to pivot from 45 degrees off, which is why they were the worst at getting around
+	// anything. With local avoidance asking for small course changes all the time, they now keep rolling until
+	// 60 degrees off.
+	const Real fullStopAngle = MoveRules::steering() ? (PI / 3.0f) : QUAETERPI;
+	Real angleCoeff = (Real)WWMath::Fabs( relAngle ) / fullStopAngle;
 	if (angleCoeff > 1.0f)
 		angleCoeff = 1.0;
 
