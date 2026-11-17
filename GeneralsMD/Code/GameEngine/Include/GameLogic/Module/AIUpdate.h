@@ -528,6 +528,7 @@ public:
 	Int getPushRank() const;										///< zh-pipeline Phase 7 step 2: 2 player-ordered move, 1 other move, 0 not moving
 	Bool shouldAskToYield(Object *other) const;	///< zh-pipeline Phase 7 step 1: should idle "other" step aside for us
 	Bool isFlowPair(Object *other) const;				///< zh-pipeline Phase 7 step 3: ally moving the same way as us, to queue with rather than be blocked by
+	Bool isStoppedToAttack(Object *other) const;	///< zh-pipeline Phase 7 step 3: "other" is standing still shooting; go around it
 	Bool isFlowStalled() const;									///< zh-pipeline Phase 7 step 3: nothing ahead of us in our queue has moved for 3 s
 	void followInFlow(Object *other);						///< zh-pipeline Phase 7 step 3: hold our place behind / beside flow partner "other"
 	void setFinalPosition(const Coord3D *pos) { m_finalPosition = *pos; m_doFinalPosition = false;}

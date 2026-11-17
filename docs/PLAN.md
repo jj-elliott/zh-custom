@@ -219,6 +219,26 @@ and `followInFlow` was never reached (found because `move-02.rep` replayed ident
     Watch for: followers halting too abruptly (the immediate velocity cut), stop-and-go pulsing in a queue, 15% being too
     strict or too loose, single-file squeezing where formation neighbours merely brush sides.
 
+**Third play-test 2026-11-16 (level 5, `tests/replays/move-03.rep`, reproduces at `-moverules 5`):** fine around the base, three problems.
+(1) An attack-move column jammed behind its front rank when that stopped to shoot a Patriot: the rear waited instead of spreading around
+the target to its own firing spots, which is the StarCraft behaviour wanted. (2) In open ground (top right of the map, end of the game)
+units crawled and stuttered in column although there was room. (3) The halting was visibly stop-and-go on vehicles. Target given: about
+75–80% of the way from level 3 (free overlap) to level 5 (strict), and more fluid.
+
+- **Step 3, fourth cut (level 6, the default; level 5 kept for `move-03.rep`):**
+  - *Eased cap.* Light contact costs nothing. Behind a leader the cap eases in from first touch to 30% penetration, beside one only
+    from 20% to 50%; at full depth the follower goes 0.8× (0.6× beside) the leader's speed so the overlap backs out. No instant
+    velocity cut: the locomotor brakes to the cap, and after contact ends the cap climbs back 8% a frame instead of vanishing.
+  - *Stalled queue → path around.* Patience is 1 s (was 3 s), and a stalled follower is flagged blocked-and-stuck, i.e. the retail
+    repath with units as obstacles, once a second while the queue stays put. In a real choke that repath finds nothing and the unit
+    keeps its place.
+  - *Stopped shooters are obstacles.* An ally in an attack state and standing still is not a flow partner and no longer counts as
+    "moving" in `processCollision`, so the unit behind is flagged stuck at once and paths around it (`isStoppedToAttack`).
+  - Not play-tested. Level 6 diverges from the level 5 recording of `move-03.rep` at frame 3600, identically on two runs.
+  - Honest limit: this makes blocked units go *around* stopped shooters toward their move goal; they open fire when that brings
+    them into range. It does not make them pick a firing position around the target. If the encirclement still doesn't emerge,
+    that is attack-state work (choose an approach point on the range circle that isn't occupied), a separate item.
+
 Budget: steps 1–3 a couple of weekends; 4 another couple; 5 a month or two of evenings; 6 another month. Cheaper than Phase 6 and independent of it; can run in parallel on a `move/*` branch.
 
 ## Adjustments pulled forward to make Phase 6 cheap later

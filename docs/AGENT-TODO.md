@@ -135,6 +135,10 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       **2026-11-16 second play-test (level 4):** better, still some overlap; level 4 turned out never to queue-follow (stale stall
       timer). Level 5 (default) fixes that and tightens spacing; `move-02.rep` is the level 4 baseline. **Open, human:** play at level 5,
       import as `move-03`. If it feels worse than the second game, say so: that game's behaviour is still available as `-moverules 4`.
+      **2026-11-16 third play-test (level 5):** too strict and stop-and-go in the open; attack-move column jams behind a front rank that
+      stopped to shoot. Level 6 (default): eased, smoothed cap; 1 s stall → path around; stopped shooters are obstacles. `move-03.rep` is
+      the level 5 baseline. **Open, human:** play at level 6, import as `move-04`. **Possible follow-up:** firing-position selection around
+      a target (attack state), if going around stopped shooters is not enough to get the encirclement.
 
 ## Findings from source inspection (2026-10-21, before first build) — read before starting the items above
 

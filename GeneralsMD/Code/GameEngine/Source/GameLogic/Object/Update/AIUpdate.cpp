@@ -1361,7 +1361,28 @@ Bool AIUpdateInterface::isFlowPair(Object *other) const
 	}
 	const Coord3D *ourDir = obj->getUnitDirectionVector2D();
 	const Coord3D *theirDir = other->getUnitDirectionVector2D();
-	return ourDir->x*theirDir->x + ourDir->y*theirDir->y > 0.5f;
+	if (ourDir->x*theirDir->x + ourDir->y*theirDir->y <= 0.5f) {
+		return FALSE;
+	}
+	// zh-pipeline level 6: a unit that has stopped to shoot is an obstacle to go around, not a queue to wait in.
+	if (MoveRules::easedFlow() && isStoppedToAttack(other)) {
+		return FALSE;
+	}
+	return TRUE;
+}
+
+//-------------------------------------------------------------------------------------------------
+// zh-pipeline @feature 2026-11-16 Phase 7 step 3 (level 6). Third play-test: an attack-moving column jammed behind its
+// front rank when that stopped to fire at a Patriot. A unit in an attack state still counts as "moving" to the retail
+// collision logic, so the units behind politely waited for it instead of pathing around to their own firing spots.
+Bool AIUpdateInterface::isStoppedToAttack(Object *other) const
+{
+	const AIUpdateInterface *aiOther = other->getAI();
+	if (aiOther == nullptr || !aiOther->isAttacking()) {
+		return FALSE;
+	}
+	PhysicsBehavior *otherPhysics = other->getPhysics();
+	return otherPhysics == nullptr || otherPhysics->getVelocityMagnitude() < 0.05f;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1370,7 +1391,9 @@ Bool AIUpdateInterface::isFlowPair(Object *other) const
 // moved for 3 s, the queue is a jam, and the pair falls back to the retail blocked logic (repath, then the fail-safe).
 Bool AIUpdateInterface::isFlowStalled() const
 {
-	return TheGameLogic->getFrame() - m_flowFrame > 3*LOGICFRAMES_PER_SECOND;
+	// Level 6: 1 s, and the answer to a stall is an immediate path-around (processCollision), not the slow retail wait.
+	UnsignedInt patience = MoveRules::easedFlow() ? LOGICFRAMES_PER_SECOND : 3*LOGICFRAMES_PER_SECOND;
+	return TheGameLogic->getFrame() - m_flowFrame > patience;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1427,6 +1450,7 @@ void AIUpdateInterface::followInFlow(Object *other)
 	// between the centres (half length and half width projected onto it), so nose-to-tail and side-by-side both work.
 	if (MoveRules::tightQueue())
 	{
+		Bool eased = MoveRules::easedFlow();
 		const GeometryInfo& ourGeom = obj->getGeometryInfo();
 		const GeometryInfo& theirGeom = other->getGeometryInfo();
 		Real ourLen = ourGeom.getMajorRadius();
@@ -1438,16 +1462,43 @@ void AIUpdateInterface::followInFlow(Object *other)
 			ourWid * WWMath::Fabs(toOther.x*ourDir->y - toOther.y*ourDir->x) +
 			theirLen * WWMath::Fabs(toOther.x*theirDir->x + toOther.y*theirDir->y) +
 			theirWid * WWMath::Fabs(toOther.x*theirDir->y - toOther.y*theirDir->x);
-		const Real MAX_DEPTH = 0.15f;	// fraction of touchDist we may be inside before we must stand still.
-		Real room = 0.0f;							// 1 at first touch, 0 at MAX_DEPTH or deeper.
-		if (touchDist > 0.0f) {
-			room = (dist/touchDist - (1.0f - MAX_DEPTH)) / MAX_DEPTH;
-			if (room < 0.0f) room = 0.0f;
-			if (room > 1.0f) room = 1.0f;
+		if (!eased)
+		{
+			const Real MAX_DEPTH = 0.15f;	// fraction of touchDist we may be inside before we must stand still.
+			Real room = 0.0f;							// 1 at first touch, 0 at MAX_DEPTH or deeper.
+			if (touchDist > 0.0f) {
+				room = (dist/touchDist - (1.0f - MAX_DEPTH)) / MAX_DEPTH;
+				if (room < 0.0f) room = 0.0f;
+				if (room > 1.0f) room = 1.0f;
+			}
+			limit = leaderSpeed * room * (bearing > 0.7f ? 1.0f : 0.5f);
+			if (ourPhysics) {
+				ourPhysics->scrubVelocity2D(limit);
+			}
 		}
-		limit = leaderSpeed * room * (bearing > 0.7f ? 1.0f : 0.5f);
-		if (ourPhysics) {
-			ourPhysics->scrubVelocity2D(limit);
+		else
+		{
+			// zh-pipeline @feature 2026-11-16 level 6. Third play-test: level 5 was too strict and visibly stop-and-go.
+			// Units crawled in columns on open ground (any brush between neighbours capped one of them), and the
+			// instant velocity cut made vehicles stutter. Now light contact costs nothing and the cap eases in with
+			// depth: behind a leader from first touch to 30% inside, beside one only from 20% to 50%. At full depth we
+			// go a little slower than the leader so the overlap backs out. The locomotor brakes to the cap in its own
+			// time, and doLocomotor lets the cap relax gradually after contact ends instead of dropping it.
+			Bool deadAhead = bearing > 0.7f;
+			Real startDepth = deadAhead ? 0.0f : 0.20f;
+			Real fullDepth = deadAhead ? 0.30f : 0.50f;
+			Real depth = (touchDist > 0.0f) ? 1.0f - dist/touchDist : 1.0f;
+			Real press = (depth - startDepth) / (fullDepth - startDepth);	// 0 = no effect, 1 = full effect.
+			if (press > 1.0f) press = 1.0f;
+			if (press <= 0.0f || m_curLocomotor == nullptr) {
+				return;
+			}
+			Real ownMax = m_curLocomotor->getMaxSpeedForCondition(obj->getBodyModule()->getDamageState());
+			Real target = leaderSpeed * (deadAhead ? 0.8f : 0.6f);
+			if (target > ownMax) {
+				return;	// the leader is faster than we can go: nothing to hold back.
+			}
+			limit = ownMax + (target - ownMax) * press;
 		}
 	}
 
@@ -1701,6 +1752,21 @@ Bool AIUpdateInterface::processCollision(PhysicsBehavior *physics, Object *other
 				followInFlow(other);
 				return FALSE;
 			}
+			if (MoveRules::easedFlow())
+			{
+				// Nothing ahead of us in this queue has moved for a second: stop waiting and path around it, units
+				// counted as obstacles (the retail blocked-and-stuck repath). The clock restarts, so we try again
+				// once a second for as long as the queue stays put; where there is no way around (a real choke)
+				// the repath finds nothing and we simply keep our place.
+				m_flowFrame = TheGameLogic->getFrame();
+				m_isBlocked = TRUE;
+				m_isBlockedAndStuck = TRUE;
+				return FALSE;
+			}
+		}
+		if (MoveRules::easedFlow() && otherMoving && isStoppedToAttack(other))
+		{
+			otherMoving = FALSE;	// retail then flags us stuck at once and we path around the shooter.
 		}
 
 		Bool blocked = blockedBy(other);
@@ -2617,7 +2683,23 @@ UpdateSleepTime AIUpdateInterface::doLocomotor()
 
 		m_curMaxBlockedSpeed = FAST_AS_POSSIBLE;
 	}
-	m_flowSpeedLimit = FAST_AS_POSSIBLE;	// re-established by followInFlow each frame we are still in contact.
+	if (MoveRules::easedFlow() && m_curLocomotor != nullptr && m_flowSpeedLimit < FAST_AS_POSSIBLE)
+	{
+		// Level 6: let the cap climb back 8% a frame (from at least a fifth of top speed) rather than vanish, as retail
+		// does with m_bumpSpeedLimit. Contact that flickers on and off no longer reads as stop, go, stop.
+		Real ownMax = m_curLocomotor->getMaxSpeedForCondition(getObject()->getBodyModule()->getDamageState());
+		if (m_flowSpeedLimit < ownMax*0.2f) {
+			m_flowSpeedLimit = ownMax*0.2f;
+		}
+		m_flowSpeedLimit *= 1.08f;
+		if (m_flowSpeedLimit >= ownMax) {
+			m_flowSpeedLimit = FAST_AS_POSSIBLE;
+		}
+	}
+	else
+	{
+		m_flowSpeedLimit = FAST_AS_POSSIBLE;	// re-established by followInFlow each frame we are still in contact.
+	}
 
 	if (m_curLocomotor != nullptr &&
 			m_locomotorGoalType == NONE &&
