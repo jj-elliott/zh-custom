@@ -77,3 +77,7 @@ out/
 launcher/bin/
 launcher/obj/
 tests/out/
+
+# movement test saves hold a copy of map data (scripts/movetest.ps1)
+tests/saves/
+Tests/saves/
