@@ -27,6 +27,7 @@
 // Author: Michael S. Booth, October 2001
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
+#include "GameLogic/MoveTraffic.h"	// zh-pipeline congestion-aware pathing
 #include "GameLogic/AIPathfind.h"
 #include "GameLogic/Pathfinder/PathfindConstants.h"
 
@@ -852,6 +853,7 @@ void Pathfinder::newMap()
 	bounds.hi.y = REAL_TO_INT_FLOOR(terrainExtent.hi.y / PATHFIND_CELL_SIZE_F);
 	bounds.hi.x--;
 	bounds.hi.y--;
+	MoveTraffic::reset(bounds.lo.x, bounds.lo.y, bounds.hi.x, bounds.hi.y);	// zh-pipeline: empty traffic map for the new map
 	Bool dataAllocated = false;
 	if (m_extent.hi.x==bounds.hi.x && m_extent.hi.y==bounds.hi.y) {
 		if (m_blockOfMapCells != nullptr && m_map!=nullptr) {
@@ -2323,6 +2325,12 @@ struct ExamineCellsStruct
 				return 1; //abort.
 			}
 
+			// zh-pipeline: this is the half-price "beeline to the goal" shortcut. It must not run through cells other
+			// units have planned to be in at that time; the full search, which prices them, takes over from here.
+			if (to->getLayer() == LAYER_GROUND && MoveTraffic::cost(to_x, to_y) > 0) {
+				return 1;
+			}
+
 			UnsignedInt newCostSoFar = from->getCostSoFar() + 0.5f*COST_ORTHOGONAL;
 			if (to->getType() == PathfindCell::CELL_CLIFF ) {
 				return 1;
@@ -2527,6 +2535,13 @@ Int Pathfinder::examineNeighboringCells(PathfindCell *parentCell, PathfindCell *
 				newCostSoFar += 3*COST_DIAGONAL;
 			}
 
+			// zh-pipeline @feature 2026-11-16 congestion-aware pathing (GameLogic/MoveTraffic.h): a cell other units
+			// have already planned to be in at about the time we would reach it costs extra, so units ordered together
+			// spread over the available routes instead of all being handed the same shortest one. 0 under retail rules.
+			if (newCell->getLayer() == LAYER_GROUND) {
+				newCostSoFar += MoveTraffic::cost(newCellCoord.x, newCellCoord.y);
+			}
+
 			if (newCell->getType() == PathfindCell::CELL_CLIFF && !newCell->getPinched() ) {
 				Coord3D toPos;
 				toPos.x = newCellCoord.x * PATHFIND_CELL_SIZE_F ;
@@ -2703,6 +2718,7 @@ Path *Pathfinder::internalFindPath( Object *obj, const LocomotorSet& locomotorSe
 	// determine start cell
 	ICoord2D startCellNdx;
 	worldToCell(&clipFrom, &startCellNdx);
+	MoveTraffic::beginSearch(startCellNdx.x, startCellNdx.y);	// zh-pipeline: arrival times are estimated from here
 	PathfindLayerEnum layer = LAYER_GROUND;
 	if (obj) {
 		layer = obj->getLayer();
@@ -5298,6 +5314,13 @@ void Pathfinder::prependCells( Path *path, const Coord3D *fromPos,
 			}
 		}
 
+		// zh-pipeline: the smoother straightens the cell chain by line of sight and would cut straight back through
+		// the traffic this route was chosen to avoid. Pin every third node that runs alongside traffic.
+		if (canOptimize && cell->getLayer() == LAYER_GROUND && ((cell->getXIndex() + cell->getYIndex()) % 3) == 0
+				&& MoveTraffic::cost(cell->getXIndex(), cell->getYIndex()) == 0
+				&& MoveTraffic::nearTraffic(cell->getXIndex(), cell->getYIndex())) {
+			canOptimize = false;
+		}
 		path->prependNode( &pos, cell->getLayer() );
 		path->getFirstNode()->setCanOptimize(canOptimize);
 		if (cell->isBlockedByAlly()) {

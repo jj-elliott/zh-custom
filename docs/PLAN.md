@@ -155,171 +155,73 @@ Target feel: StarCraft 2. The A-star pathfinder stays; the work is in the layer 
 5. **Vehicle constraints.** Run avoidance on a circular stand-in, then feed its velocity to the real locomotor as a *target* clamped by turn rate and acceleration, so tanks turn toward the heading rather than slide. Reverse rule: if the desired direction is >~120° behind and the distance is short, back up. Optionally cheat like SC2 and let vehicles rotate in place faster than physics allows.
 6. **Flow fields for large groups** (optional). One field per shared destination instead of per-unit searches, plus a formation or crowd target so 50 units don't converge on a single point.
 
-**Status 2026-11-16 — steps 1–3 implemented on `move/collision-rules`, not yet play-tested.** All three are gated on one integer, the
-*movement rules level* (`Core/.../GameLogic/MoveRules.h`): 0 retail, 1 = step 1, 2 = +step 2, 3 = +step 3. The exe defaults to the newest level;
-`-moverules <n>` overrides it for replay verification and for bisecting a feel problem to a step. It is sim state: both machines must match.
+**Status 2026-11-16: the six steps above were the plan; this is what exists.** One evening, nine play-tested iterations on
+`move/collision-rules`, ending in a rebuild. Read this instead of the step list.
 
-What retail already had (found while reading `AIUpdateInterface::processCollision` / `blockedBy`, so the steps are smaller than planned):
-infantry in front of a vehicle is already told to step aside (`aiMoveAwayFromUnit` → `AI_MOVE_OUT_OF_THE_WAY`, a 10 s temporary state);
-`Pathfinder::moveAllies` already clears idle allies off a path the pathfinder marked blocked-by-ally; `hasHigherPathPriority` already breaks
-deadlocks (dozer > vehicle > infantry > whoever is in front > ObjectID); a stuck unit already gets a 2 s collision holiday in a few corner cases.
-The dated feel comes from everything else: a mover that touches an idle ally flags itself stuck and paths around it, and a column queues behind
-its slowest member.
+### Current design: `MoveRules::UNIFIED` (level 1, the default; `-moverules 0` = retail)
 
-- **Step 1 as built:** in `processCollision`, a mover blocked by an idle ally asks it to step aside (same `aiMoveAwayFromUnit` retail uses), once
-  per contact; if the ally has nowhere to go the retail stuck-and-repath logic takes over next frame. Not asked: enemies, units that are
-  attacking / guarding / busy / using an ability / deployed / disabled, vehicles by infantry, and anything when the mover is within 8 pathfind
-  cells of its own goal (so a group arriving doesn't shove its first arrivals off their spots — the tunable to revisit after play-testing).
-- **Step 2 as built:** `hasHigherPathPriority` keeps dozer-first and vehicle-over-infantry, then ranks player-ordered move > any other move >
-  standing still (`getPushRank`), then heavier `Mass`; exact ties fall to the retail in-front rule. "Arrived first" from the plan is that rule.
-- **Step 3 as built:** `blockedBy` returns false for allies both moving within 60° of the same heading (they overlap while flowing and separate
-  at their own goal cells). Fail-safe: 2 s of unbroken blocking by allies (own counter; repaths reset `m_blockedFrames`) → collision off for that
-  unit for 2 s via the existing `m_ignoreCollisionsUntil`. Deviation from the plan: that timer ignores enemy units too for those 2 s, because
-  making it allies-only would change retail uses of the timer (transport exits). The retail repath-when-blocked stays alongside it.
-- **Verification so far:** `skirmish-01.rep` still reproduces at level 0 (the gates leak nothing). At levels 1 and 2 the same replay also
-  reproduces, i.e. that 6-minute game never hits those rules; at level 3 it diverges at frame 1600 as intended, identically on two runs. So
-  the new rules have had almost no automated exercise. **Needed: a played skirmish at the default level** (then `verify.ps1 -Import -Name x`
-  makes it the first Phase 7 baseline and the real determinism check), and a verdict on feel per step.
+Three parts, each doing one job, and everything they replace switched off:
 
-**Play-test 2026-11-16 (level 3, solo skirmish, now `tests/replays/move-01.rep`, reproduces at `-moverules 3`):** flow is much better and
-parked groups get out of the way, but free overlap is wrong for this game: whole tank columns stack through a gap, so terrain and choke
-points stop mattering, and stacked tanks look odd. Wanted: a choke that is a meaningful slow-down without choking the pathfinding, and
-units that end up overlapping should spread apart once they stop, as in StarCraft.
+| part | job | where |
+|---|---|---|
+| **Traffic map** (`MoveTraffic`) | *where*: the pathfinder knows the routes other units have planned | `Core/.../GameLogic/MoveTraffic.h/.cpp`; hooks in `AIPathfind.cpp` (`examineNeighboringCells`, `examineCellsCallback`, `prependCells`, `newMap`), `AIUpdateInterface::computePath` |
+| **Steering** (`AISteering`) | *how*: get past units over the next few metres; queue; escape a jam | `GeneralsMD/.../GameLogic/AISteering.h/.cpp`; called from `AIUpdateInterface::doLocomotor` |
+| **Contact rules** | only what the other two can't: idle ally steps aside, stacked idle units spread out, push priority, 2 s escape when blocked by standing allies | `AIUpdate.cpp` (`processCollision`, `blockedBy`, `hasHigherPathPriority`, `shouldAskToYield`, `isSteeredPair`) |
 
-- **Step 3, second cut (level 4, the default; level 3 is kept only so `move-01.rep` stays a baseline for steps 1–2):**
-  - *Queue instead of overlap.* A same-heading allied pair in contact is still never "blocked" (no stuck flag, no repath, no stopped
-    animation, no shoving the leader), but exactly one of the two, the one behind along the shared heading, caps its speed to the
-    other's speed along its own heading (`followInFlow`): ×0.9 when the leader is dead ahead so the gap reopens, ×0.5 when it is
-    alongside so two lanes zip together at a gap. A gap therefore passes units at the rate they fit.
-  - *Stalled queue.* Each unit keeps `m_flowFrame`, the last frame it or anything ahead of it in its queue moved (copied back from
-    its leader, one unit per frame). 3 s old = the head is stuck for some other reason = the pair goes back to the retail blocked
-    logic (repath, then the 2 s fail-safe). A queue whose head keeps moving waits indefinitely.
-  - *Spread out.* Two idle allies more than half inside each other: the one with lower push priority walks to the nearest free spot
-    (`adjustToPossibleDestination`). Retail only did this within half a cell of the same point.
-  - Vehicles behind same-heading infantry are excluded: the retail "infantry, step aside" is better than crawling behind them.
-  - Not yet play-tested. Level 4 replays `move-01.rep` to frame 2200 before diverging from the level 3 recording, identically twice.
-    Open questions for the next session: is the queue speed right (0.9 / 0.5), does the zipper look natural, does spread-out fire
-    when expected (it depends on idle units still receiving collision callbacks), does a long queue ever wrongly count as stalled.
+- **Traffic map.** When a ground unit gets a path, every cell under it (unit width + 1) is stamped with the frame the unit expects
+  to be there and a load count. The A* adds 6 per other unit (max 3; a cell costs 10) for cells stamped within 5 s of our own
+  estimated arrival; the half-price "beeline to goal" shortcut stops at such cells; and every third path node running alongside
+  traffic is pinned (`setCanOptimize(false)`) so the line-of-sight smoother can't cut back through it. Stamps lapse by time, nothing
+  is erased. Arrival time = straight-line cells from the search start × frames per cell at top speed.
+- **Group moves** no longer use the retail shared ground path with 2 (vehicles) or 3/5 (infantry) columns
+  (`AIGroup::groupMoveToPosition`): each unit paths for itself to its own offset destination and the traffic map spreads them.
+  Explicit formations still use the retail formation move.
+- **Steering.** Sampled velocity obstacles: if carrying on hits a unit within 1.5 s, score the path direction turned
+  0/±15/±30/±45/±60 (infantry also ±90) at full or half speed, or stop; cost = collision urgency + straying + speed lost. A chosen side
+  is kept 1 s; the turn eases in and out; a mild far-off threat doesn't start a manoeuvre; turned directions must be passable.
+  *Queueing:* a moving unit in front that we already touch sets our pace. *Escape:* held at a standstill by that for 2 s → this
+  unit ignores collisions for 2 s. Infantry ignore infantry; nothing avoids what it can crush; buildings are the pathfinder's.
+- **Between two moving allies there are no contact rules at all** (`isSteeredPair`): no blocked/stuck/repath, no shove, no
+  deadlock-breaking. Retail's remain for enemies, standing units, and movement steering doesn't handle (taxiing aircraft,
+  production exits, docking, entering).
+- **Tracked vehicles drive while turning** (`Locomotor::moveTowardsPositionTreads`): speed factor 1 → 0.3 from 0° to 90° off the
+  aim point, → 0 at 120°, pivot beyond. Retail stopped to pivot at 45°.
+- All tuning constants are at the top of `AISteering.cpp` and `MoveTraffic.cpp`.
 
-**Second play-test 2026-11-16 (level 4, `tests/replays/move-02.rep`, reproduces at `-moverules 4`):** "much better, still a bit too
-much overlap". **But level 4 as played never queue-followed:** `m_flowFrame` started at 0, so from frame 90 every unit counted as stalled
-and `followInFlow` was never reached (found because `move-02.rep` replayed identically with the first level 5 change, which only touched
-`followInFlow`). What was actually played and liked: retail blocking between same-heading units, plus steps 1–2, the 2 s jam fail-safe
-(the source of the remaining overlap) and spread-out. Worth remembering if level 5 feels worse: that combination is a known-good fallback.
+### Verification, and what it does not show
 
-- **Step 3, third cut (level 5, the default; level 4 keeps the inert behaviour so `move-02.rep` stays a baseline):**
-  - *Fix:* a queue episode starts its stall clock at first contact with a flow partner (`m_flowContactFrame`; a 1 s gap = new episode)
-    and the unit's own movement refreshes it even while stalled. Queue-following now really runs.
-  - *Tight spacing:* the follower's cap is leader speed × room, where room falls from 1 at first touch to 0 at 15% penetration
-    (measured against the centre distance at which two boxes with these headings first touch), ×0.5 when the leader is alongside;
-    the follower's velocity is cut to the cap immediately (`scrubVelocity2D`) instead of braking down to it.
-  - With following working, a moving queue no longer feeds the jam fail-safe, so ghosting should now only happen in a genuinely
-    stalled queue (3 s without movement ahead, then 2 s blocked).
-  - Not play-tested. Level 5 diverges from the level 4 recording of `move-02.rep` at frame 3600, identically on two runs.
-    Watch for: followers halting too abruptly (the immediate velocity cut), stop-and-go pulsing in a queue, 15% being too
-    strict or too loose, single-file squeezing where formation neighbours merely brush sides.
+- `tests/replays/skirmish-01.rep` reproduces at `-moverules 0`: the switch leaks nothing into retail behaviour.
+- `scripts/soak.ps1`: the five recordings from the earlier iterations (`tests/soak/`, inputs only, no longer baselines) plus
+  skirmish-01, each run twice under UNIFIED with `-replaysoak`: all run to the end, no crash, identical final CRCs.
+- The user decided (2026-11-16) not to keep intermediate iterations reproducible: determinism yes, per-iteration baselines no.
+  **A UNIFIED replay is only expected to reproduce on the build that recorded it** until the design settles; then record baselines.
+- Not shown by any of this: how it plays. The traffic map and the steering-owned queueing have never been played. Soak replays
+  diverge early and their recorded orders then mostly miss, so late-game crowding is barely exercised.
 
-**Third play-test 2026-11-16 (level 5, `tests/replays/move-03.rep`, reproduces at `-moverules 5`):** fine around the base, three problems.
-(1) An attack-move column jammed behind its front rank when that stopped to shoot a Patriot: the rear waited instead of spreading around
-the target to its own firing spots, which is the StarCraft behaviour wanted. (2) In open ground (top right of the map, end of the game)
-units crawled and stuttered in column although there was room. (3) The halting was visibly stop-and-go on vehicles. Target given: about
-75–80% of the way from level 3 (free overlap) to level 5 (strict), and more fluid.
+### How we got here (what each play-test taught; the code for these is gone)
 
-- **Step 3, fourth cut (level 6, the default; level 5 kept for `move-03.rep`):**
-  - *Eased cap.* Light contact costs nothing. Behind a leader the cap eases in from first touch to 30% penetration, beside one only
-    from 20% to 50%; at full depth the follower goes 0.8× (0.6× beside) the leader's speed so the overlap backs out. No instant
-    velocity cut: the locomotor brakes to the cap, and after contact ends the cap climbs back 8% a frame instead of vanishing.
-  - *Stalled queue → path around.* Patience is 1 s (was 3 s), and a stalled follower is flagged blocked-and-stuck, i.e. the retail
-    repath with units as obstacles, once a second while the queue stays put. In a real choke that repath finds nothing and the unit
-    keeps its place.
-  - *Stopped shooters are obstacles.* An ally in an attack state and standing still is not a flow partner and no longer counts as
-    "moving" in `processCollision`, so the unit behind is flagged stuck at once and paths around it (`isStoppedToAttack`).
-  - Not play-tested. Level 6 diverges from the level 5 recording of `move-03.rep` at frame 3600, identically on two runs.
-  - Honest limit: this makes blocked units go *around* stopped shooters toward their move goal; they open fire when that brings
-    them into range. It does not make them pick a firing position around the target. If the encirclement still doesn't emerge,
-    that is attack-state work (choose an approach point on the range circle that isn't occupied), a separate item.
+1. *Idle allies yield, push priority, free pass-through for same-heading allies.* Flow great; overlap erased choke points.
+2. *Queue instead of overlap, spread-out.* Liked, but a stale timer meant queueing never ran: what was liked was retail
+   blocking + 2 s escape. Found only because the replay reproduced under a change that should have altered it.
+3. *Queueing fixed, strict spacing.* Too strict, stop-and-go; attack-move columns jammed behind units that stopped to shoot.
+4. *Eased cap, path around stalled queues and stopped shooters.* Better, but "whack-a-mole": contact rules act too late.
+5. *Local avoidance added on top.* Flowed better; jitter, a spinning unit, mixed infantry/vehicle groups bad.
+6. *Sticky, eased steering; vehicles avoid infantry.* Jitter and spins gone; corners still clunky, groups collide.
+7. *Lanes for vehicle group moves* (never played). Found retail forces groups into two columns on one path.
+8. User's call: the layers fight each other; build one congestion-aware system and delete the rest. → the design above.
 
-**Fourth play-test 2026-11-16 (level 6, a campaign mission, so no replay: campaign games are not recorded):** stop-and-go much better,
-but units got stuck between buildings, a whole group queued behind one slow damaged unit instead of flowing around it, tracked
-vehicles were the worst, and the flow is still not SC2's. Verdict: tuning contact rules is whack-a-mole, because they only act once
-units touch and can only slow, wait or repath. Decision: build step 4.
+Lessons worth keeping: a contact rule can't produce flow; every extra layer that also touches speed or path is a source of
+twitching; a reproducing replay is evidence only if the change under test could have altered it; campaign games and games
+loaded from a save record no replay.
 
-- **Step 4 as built (level 7, the default): `AISteering`** (`GeneralsMD/.../GameLogic/AISteering.h/.cpp`), called from
-  `AIUpdateInterface::doLocomotor` between the path follower's aim point and the `Locomotor`. Not ORCA proper but a sampled
-  velocity-obstacle scheme, chosen because it is short, has no solver to get wrong, and is deterministic by inspection:
-  - Neighbours: non-infantry ground units with AI and physics within reach of a 1.5 s horizon, nearest 24; not structures (the
-    pathfinder's job), not what we can crush, not our goal or ignored obstacle, not moving units behind us (they avoid us).
-  - If carrying straight on at full speed hits nothing within 1.5 s, nothing happens (the common case, one partition query).
-  - Otherwise score: path direction turned 0/±15/±30/±45/±60/±90° (tracked: up to ±45°) at full or half speed, or stop.
-    Cost = collision urgency (10 × (1 − t/horizon)²) + straying (0.4 … 3.5, ×1.5 for tracked) + speed given up (1.5 half, 3 stop)
-    − 0.3 for the side we already turned to. Right is listed before left, so a head-on pair both go right.
-  - A standing neighbour is always scored at full speed: slowing never gets past something that isn't moving, and stopping short
-    would keep the contact rules (yield request, path around a shooter) from ever firing.
-  - A turned direction must be `isLinePassable` for two cells plus our radius, so steering never leaves the walkable area.
-  - Output is only this frame's aim point (same distance, new direction) and speed.
-  - Off for: the last three cells before the goal, aircraft taxiing, projectiles, wanderers, ultra-accurate locomotors, production
-    exits, docking, entering, and while collisions are deliberately ignored.
-- **Step 5, first part (level 7):** tracked vehicles (`moveTowardsPositionTreads`) kept losing all speed at 45° off their aim point
-  and pivoting on the spot; now 60°, so they keep rolling through the course changes steering asks for. Reverse rule and
-  rotate-in-place cheat not done.
-- Steps 1–3 stay underneath as the contact-level safety net (yield, priority, eased queue cap, path-around, jam fail-safe, spread-out).
-- **Verification:** all four baselines reproduce at their own levels. New `-replaysoak` engine flag (headless replay keeps running
-  after the first CRC mismatch and prints the final logic CRC): every baseline soaked at level 7 runs its whole game with no crash,
-  and two runs give the same final CRC each time (skirmish-01 9CF3F214, move-01 D25EC9E2, move-02 B57D12E4, move-03 930C1B3B).
-  Steering engages early: level 7 diverges from every recording between frames 1500 and 2300. Not play-tested.
-- **Known unknowns for the play-test:** weights are first guesses; tracked vehicles may still be clumsy (only the stop angle
-  changed); vehicles ignore infantry entirely; "stuck between buildings" is unexplained and may or may not be touched by this
-  (candidates: jam fail-safe or a path-around leaving a unit in a gap) — needs a skirmish replay of it to look at.
+### Open
 
-**Fifth play-test 2026-11-16 (level 7, `tests/replays/move-04.rep`, 6:46, reproduces at `-moverules 7`; the interesting part starts
-around 4:00, a group going around a cliff):** flows better, but (1) a mixed infantry + vehicle group flowed badly, apparently the
-retail "infantry get out of the vehicle's way" shove, which the user expected steering to subsume; wheeled vehicles suffered most;
-(2) one unit in a clump spun in circles; (3) Humvees + Crusaders on the curves jittered, flicking left/right frame to frame, "not
-enough stickiness"; (4) units are still not willing enough to flow out wide around a tight curve. Units reversing to reach a nearby
-spot was seen and judged a feature.
-
-- **Step 4, second cut (level 8, the default; level 7 kept for `move-04.rep`):**
-  - *Commitment.* A chosen side is kept for 1 s: same side −0.8, other side +4 (only to dodge something imminent).
-  - *Eased turn.* The applied turn moves a quarter of the way toward the wanted one each frame, in and back out
-    (`AISteering::State::offCos/offSin`), instead of jumping between 15° steps.
-  - *Later start.* A threat milder than cost 0.6 (roughly more than 1.1 s away) doesn't start a manoeuvre; one under way continues.
-  - *No orbiting.* A neighbour we already overlap is left to the contact rules instead of scoring as "collision now" (which made
-    only "directly away" acceptable and, as the path direction swung round, kept the unit turning); non-tracked vehicles are
-    limited to ±60° (infantry keep ±90°, tracked ±45°).
-  - *Infantry are obstacles for vehicles* that cannot crush them; infantry still walk through infantry. The retail shove on
-    contact remains underneath.
-  - Stalled-queue repath patience 1 s → 2 s, since steering now does most of that job.
-  - Soaked at level 8: all five recordings run to the end, no crash, identical final CRCs on two runs. Not play-tested.
-- **Not addressed, on purpose:** (4) flowing out wide on a curve. Steering only reacts to units, it has no notion of "there is
-  room outside the corner, use it"; every unit's path hugs the same inside line and steering spreads them only as they conflict.
-  The real fix is in where units aim, not how they dodge: per-unit lateral offsets along a shared path for a group order, or a
-  flow field for the group (step 6). Worth doing next if level 8's smoothing is not enough.
-
-**Sixth play-test 2026-11-16 (level 8, `tests/replays/move-05.rep`, 6:15, reproduces at `-moverules 8`):** no spins, much less jitter;
-still clunky around corners, groups still run into each other. The user's asks: (a) units travelling a long way should move in
-parallel, not bunch to a point; (b) tanks should turn and move at once, like wheeled vehicles; (c) "the real defect": the pathfinder's
-cost ignores other units' planned routes, so everyone gets the same shortest path; later units should prefer a slightly longer free one.
-
-- **Finding that reframes (a) and (c):** a vehicle *group* order does not run A* per unit at all. `AIGroup::friend_computeGroundPath`
-  finds ONE ground path for the group and `friend_moveVehicleToPos` sends every vehicle down it in **two columns 1.5 cells either
-  side of the centre line**, whatever the group size and however wide the terrain. Twelve tanks = two files of six on a line narrower
-  than a tank. That is the bunching and the "forming a column" crawl, by design. (Infantry: `friend_moveInfantryToPos`, 3 or 5 columns.)
-  A congestion term in the A* cost would not reach this code, and for units that do path individually the post-A* straightening
-  (`optimizePath`) would flatten lane-sized differences anyway.
-- **Level 9 (the default; level 8 kept for `move-05.rep`): lanes for vehicle group moves** (`moveVehiclesInLanes` in `AIGroup.cpp`).
-  About √n lanes, at most 8, spaced 1.3× the widest member (min 2 cells); units keep their left-to-right order; each follows the
-  shared route shifted sideways by its lane. Per waypoint the shift is the widest of 100/75/50/25/0% that is `isLinePassable` from
-  the centre line, so the group funnels through a gap and fans out after it. At the destination each lane lines up front to back.
-  This is (c)'s outcome, later units taking the slightly longer free route, computed from the group's shared route.
-- **Step 5, second part (level 9): tracked vehicles drive while turning.** Speed factor 1 → 0.3 from 0° to 90° off the aim point,
-  0.3 → 0 from 90° to 120°, pivot on the spot beyond. Steering lets them turn ±60° like other vehicles.
-- **Verification:** six baselines reproduce at their levels; soaked at level 9 all six run to the end, no crash, identical final
-  CRCs on two runs; level 9 diverges from the level 8 recording of `move-05.rep` at frame 2800. Not play-tested. **Not known:**
-  how often the lanes path is actually taken in play. It needs the retail group-move conditions (`m_minVehiclesForGroup`, the
-  group distance thresholds in AIData.ini, a ground path found); below those, units still path individually and bunch at corners.
-- **Still open after this:** infantry groups keep retail columns; individually pathed units (small groups, reinforcements, AI
-  teams) share corners; two *different* groups meeting rely on steering alone. A real congestion-aware pathfinder (reservation
-  per cell and time, with smoothing that respects it) is the general answer for those and is a pathfinder project of its own.
+- Play-test UNIFIED (test saves: `scripts/movetest.ps1`). Expected trouble spots: traffic penalty too weak or too strong
+  (units still sharing a corner, or taking silly detours), pinned nodes making paths stair-step, infantry clumps overlapping
+  while moving, tanks swinging wide into buildings, units arriving through each other near the goal.
+- "Stuck between buildings" (4th play-test) was never explained.
+- Units don't choose a firing position around a target; they only path around units that stopped to shoot.
+- Step 6 flow fields: not needed if the traffic map does its job.
 
 Budget: steps 1–3 a couple of weekends; 4 another couple; 5 a month or two of evenings; 6 another month. Cheaper than Phase 6 and independent of it; can run in parallel on a `move/*` branch.
 

@@ -28,7 +28,7 @@
 
 #pragma once
 
-#include "GameLogic/AISteering.h"	// zh-pipeline Phase 7 step 4
+#include "GameLogic/AISteering.h"	// zh-pipeline Phase 7
 #include "GameLogic/Module/UpdateModule.h"
 #include "GameLogic/AI.h"
 #include "GameLogic/AIStateMachine.h"
@@ -526,12 +526,12 @@ public:
 
 	/// Return true if our path has higher priority.
 	Bool hasHigherPathPriority(AIUpdateInterface *otherAI) const;
-	Int getPushRank() const;										///< zh-pipeline Phase 7 step 2: 2 player-ordered move, 1 other move, 0 not moving
-	Bool shouldAskToYield(Object *other) const;	///< zh-pipeline Phase 7 step 1: should idle "other" step aside for us
-	Bool isFlowPair(Object *other) const;				///< zh-pipeline Phase 7 step 3: ally moving the same way as us, to queue with rather than be blocked by
-	Bool isStoppedToAttack(Object *other) const;	///< zh-pipeline Phase 7 step 3: "other" is standing still shooting; go around it
-	Bool isFlowStalled() const;									///< zh-pipeline Phase 7 step 3: nothing ahead of us in our queue has moved for 3 s
-	void followInFlow(Object *other);						///< zh-pipeline Phase 7 step 3: hold our place behind / beside flow partner "other"
+	// zh-pipeline MoveRules::UNIFIED (docs/PLAN.md Phase 7)
+	Int getPushRank() const;											///< 2 player-ordered move, 1 other move, 0 not moving
+	Bool shouldAskToYield(Object *other) const;		///< should idle ally "other" step aside for us
+	Bool isStoppedToAttack(Object *other) const;	///< "other" is standing still shooting: an obstacle, not traffic
+	Bool canSteer() const;												///< is this unit's movement the kind AISteering handles
+	Bool isSteeredPair(Object *other) const;			///< we and ally "other" are both under way and steered: no contact rules between us
 	void setFinalPosition(const Coord3D *pos) { m_finalPosition = *pos; m_doFinalPosition = false;}
 
 	virtual UpdateSleepTime update() override;	///< update this object's AI
@@ -736,14 +736,11 @@ private:
 	Real				m_curMaxBlockedSpeed;				///< Max speed we can have and not run into blocking things.
 	Real				m_bumpSpeedLimit;						///< Max speed after bumping a unit.
 	UnsignedInt	m_ignoreCollisionsUntil;		///< Timer to cheat if we get stuck.
-	// zh-pipeline Phase 7 step 3 stuck fail-safe. Like m_blockedFrames these are transient and deliberately not in
-	// xfer: a save/load only restarts the 2 s count, and the save format and the retail CRC stream stay unchanged.
-	UnsignedInt	m_jamStartFrame;						///< Frame the current unbroken spell of being blocked by allies began.
-	UnsignedInt	m_jamLastFrame;							///< Last frame we were blocked by an ally.
-	Real				m_flowSpeedLimit;						///< Speed cap from the ally we are queueing behind this frame (FAST_AS_POSSIBLE = none).
-	UnsignedInt	m_flowFrame;								///< Last frame we, or anyone ahead of us in our queue, actually moved.
-	AISteering::State	m_steer;							///< zh-pipeline Phase 7 step 4: AISteering's memory for this unit. Transient, not in xfer.
-	UnsignedInt	m_flowContactFrame;					///< Last frame we touched a flow partner; a gap of a second starts a new queue episode.
+	// zh-pipeline MoveRules::UNIFIED. Transient like m_blockedFrames and deliberately not in xfer: a save/load only
+	// restarts these, and the save format and the retail CRC stream stay unchanged.
+	UnsignedInt	m_jamStartFrame;						///< Frame the current unbroken spell of being blocked by standing allies began.
+	UnsignedInt	m_jamLastFrame;							///< Last frame we were blocked by a standing ally.
+	AISteering::State	m_steer;							///< AISteering's memory for this unit.
 	/**
 		If nonzero and >= now, frame when we should queueForPath.
 

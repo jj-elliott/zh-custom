@@ -27,15 +27,16 @@
 #include "Common/KindOf.h"
 #include "GameLogic/AI.h"
 #include "GameLogic/AIPathfind.h"
+#include "GameLogic/GameLogic.h"
 #include "GameLogic/Locomotor.h"
 #include "GameLogic/Module/AIUpdate.h"
-#include "GameLogic/MoveRules.h"
 #include "GameLogic/Module/PhysicsUpdate.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/PartitionManager.h"
 
 namespace
 {
+	// ---- Tuning. Everything that decides how movement feels is here. ----
 	const Real HORIZON = 1.5f * LOGICFRAMES_PER_SECOND;	// frames we look ahead.
 	const Real CLEARANCE = 1.1f;												// combined radius is padded by 10%.
 	const Real STANDING_SPEED = 0.05f;									// world units per frame; slower counts as standing.
@@ -44,16 +45,13 @@ namespace
 	const Real COST_COLLISION = 10.0f;	// a collision right now; falls off with the square of the time left.
 	const Real COST_HALF_SPEED = 1.5f;
 	const Real COST_STOP = 3.0f;
-	const Real BONUS_SAME_SIDE = 0.3f;	// keep turning the way we already turn.
-
-	// Level 8 (fifth play-test: units flicked left/right from frame to frame on curves, one spun in circles).
-	const Real START_COST = 0.6f;										// don't start steering for a threat milder than this (about 1.1 s away).
-	const UnsignedInt STEERING_RECENT = LOGICFRAMES_PER_SECOND/2;	// ... but keep steering once started until clear this long.
+	const Real START_COST = 0.6f;				// a threat milder than this (about 1.1 s away) doesn't start a manoeuvre...
+	const UnsignedInt STEERING_RECENT = LOGICFRAMES_PER_SECOND/2;	// ...but one under way is seen through.
 	const UnsignedInt COMMIT_FRAMES = LOGICFRAMES_PER_SECOND;			// how long a chosen side stays chosen.
-	const Real COST_CHANGE_SIDE = 4.0f;							// switching side while committed: only to dodge something imminent.
-	const Real BONUS_SAME_SIDE_STICKY = 0.8f;
-	const Real EASE = 0.25f;												// share of the wanted turn applied per frame; the rest is last frame's.
-	const Int NUM_TURNS_VEHICLE = 9;								// wheeled and other vehicles: nothing beyond 60 degrees (90 made them orbit).
+	const Real COST_CHANGE_SIDE = 4.0f;	// switching side while committed: only to dodge something imminent.
+	const Real BONUS_SAME_SIDE = 0.8f;
+	const Real EASE = 0.25f;						// share of the wanted turn applied per frame; the rest is last frame's.
+	const UnsignedInt ESCAPE_AFTER = 2*LOGICFRAMES_PER_SECOND;		// held at a standstill this long = jammed.
 
 	// Candidate directions: the path direction rotated by these angles. cos/sin as constants, so no runtime trig.
 	struct Turn
@@ -77,8 +75,8 @@ namespace
 		{ 0.0f,        -1.0f,         3.5f,  1 },	// 90
 		{ 0.0f,         1.0f,         3.5f, -1 },
 	};
-	const Int NUM_TURNS = 11;
-	const Int NUM_TURNS_TREADS = 7;	// tracked vehicles lose speed fast when turning: nothing beyond 45 degrees.
+	const Int NUM_TURNS_INFANTRY = 11;	// up to 90 degrees.
+	const Int NUM_TURNS_VEHICLE = 9;		// up to 60: a vehicle sent 90 degrees off its path tends to orbit what it is avoiding.
 
 	struct Neighbour
 	{
@@ -96,8 +94,15 @@ namespace
 		return geom.getMajorRadius();
 	}
 
-	// Frames until we touch n when moving with velocity (vx, vy); HORIZON or more = no collision worth caring about.
-	Real timeToCollision( const Neighbour& n, Real vx, Real vy, Bool sticky )
+	inline Bool touching( const Neighbour& n )
+	{
+		return n.x*n.x + n.y*n.y <= n.radius*n.radius;
+	}
+
+	// Frames until we touch n when moving with velocity (vx, vy); HORIZON or more = nothing to avoid. Units that
+	// already touch are not avoided at all (dodging something you are inside means "directly away", and as the path
+	// direction swings round with the unit it ends up circling); they are queued behind or left to the contact rules.
+	Real timeToCollision( const Neighbour& n, Real vx, Real vy )
 	{
 		Real ux = vx - n.vx;	// our velocity relative to it.
 		Real uy = vy - n.vy;
@@ -106,13 +111,7 @@ namespace
 			return HORIZON;
 		Real c = n.x*n.x + n.y*n.y - n.radius*n.radius;
 		if (c <= 0.0f)
-		{
-			// Already inside it and still closing. Level 7 scored that as a collision now, which made every direction
-			// except "directly away" maximally bad: the unit turned 90 degrees, and as its path direction swung with it,
-			// kept turning - the spinning unit of the fifth play-test. Level 8 leaves units that already touch to the
-			// contact rules, which exist for exactly that.
-			return sticky ? HORIZON : 0.0f;
-		}
+			return HORIZON;
 		Real a = ux*ux + uy*uy;
 		Real disc = closing*closing - a*c;
 		if (disc < 0.0f || a <= 0.0f)
@@ -132,22 +131,23 @@ namespace AISteering
 {
 
 //-------------------------------------------------------------------------------------------------
-// Decide what to do this frame. Returns FALSE for "carry on as the path says"; otherwise bestTurn (index into TURNS)
-// and bestSpeedFactor hold the choice. dirX/dirY is the direction the path follower wants.
+// Look around and decide. Returns FALSE for "carry on as the path says"; otherwise bestTurn (index into TURNS) and
+// bestSpeedFactor hold the choice. followCap is lowered to the most we may do behind a moving unit we already
+// touch. dirX/dirY is the direction the path follower wants.
 static Bool choose( Object *obj, AIUpdateInterface *ai, Real dirX, Real dirY, Real speed, const State& state,
-										Bool sticky, UnsignedInt now, Int& bestTurn, Real& bestSpeedFactor )
+										UnsignedInt now, Int& bestTurn, Real& bestSpeedFactor, Real& followCap )
 {
 	const Coord3D *pos = obj->getPosition();
-	Int side = state.side;
-	Bool committed = sticky && side != 0 && (now - state.sideFrame) <= COMMIT_FRAMES;
-	Bool alreadySteering = sticky && (state.offSin != 0.0f || (now - state.sideFrame) <= STEERING_RECENT);
+	Bool committed = state.side != 0 && (now - state.sideFrame) <= COMMIT_FRAMES;
+	Bool alreadySteering = state.offSin != 0.0f || (now - state.sideFrame) <= STEERING_RECENT;
 
-	const Locomotor *loco = ai->getCurLocomotor();
-	Bool treads = (loco != nullptr && loco->getAppearance() == LOCO_TREADS);
 	Bool weAreInfantry = obj->isKindOf(KINDOF_INFANTRY);
 	Real ourRadius = steerRadius(obj);
 	ObjectID ignoreID = ai->getIgnoredObstacleID();
 	const Object *goalObj = ai->getGoalObject();
+
+	bestTurn = 0;
+	bestSpeedFactor = 1.0f;
 
 	//
 	// Collect the units that matter.
@@ -170,13 +170,8 @@ static Bool choose( Object *obj, AIUpdateInterface *ai, Real dirX, Real dirY, Re
 		PhysicsBehavior *otherPhysics = other->getPhysics();
 		if (aiOther == nullptr || otherPhysics == nullptr || !aiOther->isDoingGroundMovement())
 			continue;
-		// As in the retail collision rules: infantry walk through infantry, vehicles don't steer around infantry
-		// (allied infantry step aside for them, enemy infantry get run over), and nothing avoids what it can crush.
-		// So infantry is never an obstacle here; infantry themselves do steer around vehicles.
-		// Level 8: vehicles do steer around infantry they cannot crush. Leaving a mixed group to "vehicle bumps
-		// infantry, infantry is told to scatter" was the worst-flowing case of the fifth play-test. Infantry still
-		// walk through infantry.
-		if (other->isKindOf(KINDOF_INFANTRY) && (!sticky || weAreInfantry))
+		// Infantry walk through infantry, as they always have. Nothing avoids what it can run over.
+		if (weAreInfantry && other->isKindOf(KINDOF_INFANTRY))
 			continue;
 		if (obj->canCrushOrSquish(other, TEST_CRUSH_OR_SQUISH))
 			continue;
@@ -190,9 +185,22 @@ static Bool choose( Object *obj, AIUpdateInterface *ai, Real dirX, Real dirY, Re
 		n.standing = (n.vx*n.vx + n.vy*n.vy) < STANDING_SPEED*STANDING_SPEED;
 		n.radius = (ourRadius + steerRadius(other)) * CLEARANCE;
 
+		Real ahead = n.x*dirX + n.y*dirY;
+
+		// Queueing: a unit under way that we already touch and that is in front of us sets our pace. A unit with
+		// nowhere to go doesn't (slowing never gets us past it; the contact rules deal with it).
+		if (ahead > 0.0f && touching(n) && aiOther->isMoving())
+		{
+			Real pace = n.vx*dirX + n.vy*dirY;	// its speed in our direction.
+			if (pace < 0.0f)
+				pace = 0.0f;
+			if (pace < followCap)
+				followCap = pace;
+		}
+
 		// A moving unit behind us is its own problem: it sees us ahead and goes around. Without this every column
 		// would have its front units dodging the ones catching up.
-		if (!n.standing && (n.x*dirX + n.y*dirY) < 0.0f)
+		if (!n.standing && ahead < 0.0f)
 			continue;
 		++count;
 	}
@@ -200,21 +208,21 @@ static Bool choose( Object *obj, AIUpdateInterface *ai, Real dirX, Real dirY, Re
 		return FALSE;
 
 	//
-	// Is there anything to do? Carrying straight on at full speed must hit something within the horizon.
+	// Is there anything to avoid? Carrying straight on at full speed must hit something within the horizon.
 	//
 	Real straightCost = 0.0f;
 	Int i;
 	for (i = 0; i < count; ++i)
 	{
-		Real cost = collisionCost(timeToCollision(neighbours[i], dirX*speed, dirY*speed, sticky));
+		Real cost = collisionCost(timeToCollision(neighbours[i], dirX*speed, dirY*speed));
 		if (cost > straightCost)
 			straightCost = cost;
 	}
 	if (straightCost <= 0.0f)
 		return FALSE;
-	// Level 8: a far-off, mild threat doesn't start a manoeuvre (at that range the best answer flips with every small
-	// change in the picture); one already under way is seen through.
-	if (sticky && !alreadySteering && straightCost < START_COST)
+	// A far-off, mild threat doesn't start a manoeuvre (at that range the best answer flips with every small change
+	// in the picture); one already under way is seen through.
+	if (!alreadySteering && straightCost < START_COST)
 		return FALSE;
 
 	//
@@ -225,14 +233,7 @@ static Bool choose( Object *obj, AIUpdateInterface *ai, Real dirX, Real dirY, Re
 	LocomotorSurfaceTypeMask surfaces = ai->getLocomotorSet().getValidSurfaces();
 	Real probe = 2.0f*PATHFIND_CELL_SIZE_F + ourRadius;	// how far a turned direction must be passable.
 	Real bestCost = straightCost;
-	bestTurn = 0;
-	bestSpeedFactor = 1.0f;
-	Int numTurns = treads ? NUM_TURNS_TREADS : NUM_TURNS;
-	if (sticky && !treads && !weAreInfantry)
-		numTurns = NUM_TURNS_VEHICLE;
-	// Level 9: tracked vehicles now drive through turns, so they get the same +-60 degrees as other vehicles.
-	if (MoveRules::groupLanes() && treads)
-		numTurns = NUM_TURNS_VEHICLE;
+	Int numTurns = weAreInfantry ? NUM_TURNS_INFANTRY : NUM_TURNS_VEHICLE;
 	for (Int t = 0; t < numTurns; ++t)
 	{
 		const Turn& turn = TURNS[t];
@@ -246,19 +247,11 @@ static Bool choose( Object *obj, AIUpdateInterface *ai, Real dirX, Real dirY, Re
 			if (s == 2 && t != 0)
 				break;
 			Real factor = (s == 0) ? 1.0f : ((s == 1) ? 0.5f : 0.0f);
-			Real cost = turn.cost * (treads ? 1.5f : 1.0f);
+			Real cost = turn.cost;
 			if (s == 1) cost += COST_HALF_SPEED;
 			if (s == 2) cost += COST_STOP;
-			if (!sticky)
-			{
-				if (turn.side != 0 && turn.side == side)
-					cost -= BONUS_SAME_SIDE;
-			}
-			else if (committed && turn.side != 0)
-			{
-				// Level 8: having picked a side we stay on it for a second, unless the other side is the only way out.
-				cost += (turn.side == side) ? -BONUS_SAME_SIDE_STICKY : COST_CHANGE_SIDE;
-			}
+			if (committed && turn.side != 0)
+				cost += (turn.side == state.side) ? -BONUS_SAME_SIDE : COST_CHANGE_SIDE;
 			if (cost >= bestCost)
 				continue;	// cannot win even with no collision at all.
 
@@ -267,7 +260,7 @@ static Bool choose( Object *obj, AIUpdateInterface *ai, Real dirX, Real dirY, Re
 			{
 				const Neighbour& n = neighbours[i];
 				Real v = n.standing ? speed : speed*factor;
-				Real c = collisionCost(timeToCollision(n, cx*v, cy*v, sticky));
+				Real c = collisionCost(timeToCollision(n, cx*v, cy*v));
 				if (c > worst)
 					worst = c;
 			}
@@ -291,14 +284,13 @@ static Bool choose( Object *obj, AIUpdateInterface *ai, Real dirX, Real dirY, Re
 		}
 	}
 
-	// FALSE: nothing beats carrying on; the contact rules take it from here.
+	// FALSE: nothing beats carrying on.
 	return !(bestTurn == 0 && bestSpeedFactor >= 1.0f);
 }
 
 //-------------------------------------------------------------------------------------------------
 Bool steer( Object *obj, AIUpdateInterface *ai, Coord3D& goalPos, Real& speed, State& state )
 {
-	Bool sticky = MoveRules::steeringSticky();
 	UnsignedInt now = TheGameLogic->getFrame();
 	const Coord3D *pos = obj->getPosition();
 	Real dx = goalPos.x - pos->x;
@@ -309,35 +301,20 @@ Bool steer( Object *obj, AIUpdateInterface *ai, Coord3D& goalPos, Real& speed, S
 		state.side = 0;
 		state.offCos = 1.0f;
 		state.offSin = 0.0f;
+		state.heldFrames = 0;
 		return FALSE;
 	}
 	Real dirX = dx / aimDist;	// the direction the path follower wants.
 	Real dirY = dy / aimDist;
 
+	const Real NO_CAP = 1.0e9f;
 	Int bestTurn = 0;
 	Real bestSpeedFactor = 1.0f;
-	Bool chose = choose(obj, ai, dirX, dirY, speed, state, sticky, now, bestTurn, bestSpeedFactor);
+	Real followCap = NO_CAP;
+	Bool chose = choose(obj, ai, dirX, dirY, speed, state, now, bestTurn, bestSpeedFactor, followCap);
 
-	if (!sticky)
-	{
-		// Level 7: apply the choice as is, forget it the moment there is none.
-		if (!chose)
-		{
-			state.side = 0;
-			return FALSE;
-		}
-		const Turn& chosen = TURNS[bestTurn];
-		state.side = chosen.side;
-		Real outX = dirX*chosen.cosA - dirY*chosen.sinA;
-		Real outY = dirX*chosen.sinA + dirY*chosen.cosA;
-		goalPos.x = pos->x + outX*aimDist;	// same distance away, so the locomotor's braking sums are unchanged.
-		goalPos.y = pos->y + outY*aimDist;
-		speed *= bestSpeedFactor;
-		return TRUE;
-	}
-
-	// Level 8: remember the side for COMMIT_FRAMES, and ease the applied turn toward the wanted one instead of
-	// jumping to it, both on the way in and on the way back to the path direction.
+	// Remember the side for COMMIT_FRAMES, and ease the applied turn toward the wanted one instead of jumping to
+	// it, both on the way in and on the way back to the path direction.
 	Real wantCos = 1.0f;
 	Real wantSin = 0.0f;
 	if (chose)
@@ -375,21 +352,36 @@ Bool steer( Object *obj, AIUpdateInterface *ai, Coord3D& goalPos, Real& speed, S
 		state.offSin = 0.0f;
 	}
 
-	Bool changed = FALSE;
 	if (state.offSin != 0.0f)
 	{
 		Real outX = dirX*state.offCos - dirY*state.offSin;
 		Real outY = dirX*state.offSin + dirY*state.offCos;
-		goalPos.x = pos->x + outX*aimDist;
+		goalPos.x = pos->x + outX*aimDist;	// same distance away, so the locomotor's braking sums are unchanged.
 		goalPos.y = pos->y + outY*aimDist;
-		changed = TRUE;
 	}
 	if (chose && bestSpeedFactor < 1.0f)
-	{
 		speed *= bestSpeedFactor;
-		changed = TRUE;
+
+	// Queueing, and the escape from a queue that has stopped moving.
+	Bool held = FALSE;
+	if (followCap < speed)
+	{
+		speed = followCap;
+		held = (followCap < STANDING_SPEED);
 	}
-	return changed;
+	if (held)
+	{
+		if (++state.heldFrames > ESCAPE_AFTER)
+		{
+			state.heldFrames = 0;
+			return TRUE;
+		}
+	}
+	else
+	{
+		state.heldFrames = 0;
+	}
+	return FALSE;
 }
 
 }

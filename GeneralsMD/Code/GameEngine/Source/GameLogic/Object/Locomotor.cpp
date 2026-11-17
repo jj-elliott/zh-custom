@@ -1286,12 +1286,7 @@ void Locomotor::moveTowardsPositionTreads(Object* obj, PhysicsBehavior *physics,
 	// Modulate speed according to turning. The more we have to turn, the slower we go
 	//
 	const Real QUAETERPI = PI / 4.0f;
-	// zh-pipeline @feature 2026-11-16 Phase 7 step 5 (first part, level 7): retail tanks lose speed in proportion to
-	// the turn and stand still to pivot from 45 degrees off, which is why they were the worst at getting around
-	// anything. With local avoidance asking for small course changes all the time, they now keep rolling until
-	// 60 degrees off.
-	const Real fullStopAngle = MoveRules::steering() ? (PI / 3.0f) : QUAETERPI;
-	Real angleCoeff = (Real)WWMath::Fabs( relAngle ) / fullStopAngle;
+	Real angleCoeff = (Real)WWMath::Fabs( relAngle ) / QUAETERPI;
 	if (angleCoeff > 1.0f)
 		angleCoeff = 1.0;
 
@@ -1302,10 +1297,11 @@ void Locomotor::moveTowardsPositionTreads(Object* obj, PhysicsBehavior *physics,
 
 	Real goalSpeed = (1.0f - angleCoeff) * desiredSpeed;
 
-	// zh-pipeline @feature 2026-11-16 Phase 7 step 5 (level 9): tracked vehicles drive while they turn, to a degree,
-	// like wheeled ones. Up to 90 degrees off they keep at least 30% of their speed (so they sweep an arc instead
-	// of stopping to pivot); from 90 to 120 that falls to nothing, and beyond 120 they pivot on the spot as before.
-	if (MoveRules::groupLanes())
+	// zh-pipeline @feature 2026-11-16 MoveRules::UNIFIED: tracked vehicles drive while they turn, to a degree, like
+	// wheeled ones. Retail (above) scales speed to nothing by 45 degrees off the aim point, so a tank stops and
+	// pivots for any real course change. Now: up to 90 degrees off it keeps at least 30% of its speed and sweeps an
+	// arc; from 90 to 120 that falls to nothing; beyond 120 it pivots on the spot as before.
+	if (MoveRules::unified())
 	{
 		Real offAngle = (Real)WWMath::Fabs( relAngle );
 		const Real RIGHT_ANGLE = PI / 2.0f;

@@ -16,23 +16,26 @@
 **	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// zh-pipeline @feature 2026-11-16 Local avoidance (docs/PLAN.md Phase 7 step 4), movement rules level 7.
+// zh-pipeline @feature 2026-11-16 Local avoidance (docs/PLAN.md Phase 7), part of MoveRules::UNIFIED.
 //
-// The collision rules of steps 1-3 only act once two units already touch, and can only slow, wait or repath, so
-// every traffic situation needed its own rule. This layer acts before contact. Each logic frame a ground unit that
-// is following a path looks at the units around it, and if carrying on as it is would hit one within the next
-// 1.5 s it scores a small fixed set of alternative velocities (the path direction turned 15..90 degrees either way,
-// at full or half speed, or stopping) and takes the cheapest: cost = how soon that velocity collides + how far it
-// strays from the path direction + how much speed it gives up. The pathfinder still decides where to go; this only
-// bends the next few metres. Passing a slower unit, flowing around a stopped firing line and funnelling through a
-// gap all fall out of the one rule.
+// The pathfinder decides where a unit goes; this decides how it gets past the units in its way over the next few
+// metres. It sits in AIUpdateInterface::doLocomotor between the point the path follower aims at and the Locomotor,
+// and its whole output is a replacement aim point and speed for this frame.
 //
-// It sits in AIUpdateInterface::doLocomotor between the point the path follower aims at and the Locomotor, and its
-// whole output is a replacement aim point and speed for this frame.
+// Each logic frame, for a ground unit following a path:
+//   look     the nearest units within reach of a 1.5 s horizon (not buildings: those are the pathfinder's).
+//   avoid    if carrying on would hit one, score the path direction turned 15..90 degrees either way, at full or
+//            half speed, or stopping, by how soon it collides + how far it strays + how much speed it gives up, and
+//            take the cheapest that is passable. A chosen side is kept for a second and the turn is eased in and
+//            out, so the choice does not flicker.
+//   queue    a moving unit ahead that we already touch is not dodged but followed: we go no faster than it does
+//            in our direction. This is what makes a gap pass units at the rate they fit, without overlap.
+//   escape   if following has held us at a standstill for 2 s, the queue is a jam; the caller then lets this one
+//            unit ignore collisions for 2 s. The only place units are allowed through each other.
 //
 // SIM CODE. Deterministic by construction: inputs are positions, headings and physics velocities already in the
-// lockstep state; the candidate directions are constant rotation pairs (no runtime trig); the neighbour scan takes
-// a minimum, which does not depend on iteration order; there is no RNG and no state beyond one remembered side.
+// lockstep state; candidate directions are constant rotation pairs (no runtime trig); the neighbour scan takes a
+// maximum, independent of iteration order; no RNG; State is per unit, transient, and identical on both machines.
 
 #pragma once
 
@@ -44,20 +47,21 @@ struct Coord3D;
 
 namespace AISteering
 {
-	/// What one unit remembers between frames. Transient: not saved, not in the CRC stream; lockstep keeps it equal.
+	/// What one unit remembers between frames. Transient: not saved, not in the CRC stream.
 	struct State
 	{
-		Int side;								///< which way we last turned: -1 left, 0 none, +1 right.
-		UnsignedInt sideFrame;	///< frame of that choice (level 8: we stay committed to the side for a while).
-		Real offCos, offSin;		///< level 8: the turn currently applied, as a rotation of the path direction; eased frame to frame.
+		Int side;									///< which way we last turned: -1 left, 0 none, +1 right.
+		UnsignedInt sideFrame;		///< frame of that choice; we stay committed to the side for a while.
+		Real offCos, offSin;			///< the turn currently applied, as a rotation of the path direction; eased frame to frame.
+		UnsignedInt heldFrames;		///< consecutive frames queueing has kept us at a standstill.
 
-		State() : side(0), sideFrame(0), offCos(1.0f), offSin(0.0f) { }
+		State() : side(0), sideFrame(0), offCos(1.0f), offSin(0.0f), heldFrames(0) { }
 	};
 
 	/**
-		Adjust this frame's aim point and speed so that obj avoids the units around it.
+		Adjust this frame's aim point and speed so that obj gets past the units around it.
 		goalPos / speed: in = what the path follower wants, out = what to give the Locomotor.
-		Returns TRUE if anything was changed.
+		Returns TRUE if the unit has been held at a standstill long enough that the caller should let it escape.
 	*/
 	Bool steer( Object *obj, AIUpdateInterface *ai, Coord3D& goalPos, Real& speed, State& state );
 }

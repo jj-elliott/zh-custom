@@ -122,36 +122,12 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       Optional later: map + player names in the archived replay filename; overlay font sizes.
 - [ ] **12. Netcode test flags already exist** in debug builds: `-packetloss`, `-latAvg`, `-latAmp`, `-latPeriod`, `-latNoise` (`CommandLine.cpp`).
       Expose them in release (or use a `win32-profile` build) and make `net-sim.ps1` prefer them over clumsy.
-- [~] **15. Phase 7 steps 1–3 (yield rule, push priority, pass-through + stuck fail-safe)** — implemented 2026-11-16 on `move/collision-rules`
-      behind the movement rules level (`MoveRules.h`, `-moverules <n>`, default 3); details and deviations in PLAN.md Phase 7. Retail baseline
-      verifies at level 0 via `tests/replays/skirmish-01.rep.args`. **Open, human:** play a skirmish at the default level (drive columns through
-      chokes and through parked units, move a mixed group, let harvesters run through a parked army), say how each feels, then
-      `verify.ps1 -Import -Name move-01` + `verify.ps1 -SkipBuild` for the first Phase 7 baseline. If something feels wrong, replay the
-      situation with `-moverules 2` / `1` to find the step. **Open, agent:** tune `YIELD_MIN_GOAL_DIST` (8 cells) and the 60° pass-through
-      cone from that feedback; both launcher installs must ship the same exe before any two-player game (level mismatch = desync).
-      **2026-11-16 play-test of level 3:** flow good, overlap too free (chokes stop mattering). Level 4 (default) replaces overlap with
-      queue-following plus spread-out of stacked idle units; `move-01.rep` imported as the level 3 baseline. **Open, human:** play again at
-      the default level, watch a column at a choke and a group stopping; import as `move-02`.
-      **2026-11-16 second play-test (level 4):** better, still some overlap; level 4 turned out never to queue-follow (stale stall
-      timer). Level 5 (default) fixes that and tightens spacing; `move-02.rep` is the level 4 baseline. **Open, human:** play at level 5,
-      import as `move-03`. If it feels worse than the second game, say so: that game's behaviour is still available as `-moverules 4`.
-      **2026-11-16 third play-test (level 5):** too strict and stop-and-go in the open; attack-move column jams behind a front rank that
-      stopped to shoot. Level 6 (default): eased, smoothed cap; 1 s stall → path around; stopped shooters are obstacles. `move-03.rep` is
-      the level 5 baseline. **Open, human:** play at level 6, import as `move-04`. **Possible follow-up:** firing-position selection around
-      a target (attack state), if going around stopped shooters is not enough to get the encirclement.
-      **2026-11-16 fourth play-test (level 6, campaign, no replay):** contact rules judged whack-a-mole. Level 7 (default) adds local
-      avoidance (`AISteering`, PLAN step 4) and a wider rolling-turn angle for tracked vehicles (step 5, part). **Open, human:** play a
-      *skirmish* (campaign missions leave no replay) at level 7, import as `move-04`; if units stick between buildings, say where and when.
-      **Open, agent:** tune `AISteering` weights from that; `-replaysoak` at the new level on all baselines is the crash/repeatability gate.
-      **2026-11-16 fifth play-test (level 7, `move-04.rep`, look from 4:00):** jitter, one unit spinning, mixed infantry/vehicle groups
-      flow badly, units don't swing wide on curves. Level 8 (default): committed + eased steering, later start, no orbiting, vehicles steer
-      around infantry. **Open, human:** play level 8, import as `move-05`. **Next candidate:** group lateral offsets / flow field so a
-      group uses the width of a curve (PLAN step 6), if curves still bunch.
-      **2026-11-16 sixth play-test (level 8, `move-05.rep`):** corners clunky, groups collide; asks: parallel travel, tanks turn while
-      moving, congestion-aware path cost. Found retail forces vehicle groups into 2 columns on one path. Level 9 (default): up to 8 lanes
-      for vehicle group moves (`moveVehiclesInLanes`), tracked vehicles drive through turns. **Open, human:** play level 9, import as
-      `move-06`; say whether big groups now travel abreast. **Open, agent:** confirm how often the lanes path is taken (instrument or
-      read AIData.ini thresholds); same treatment for infantry groups; congestion-aware pathing for individually pathed units.
+- [~] **15. Phase 7 movement** — rebuilt 2026-11-16 as `MoveRules::UNIFIED` (traffic-aware pathfinder + steering + minimal contact
+      rules) after nine play-tested iterations; design, history and open points in PLAN.md Phase 7. `-moverules 0` = retail.
+      Gates: `verify.ps1` (retail baseline at level 0) and `soak.ps1` (recorded games run to the end twice with equal final CRCs).
+      **Open, human:** play UNIFIED; a test save via `movetest.ps1` makes that quick (no replay from a loaded save, though).
+      **Open, agent:** tune from feedback (constants at the top of `AISteering.cpp`, `MoveTraffic.cpp`); once it settles, record
+      new baselines with `verify.ps1 -Import`; both installs need the same exe before any two-player game.
 
 ## Findings from source inspection (2026-10-21, before first build) — read before starting the items above
 

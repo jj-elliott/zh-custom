@@ -16,21 +16,23 @@
 **	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// zh-pipeline @feature 2026-11-16 Unit movement rules level (docs/PLAN.md Phase 7).
+// zh-pipeline @feature 2026-11-16 Unit movement rules switch (docs/PLAN.md Phase 7).
 //
-// Phase 7 changes how units behave, so each step is a deliberate simulation change. Every step is gated on one
-// integer so that (a) the retail replay baselines keep verifying at level 0, which proves the gates leak nothing,
-// and (b) a feel problem can be bisected to a step by playing at a lower level.
+// Two settings: RETAIL (0), the untouched 2003 behaviour, and UNIFIED (1, the default), our movement system:
+//   where to go   the pathfinder, made aware of the routes other units have already planned (GameLogic/MoveTraffic.h)
+//   how to go     local avoidance, which also does queueing and the last-resort jam escape (GameLogic/AISteering.h)
+//   on contact    only what those two cannot do: an idle ally steps aside, stacked idle units spread out
+// Everything the unified system replaces is switched off under it: the retail two-column group move, blocking and
+// deadlock-breaking between moving allies, and the intermediate contact rules this project went through
+// (pass-through, queue speed caps, stalled-queue repaths; see PLAN.md for that history).
 //
-// THIS IS SIM STATE. Both machines of a network game must run the same level or they desync at the first collision
-// that resolves differently. The default is the newest level; "-moverules <n>" overrides it and exists for replay
-// verification and bisecting, so the launcher must never pass it to one side only. The level is fixed for the life
-// of the process and is not part of a save game or a replay: a replay only reproduces at the level it was recorded
-// at (scripts/verify.ps1 reads it from "<replay>.args").
+// RETAIL stays because the pre-Phase-7 replay baseline (tests/replays/skirmish-01.rep) proves, by still reproducing
+// at level 0, that the switch leaks nothing, and because it is the comparison when judging feel.
 //
-// Determinism of the rules themselves: they only read values that are already in the lockstep state (AI state ids,
-// command source, INI mass, positions, object ids) and compare them; no new floating point maths, no new RNG draws,
-// no container iteration.
+// THIS IS SIM STATE. Both machines of a network game must run the same setting or they desync. The default is
+// UNIFIED; "-moverules 0" selects retail and exists for replay verification and comparison. It is fixed for the life
+// of the process and is not part of a save game or a replay (scripts/verify.ps1 reads it from "<replay>.args").
+// UNIFIED is still being iterated on: a replay recorded with one build of it is not expected to reproduce on the next.
 
 #pragma once
 
@@ -40,30 +42,14 @@ namespace MoveRules
 {
 	enum Level CPP_11(: Int)
 	{
-		RETAIL = 0,				///< unchanged behaviour: reproduces replays recorded before Phase 7
-		YIELD = 1,				///< step 1: an idle ally in the way of a mover steps aside instead of making the mover path around
-		PRIORITY = 2,			///< step 2: push priority (player order > auto-move, then heavier Mass) decides who gives way
-		PASS_THROUGH = 3,	///< step 3, first cut: allies moving the same way pass through each other; a unit blocked past 2 s drops collision for itself
-		SOFT_FLOW = 4,		///< step 3, second cut: same-way allies queue behind each other instead of overlapping, without the stuck/repath churn; stacked idle units spread out
-		TIGHT_QUEUE = 5,	///< step 3, third cut: a follower's speed cap falls to zero as it sinks into the unit ahead, and is applied at once
-		EASED_FLOW = 6,		///< step 3, fourth cut: light contact is free, the cap eases in with depth and relaxes gradually; a stalled queue or a stopped shooter ahead is pathed around after 1 s
-		STEERING = 7,			///< step 4: local avoidance (AISteering): units steer around each other before contact; tracked vehicles keep rolling through wider turns
-		STEERING_STICKY = 8,	///< step 4, second cut: steering commits to a side, eases its turn in and out, starts later, treats infantry as obstacles for vehicles
-		GROUP_LANES = 9,	///< vehicle group moves spread over up to 8 lanes across the route instead of 2 columns; tracked vehicles drive while turning
+		RETAIL = 0,		///< unchanged behaviour: reproduces replays recorded before Phase 7
+		UNIFIED = 1,	///< congestion-aware pathfinding + local avoidance + minimal contact rules
 
-		LATEST = GROUP_LANES
+		LATEST = UNIFIED
 	};
 
 	Int getLevel();
 	void setLevel( Int level );	///< clamped to [RETAIL, LATEST]; call before a game starts, never during one
 
-	inline Bool yieldRule() { return getLevel() >= YIELD; }
-	inline Bool pushPriority() { return getLevel() >= PRIORITY; }
-	inline Bool passThrough() { return getLevel() >= PASS_THROUGH; }	///< step 3 in either form (also gates the stuck fail-safe)
-	inline Bool softFlow() { return getLevel() >= SOFT_FLOW; }				///< queue-following replaces the level 3 overlap
-	inline Bool tightQueue() { return getLevel() >= TIGHT_QUEUE; }		///< working queue-following (level 5 form: depth-scaled, immediate speed cap)
-	inline Bool easedFlow() { return getLevel() >= EASED_FLOW; }			///< eased, smoothed cap; quick path-around when the queue ahead stops
-	inline Bool steering() { return getLevel() >= STEERING; }					///< local avoidance before contact (GameLogic/AISteering.h)
-	inline Bool steeringSticky() { return getLevel() >= STEERING_STICKY; }	///< committed, smoothed steering
-	inline Bool groupLanes() { return getLevel() >= GROUP_LANES; }		///< wide lanes for vehicle group moves; rolling turns for tracked vehicles
+	inline Bool unified() { return getLevel() >= UNIFIED; }
 }
