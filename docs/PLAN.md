@@ -298,6 +298,41 @@ returning to the path line (the return is a second turn and often a re-encounter
 Missing from the harness: a course with a real choke and one with infantry in the way (record them), reversals per unit
 type, and anything about how it looks.
 
+### Scripted scenarios and the suite (`tests/courses/*.scenario`, `scripts/movesuite.ps1`)
+
+The user asked whether courses could be made without a person (map editor, or a save built from scratch), so the agent can
+iterate alone. Answer: a scenario is a text file: a stock map, groups of units to spawn (`spawn <template> <count>`), where each
+group starts and where it is sent (`from` / `to`, a waypoint name such as `Player_1_Start` or coordinates). `-movebench
+<x.scenario>` loads the map as an empty single-player game, spawns the units on free ground around the start, gives the orders
+and measures. No map editor, no save, no keyboard; a new course is a few lines. Format in `MoveBench.cpp`.
+
+`movesuite.ps1` runs every scenario for the defaults, any `-Configs`, and retail, and prints one averaged line each.
+**This is the loop for movement work now: change, `movesuite.ps1`, compare.** A person is needed only to judge how it looks.
+
+Four scenarios so far: `desert-cross` and `river-cross` (two vehicle groups swap bases and meet head-on), `desert-mixed` and
+`city-mixed` (one group with infantry across open desert / through a town).
+
+**Baseline, 2026-11-16, 3 variants per scenario, mean over the four:**
+
+| configuration | score | meanArrive | overlap | reversals | stalled |
+|---|---|---|---|---|---|
+| unified, defaults | 241 | 65.2 s | 45.4 | 28.9 | 15.0 |
+| retail | 323 | 81.2 s | 5.8 | 7.8 | 331 |
+| unified, steering avoidance off | 287 | 65.9 | 75.7 | 7.9 | 23.6 |
+| unified, traffic cost off | 302 | 66.6 | 62.0 | 48.1 | 22.4 |
+| unified, wider queueing | 267 | 65.8 | 51.4 | 29.9 | 38.0 |
+| unified, wider queueing, no jam escape | 1108 | 96.7 | 148 | 24.9 | 1222 (jams) |
+
+Read honestly: **unified gets groups there 20% sooner and almost never leaves a unit standing, but vehicles overlap 8 times
+as much as in retail and change turning direction nearly 4 times as often.** That is the "clumping" and "jitter" the user
+keeps reporting, now with numbers. Retail's weakness is the opposite: tidy, but 331 unit-seconds of standing still.
+(The earlier single-save result made unified look better than this because that course had no opposing traffic.)
+
+**Targets for the next iterations:** overlap below 10 and reversals below 12 while keeping meanArrive near 65 and stalled
+below 30. Pointers from the table: steering is the only thing holding overlap down and the main source of reversals;
+making units queue harder just moves time into jams unless something lets a queue drain; with no contact rules between
+moving allies (`isSteeredPair`) nothing stops two units that failed to avoid each other from driving through one another.
+
 ### Open
 
 - Play-test UNIFIED (test saves: `scripts/movetest.ps1`). Expected trouble spots: traffic penalty too weak or too strong

@@ -1,0 +1,8 @@
+# A mixed group through Tournament City: buildings, streets, corners.
+map Maps\Tournament City\Tournament City.map
+group
+from Player_1_Start
+to Player_2_Start
+spawn AmericaTankCrusader 8
+spawn AmericaVehicleHumvee 6
+spawn AmericaInfantryRanger 10

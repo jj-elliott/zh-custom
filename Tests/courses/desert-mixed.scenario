@@ -1,0 +1,9 @@
+# One large mixed group, infantry included, the length of Tournament Desert.
+map Maps\Tournament Desert\Tournament Desert.map
+group
+from Player_1_Start
+to Player_2_Start
+spawn AmericaTankCrusader 10
+spawn AmericaVehicleHumvee 6
+spawn AmericaInfantryRanger 12
+spawn AmericaInfantryMissileDefender 6

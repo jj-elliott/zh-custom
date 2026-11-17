@@ -1,0 +1,12 @@
+# Two tank groups swap bases on Winding River: river crossings are the chokes.
+map Maps\Winding River\Winding River.map
+group
+from Player_1_Start
+to Player_2_Start
+spawn ChinaTankBattleMaster 10
+spawn GLAVehicleTechnical 6
+group
+from Player_2_Start
+to Player_1_Start
+spawn AmericaTankCrusader 10
+spawn AmericaVehicleHumvee 6

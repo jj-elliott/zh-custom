@@ -29,6 +29,9 @@
 #include "Common/KindOf.h"
 #include "Common/Player.h"
 #include "Common/PlayerList.h"
+#include "Common/Team.h"
+#include "Common/ThingFactory.h"
+#include "Common/ThingTemplate.h"
 #include "GameLogic/AI.h"
 #include "GameLogic/AIPathfind.h"
 #include "GameLogic/GameLogic.h"
@@ -144,6 +147,227 @@ namespace
 		fclose(f);
 		return !orders.empty();
 	}
+
+	// ---- Scenarios: a course built from nothing but a text file. ----
+	//   map <path inside the game's archives, e.g. Maps\Tournament Desert\Tournament Desert.map>
+	//   group                         starts a group; everything below belongs to it until the next "group"
+	//   from <waypoint name> | from <x> <y>     where the group is placed (units fill free ground around it)
+	//   to <waypoint name> | to <x> <y>         where it is ordered to go
+	//   spawn <object template> <count>
+	//   at <frames>                   when the group gets its order (default 0)
+	//   attackmove                    attack-move instead of move
+	// Lines starting with # are comments. The map is loaded as a single-player game with nobody on it, so there is
+	// no base, no enemy and no script getting in the way: only the terrain and the units the file asks for.
+	struct SpawnSpec
+	{
+		AsciiString templateName;
+		Int count;
+	};
+	struct GroupSpec
+	{
+		Coord3D from, to;
+		AsciiString fromName, toName;
+		UnsignedInt at;
+		Bool attackMove;
+		std::vector<SpawnSpec> spawns;
+	};
+	struct Scenario
+	{
+		AsciiString map;
+		std::vector<GroupSpec> groups;
+	};
+
+	Bool isScenarioFile( const char *path )
+	{
+		size_t n = strlen(path);
+		return n > 9 && _stricmp(path + n - 9, ".scenario") == 0;
+	}
+
+	void parsePlace( const char *rest, Coord3D& pos, AsciiString& name )
+	{
+		float x = 0, y = 0;
+		if (sscanf(rest, "%f %f", &x, &y) == 2)
+		{
+			pos.x = x; pos.y = y; pos.z = 0;
+			name.clear();
+		}
+		else
+		{
+			name = rest;
+			name.trim();
+		}
+	}
+
+	Bool loadScenario( Scenario& sc )
+	{
+		FILE *f = fopen(MoveRules::benchRunFile(), "r");
+		if (f == nullptr)
+			return FALSE;
+		char line[512];
+		while (fgets(line, sizeof(line), f))
+		{
+			size_t n = strlen(line);
+			while (n > 0 && (line[n-1] == '\n' || line[n-1] == '\r' || line[n-1] == ' ' || line[n-1] == '\t'))
+				line[--n] = 0;
+			const char *p = line;
+			while (*p == ' ' || *p == '\t') ++p;
+			if (*p == 0 || *p == '#')
+				continue;
+			if (strncmp(p, "map ", 4) == 0)
+			{
+				sc.map = p + 4;
+				sc.map.trim();
+			}
+			else if (strcmp(p, "group") == 0)
+			{
+				GroupSpec g;
+				g.from.zero();
+				g.to.zero();
+				g.at = 0;
+				g.attackMove = false;
+				sc.groups.push_back(g);
+			}
+			else if (sc.groups.empty())
+			{
+				continue;
+			}
+			else if (strncmp(p, "from ", 5) == 0)
+			{
+				parsePlace(p + 5, sc.groups.back().from, sc.groups.back().fromName);
+			}
+			else if (strncmp(p, "to ", 3) == 0)
+			{
+				parsePlace(p + 3, sc.groups.back().to, sc.groups.back().toName);
+			}
+			else if (strncmp(p, "at ", 3) == 0)
+			{
+				sc.groups.back().at = (UnsignedInt)atoi(p + 3);
+			}
+			else if (strcmp(p, "attackmove") == 0)
+			{
+				sc.groups.back().attackMove = true;
+			}
+			else if (strncmp(p, "spawn ", 6) == 0)
+			{
+				char name[128];
+				int count = 1;
+				if (sscanf(p + 6, "%127s %d", name, &count) >= 1)
+				{
+					SpawnSpec s;
+					s.templateName = name;
+					s.count = count;
+					sc.groups.back().spawns.push_back(s);
+				}
+			}
+		}
+		fclose(f);
+		return sc.map.isNotEmpty() && !sc.groups.empty();
+	}
+
+	Bool resolvePlace( Coord3D& pos, const AsciiString& name )
+	{
+		if (name.isEmpty())
+		{
+			pos.z = TheTerrainLogic->getGroundHeight(pos.x, pos.y);
+			return TRUE;
+		}
+		Waypoint *way = TheTerrainLogic->getWaypointByName(name);
+		if (way == nullptr)
+		{
+			printf("MoveBench: no waypoint \"%s\" on this map\n", name.str());
+			return FALSE;
+		}
+		pos = *way->getLocation();
+		return TRUE;
+	}
+
+	// Put the scenario's units on the map and turn its groups into orders.
+	Bool populateScenario( Scenario& sc, std::vector<Order>& orders )
+	{
+		Player *owner = ThePlayerList->getLocalPlayer();
+		if (owner == nullptr)
+			owner = ThePlayerList->getNeutralPlayer();
+		Team *team = owner->getDefaultTeam();
+
+		// Places around a point, nearest first, 2.5 cells apart; each unit takes the first one it can stand on.
+		const Int RINGS = 9;
+		const Real SPACING = 2.5f * PATHFIND_CELL_SIZE_F;
+		std::vector<ICoord2D> slots;
+		for (Int r = 0; r <= RINGS; ++r)
+			for (Int j = -r; j <= r; ++j)
+				for (Int i = -r; i <= r; ++i)
+					if (i == -r || i == r || j == -r || j == r)
+					{
+						ICoord2D c;
+						c.x = i;
+						c.y = j;
+						slots.push_back(c);
+					}
+
+		for (size_t g = 0; g < sc.groups.size(); ++g)
+		{
+			GroupSpec& group = sc.groups[g];
+			if (!resolvePlace(group.from, group.fromName) || !resolvePlace(group.to, group.toName))
+				return FALSE;
+			Real dx = group.to.x - group.from.x;
+			Real dy = group.to.y - group.from.y;
+			Real facing = (dx != 0.0f || dy != 0.0f) ? WWMath::Atan2(dy, dx) : 0.0f;
+
+			Order order;
+			order.offset = group.at;
+			order.attackMove = group.attackMove;
+			order.dest = group.to;
+			order.issued = false;
+			size_t nextSlot = 0;
+			for (size_t s = 0; s < group.spawns.size(); ++s)
+			{
+				const ThingTemplate *tmpl = TheThingFactory->findTemplate(group.spawns[s].templateName);
+				if (tmpl == nullptr)
+				{
+					printf("MoveBench: no object template \"%s\"\n", group.spawns[s].templateName.str());
+					return FALSE;
+				}
+				for (Int n = 0; n < group.spawns[s].count; ++n)
+				{
+					Object *obj = TheThingFactory->newObject(tmpl, team);
+					if (obj == nullptr || obj->getAI() == nullptr)
+					{
+						printf("MoveBench: \"%s\" is not a unit that can be ordered about\n", group.spawns[s].templateName.str());
+						return FALSE;
+					}
+					Bool placed = false;
+					for (; nextSlot < slots.size() && !placed; ++nextSlot)
+					{
+						Coord3D pos = group.from;
+						pos.x += slots[nextSlot].x * SPACING;
+						pos.y += slots[nextSlot].y * SPACING;
+						if (!TheAI->pathfinder()->validMovementPosition(FALSE, LAYER_GROUND, obj->getAI()->getLocomotorSet(), &pos))
+							continue;
+						pos.z = TheTerrainLogic->getGroundHeight(pos.x, pos.y);
+						obj->setPosition(&pos);
+						obj->setOrientation(facing);
+						placed = true;
+					}
+					if (!placed)
+					{
+						printf("MoveBench: no room around the start for all of group %u\n", (unsigned)(g + 1));
+						return FALSE;
+					}
+					order.ids.push_back(obj->getID());
+				}
+			}
+			orders.push_back(order);
+		}
+		// Orders must be in time order for the run loop's "last offset".
+		for (size_t a = 1; a < orders.size(); ++a)
+			for (size_t b = a; b > 0 && orders[b].offset < orders[b-1].offset; --b)
+			{
+				Order tmp = orders[b];
+				orders[b] = orders[b-1];
+				orders[b-1] = tmp;
+			}
+		return TRUE;
+	}
 }
 
 namespace MoveBench
@@ -164,21 +388,43 @@ int run()
 {
 	std::vector<Order> orders;
 	Bool autoCourse = strcmp(MoveRules::benchRunFile(), "auto") == 0;
-	if (!autoCourse && !loadCourse(orders))
+	Bool scenarioCourse = isScenarioFile(MoveRules::benchRunFile());
+	Scenario scenario;
+	if (scenarioCourse)
+	{
+		if (!loadScenario(scenario))
+		{
+			printf("MoveBench: cannot read scenario \"%s\" (needs a map line and at least one group)\n", MoveRules::benchRunFile());
+			return 2;
+		}
+		// Start the map as an empty single-player game, the way "-file <map>" does.
+		TheWritableGlobalData->m_pendingFile = scenario.map;
+		TheGameLogic->prepareNewGame(GAME_SINGLE_PLAYER, DIFFICULTY_NORMAL, 0);
+		TheGameLogic->startNewGame(FALSE);
+		if (!TheGameLogic->isInGame())
+		{
+			printf("MoveBench: map \"%s\" did not load\n", scenario.map.str());
+			return 2;
+		}
+	}
+	else if (!autoCourse && !loadCourse(orders))
 	{
 		printf("MoveBench: cannot read course \"%s\"\n", MoveRules::benchRunFile());
 		return 2;
 	}
-	if (TheGlobalData->m_loadSaveGame.isEmpty())
+	if (!scenarioCourse)
 	{
-		printf("MoveBench: no save given (-loadsave <file>)\n");
-		return 2;
-	}
-	TheGameState->loadQueuedSaveGame();
-	if (!TheGameLogic->isInGame())
-	{
-		printf("MoveBench: the save did not load\n");
-		return 2;
+		if (TheGlobalData->m_loadSaveGame.isEmpty())
+		{
+			printf("MoveBench: no save given (-loadsave <file>)\n");
+			return 2;
+		}
+		TheGameState->loadQueuedSaveGame();
+		if (!TheGameLogic->isInGame())
+		{
+			printf("MoveBench: the save did not load\n");
+			return 2;
+		}
 	}
 	if (TheGameLogic->isGamePaused())
 		TheGameLogic->setGamePaused(FALSE, FALSE, FALSE);
@@ -238,6 +484,15 @@ int run()
 			all.ids.push_back(obj->getID());
 		}
 		orders.push_back(all);
+	}
+
+	if (scenarioCourse)
+	{
+		if (!populateScenario(scenario, orders))
+			return 2;
+		// One more second for the new units to settle into their idle states and claim their cells.
+		for (Int i = 0; i < LOGICFRAMES_PER_SECOND; ++i)
+			TheGameLogic->UPDATE();
 	}
 
 	std::vector<Tracked> units;

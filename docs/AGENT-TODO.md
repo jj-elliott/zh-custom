@@ -128,7 +128,9 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       **Open, human:** play UNIFIED; a test save via `movetest.ps1` makes that quick (no replay from a loaded save, though).
       Benchmark: `scripts/movebench.ps1` (headless, ~2 s a run, averaged over course variants; results and what they
       mean in PLAN.md). Finding: constants are at a flat optimum, steering causes over half the turn jitter.
-      **Open, human:** record a choke course and an infantry course (`movebench.ps1 -Record -Course x`).
+      Scripted scenarios (`tests/courses/*.scenario`) + `scripts/movesuite.ps1` need no person: this is the agent's loop.
+      Baseline and targets in PLAN.md: unified is 20% faster and never stalls but overlaps 8x and jitters 4x retail.
+      **Open, agent:** iterate on steering/contact handling against the suite until overlap < 10 and reversals < 12.
       **Open, agent:** tune from feedback (constants at the top of `AISteering.cpp`, `MoveTraffic.cpp`); once it settles, record
       new baselines with `verify.ps1 -Import`; both installs need the same exe before any two-player game.
 

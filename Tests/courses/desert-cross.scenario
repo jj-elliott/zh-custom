@@ -1,0 +1,12 @@
+# Two mixed vehicle groups swap bases on Tournament Desert: they meet head-on somewhere in the middle.
+map Maps\Tournament Desert\Tournament Desert.map
+group
+from Player_1_Start
+to Player_2_Start
+spawn AmericaTankCrusader 8
+spawn AmericaVehicleHumvee 6
+group
+from Player_2_Start
+to Player_1_Start
+spawn ChinaTankBattleMaster 8
+spawn ChinaTankOverlord 3

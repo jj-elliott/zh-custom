@@ -6,6 +6,8 @@
 #   .\scripts\movebench.ps1 -Course cliff                     # a recorded course (tests\saves\<save>.<course>.course)
 #   .\scripts\movebench.ps1 -Record -Course cliff             # LAUNCHES THE GAME into the save; give the move orders
 #                                                             # that make up the course, then quit. Needs the human.
+#   .\scripts\movebench.ps1 -Scenario desert-cross            # a scripted course (tests\courses\*.scenario): stock map,
+#                                                             # spawned units, orders. No save, nobody at the keyboard.
 #   .\scripts\movebench.ps1 -ListTunables
 #
 # What it runs: generalszh.exe -headless -loadsave <save> -movebench <course|auto> [-moverules n] [-movetune ...]
@@ -23,11 +25,13 @@
 param(
   [string]$Save = "pathfinding",
   [string]$Course = "auto",
+  [string]$Scenario = "",         # tests\courses\<name>.scenario: a stock map + spawned units + orders; needs no save
   [int]$Level = -1,
   [string]$Tune = "",
   [string]$Sweep = "",
   [switch]$Record,
   [switch]$ListTunables,
+  [switch]$PassThru,              # emit the result rows as objects instead of printing a table (used by movesuite.ps1)
   [switch]$SkipBuild,
   [int]$Seeds = 5,                # variants of the course per configuration (bench.seed 1..N); results are averaged
   [int]$TimeoutSec = 600
@@ -37,11 +41,17 @@ $repo = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $local = Get-Content "$repo\.zh-local.json" | ConvertFrom-Json
 $game = $local.gameDir
 $saveDir = "$env:USERPROFILE\Documents\Command and Conquer Generals Zero Hour Data\Save"
-$sav = "$repo\tests\saves\$Save.sav"
-if (-not (Test-Path $sav)) { throw "no such test save: $sav (movetest.ps1 -List)" }
+$scenarioFile = ""
+if ($Scenario) {
+  $scenarioFile = "$repo\tests\courses\$Scenario.scenario"
+  if (-not (Test-Path $scenarioFile)) { throw "no such scenario: $scenarioFile" }
+} else {
+  $sav = "$repo\tests\saves\$Save.sav"
+  if (-not (Test-Path $sav)) { throw "no such test save: $sav (movetest.ps1 -List)" }
+  New-Item -ItemType Directory -Force $saveDir | Out-Null
+  Copy-Item $sav "$saveDir\movetest-$Save.sav" -Force
+}
 $installed = "movetest-$Save.sav"
-New-Item -ItemType Directory -Force $saveDir | Out-Null
-Copy-Item $sav "$saveDir\$installed" -Force
 $courseFile = "$repo\tests\saves\$Save.$Course.course"
 
 if ($Record) {
@@ -80,7 +90,7 @@ function Invoke-Bench([string]$tune, [string]$label) {
 }
 
 function Invoke-BenchOnce([string]$tune, [string]$label) {
-  $a = @("-useCwd", "-headless", "-loadsave", $installed, "-movebench", $courseArg)
+  $a = if ($scenarioFile) { @("-useCwd", "-headless", "-movebench", "`"$scenarioFile`"") } else { @("-useCwd", "-headless", "-loadsave", $installed, "-movebench", $courseArg) }
   if ($Level -ge 0) { $a += @("-moverules", $Level) }
   if ($tune) { $a += @("-movetune", $tune) }
   $o = "$out\run-$((Get-ChildItem $out).Count).txt"
@@ -108,6 +118,7 @@ if ($Sweep) {
 } else {
   $rows += Invoke-Bench $Tune $(if ($Tune) { $Tune } else { "(default)" })
 }
+if ($PassThru) { $rows; exit 0 }
 $rows | Format-Table run, score, spread, meanArrive, maxArrive, goalDist, overlap, reversals, stalled, detour, timeout, error -AutoSize | Out-String -Width 220 | Write-Host
 $rows | Export-Csv "$out\results.csv" -NoTypeInformation
 Write-Host "OUTPUT_DIR=$out"
