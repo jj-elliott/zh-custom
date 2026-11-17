@@ -181,6 +181,26 @@ its slowest member.
   the new rules have had almost no automated exercise. **Needed: a played skirmish at the default level** (then `verify.ps1 -Import -Name x`
   makes it the first Phase 7 baseline and the real determinism check), and a verdict on feel per step.
 
+**Play-test 2026-11-16 (level 3, solo skirmish, now `tests/replays/move-01.rep`, reproduces at `-moverules 3`):** flow is much better and
+parked groups get out of the way, but free overlap is wrong for this game: whole tank columns stack through a gap, so terrain and choke
+points stop mattering, and stacked tanks look odd. Wanted: a choke that is a meaningful slow-down without choking the pathfinding, and
+units that end up overlapping should spread apart once they stop, as in StarCraft.
+
+- **Step 3, second cut (level 4, the default; level 3 is kept only so `move-01.rep` stays a baseline for steps 1–2):**
+  - *Queue instead of overlap.* A same-heading allied pair in contact is still never "blocked" (no stuck flag, no repath, no stopped
+    animation, no shoving the leader), but exactly one of the two, the one behind along the shared heading, caps its speed to the
+    other's speed along its own heading (`followInFlow`): ×0.9 when the leader is dead ahead so the gap reopens, ×0.5 when it is
+    alongside so two lanes zip together at a gap. A gap therefore passes units at the rate they fit.
+  - *Stalled queue.* Each unit keeps `m_flowFrame`, the last frame it or anything ahead of it in its queue moved (copied back from
+    its leader, one unit per frame). 3 s old = the head is stuck for some other reason = the pair goes back to the retail blocked
+    logic (repath, then the 2 s fail-safe). A queue whose head keeps moving waits indefinitely.
+  - *Spread out.* Two idle allies more than half inside each other: the one with lower push priority walks to the nearest free spot
+    (`adjustToPossibleDestination`). Retail only did this within half a cell of the same point.
+  - Vehicles behind same-heading infantry are excluded: the retail "infantry, step aside" is better than crawling behind them.
+  - Not yet play-tested. Level 4 replays `move-01.rep` to frame 2200 before diverging from the level 3 recording, identically twice.
+    Open questions for the next session: is the queue speed right (0.9 / 0.5), does the zipper look natural, does spread-out fire
+    when expected (it depends on idle units still receiving collision callbacks), does a long queue ever wrongly count as stalled.
+
 Budget: steps 1–3 a couple of weekends; 4 another couple; 5 a month or two of evenings; 6 another month. Cheaper than Phase 6 and independent of it; can run in parallel on a `move/*` branch.
 
 ## Adjustments pulled forward to make Phase 6 cheap later

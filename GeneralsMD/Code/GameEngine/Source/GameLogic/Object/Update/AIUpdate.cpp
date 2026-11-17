@@ -240,6 +240,8 @@ AIUpdateInterface::AIUpdateInterface( Thing *thing, const ModuleData* moduleData
 	m_ignoreCollisionsUntil = 0;
 	m_jamStartFrame = 0;
 	m_jamLastFrame = 0;
+	m_flowSpeedLimit = FAST_AS_POSSIBLE;
+	m_flowFrame = 0;
 	m_queueForPathFrame = 0;
 	m_finalPosition.zero();
 	m_repulsor1 = INVALID_ID;
@@ -1335,6 +1337,91 @@ Bool AIUpdateInterface::shouldAskToYield(Object *other) const
 }
 
 //-------------------------------------------------------------------------------------------------
+// zh-pipeline @feature 2026-11-16 Phase 7 step 3 (second cut, level 4). The level 3 rule let same-way allies overlap
+// freely, which flowed nicely but erased choke points: a whole column fitted through a gap at once. Now such a pair
+// forms a queue: exactly one of the two is the follower and caps its speed to the other's, so a gap passes units at
+// the rate they physically fit. What is dropped from retail is only the bookkeeping that made queues choke: a
+// follower is never "blocked", so it does not stop animating, flag itself stuck, repath or shove its leader.
+//
+// A flow pair: allies, both under way, headings within 60 degrees. A vehicle behind infantry is not one; the retail
+// "infantry, get out of the way" handles that better than crawling behind them.
+Bool AIUpdateInterface::isFlowPair(Object *other) const
+{
+	const Object *obj = getObject();
+	const AIUpdateInterface *aiOther = other->getAI();
+	if (aiOther == nullptr || m_locomotorGoalType == NONE || aiOther->m_locomotorGoalType == NONE) {
+		return FALSE;
+	}
+	if (obj->getRelationship(other) != ALLIES) {
+		return FALSE;
+	}
+	if (!obj->isKindOf(KINDOF_INFANTRY) && other->isKindOf(KINDOF_INFANTRY)) {
+		return FALSE;
+	}
+	const Coord3D *ourDir = obj->getUnitDirectionVector2D();
+	const Coord3D *theirDir = other->getUnitDirectionVector2D();
+	return ourDir->x*theirDir->x + ourDir->y*theirDir->y > 0.5f;
+}
+
+//-------------------------------------------------------------------------------------------------
+// A queue is only worth waiting in while its head is moving. m_flowFrame is refreshed by our own movement and copied
+// back from the unit we follow, so it travels down the queue one unit per frame; when it is 3 s old nothing ahead has
+// moved for 3 s, the queue is a jam, and the pair falls back to the retail blocked logic (repath, then the fail-safe).
+Bool AIUpdateInterface::isFlowStalled() const
+{
+	return TheGameLogic->getFrame() - m_flowFrame > 3*LOGICFRAMES_PER_SECOND;
+}
+
+//-------------------------------------------------------------------------------------------------
+// Called on physical contact with a flow partner. Whoever is behind along the shared heading is the follower (the
+// retail hasHigherPathPriority geometry, ObjectID on an exact tie), so the relation is one-way for every pair.
+void AIUpdateInterface::followInFlow(Object *other)
+{
+	Object *obj = getObject();
+	AIUpdateInterface *aiOther = other->getAI();
+	UnsignedInt now = TheGameLogic->getFrame();
+
+	const Coord3D *ourDir = obj->getUnitDirectionVector2D();
+	const Coord3D *theirDir = other->getUnitDirectionVector2D();
+	Coord2D toOther;
+	toOther.x = other->getPosition()->x - obj->getPosition()->x;
+	toOther.y = other->getPosition()->y - obj->getPosition()->y;
+	Real ahead = (ourDir->x + theirDir->x)*toOther.x + (ourDir->y + theirDir->y)*toOther.y;
+	Bool weFollow = (ahead > 0.0f) || (ahead == 0.0f && obj->getID() > other->getID());
+
+	// Our own progress keeps the queue behind us patient.
+	PhysicsBehavior *ourPhysics = obj->getPhysics();
+	const Real MOVING_SPEED = 0.05f;	// world units per frame; anything slower counts as standing.
+	if (ourPhysics && ourPhysics->getVelocityMagnitude() > MOVING_SPEED) {
+		m_flowFrame = now;
+	}
+	if (!weFollow) {
+		return;
+	}
+	if (aiOther->m_flowFrame > m_flowFrame) {
+		m_flowFrame = aiOther->m_flowFrame;
+	}
+
+	// Cap our speed to the leader's speed along our heading. Directly ahead we match it a little under, so the
+	// overlap that caused this contact opens up; a leader alongside (two lanes merging at a gap) we let pull ahead.
+	PhysicsBehavior *otherPhysics = other->getPhysics();
+	Real leaderSpeed = 0.0f;
+	if (otherPhysics) {
+		const Coord3D *vel = otherPhysics->getVelocity();
+		leaderSpeed = vel->x*ourDir->x + vel->y*ourDir->y;
+		if (leaderSpeed < 0.0f) {
+			leaderSpeed = 0.0f;
+		}
+	}
+	toOther.normalize();
+	Real bearing = toOther.x*ourDir->x + toOther.y*ourDir->y;	// 1 = dead ahead, 0 = alongside.
+	Real limit = leaderSpeed * (bearing > 0.7f ? 0.9f : 0.5f);
+	if (limit < m_flowSpeedLimit) {
+		m_flowSpeedLimit = limit;
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
 /* Returns max speed we can have and not run into unit that is blocking us.
 */
 Real AIUpdateInterface::calculateMaxBlockedSpeed(Object *other) const
@@ -1414,7 +1501,13 @@ Bool AIUpdateInterface::blockedBy(Object *other)
 	// zh-pipeline @feature 2026-11-16 Phase 7 step 3, group pass-through: allies heading the same way (within 60 degrees)
 	// don't block each other, so a column flows through a choke at each unit's own speed instead of queueing behind
 	// its slowest member and repathing. They separate again at the destination, where every unit has its own goal cell.
-	if (MoveRules::passThrough() && otherMoving && obj->getRelationship(other) == ALLIES) {
+	// Level 4 keeps "not blocked" for such a pair but makes it queue (followInFlow, from processCollision) instead of
+	// overlap, and withdraws it once the queue ahead has stalled so the retail logic can sort the jam out.
+	if (MoveRules::softFlow()) {
+		if (isFlowPair(other) && !isFlowStalled()) {
+			return FALSE;
+		}
+	} else if (MoveRules::passThrough() && otherMoving && obj->getRelationship(other) == ALLIES) {
 		const Coord3D *ourHeading = obj->getUnitDirectionVector2D();
 		const Coord3D *theirHeading = other->getUnitDirectionVector2D();
 		if (ourHeading->x*theirHeading->x + ourHeading->y*theirHeading->y > 0.5f) {
@@ -1547,6 +1640,13 @@ Bool AIUpdateInterface::processCollision(PhysicsBehavior *physics, Object *other
 	if (!aiOther->isDoingGroundMovement()) return FALSE;
 	if (selfMoving)
 	{
+		// zh-pipeline @feature 2026-11-16 Phase 7 step 3 (level 4): queue with an ally going our way.
+		if (MoveRules::softFlow() && isFlowPair(other) && !isFlowStalled())
+		{
+			followInFlow(other);
+			return FALSE;
+		}
+
 		Bool blocked = blockedBy(other);
 		if (blocked)
 		{
@@ -1684,6 +1784,32 @@ Bool AIUpdateInterface::processCollision(PhysicsBehavior *physics, Object *other
 		Real dx = getObject()->getPosition()->x - otherPos.x;
 		Real dy = getObject()->getPosition()->y - otherPos.y;
 		Real curDSqr = dx*dx+dy*dy;
+
+		// zh-pipeline @feature 2026-11-16 Phase 7 step 3 (level 4), spread out: two idle allies left more than half
+		// inside each other (after the stuck fail-safe, a transport unloading, a yield with nowhere to go) don't stay
+		// stacked: the one with lower push priority walks to the nearest free spot. Retail only did this for units
+		// within half a cell of the same point (below), which big units practically never are.
+		if (MoveRules::softFlow() && !otherMoving && isIdle() && aiOther->isIdle()
+				&& getObject()->getRelationship(other) == ALLIES
+				&& !isBusy() && !getObject()->testStatus(OBJECT_STATUS_IS_USING_ABILITY)
+				&& !getObject()->testStatus(OBJECT_STATUS_DEPLOYED) && !getObject()->isDisabled()
+				&& !hasHigherPathPriority(aiOther))
+		{
+			Real reach = 0.5f * (getObject()->getGeometryInfo().getBoundingCircleRadius() + other->getGeometryInfo().getBoundingCircleRadius());
+			if (curDSqr < reach*reach)
+			{
+				Coord3D freePos = *getObject()->getPosition();
+				TheAI->pathfinder()->adjustToPossibleDestination(getObject(), getLocomotorSet(), &freePos);
+				Real mx = freePos.x - getObject()->getPosition()->x;
+				Real my = freePos.y - getObject()->getPosition()->y;
+				if (mx*mx + my*my > 1.0f)
+				{
+					aiMoveToPosition( &freePos, CMD_FROM_AI );
+					return FALSE;
+				}
+			}
+		}
+
 		if (!otherMoving && curDSqr < PATHFIND_CELL_SIZE_F*PATHFIND_CELL_SIZE_F*0.25f)
 		{
 			if (this->getCurrentStateID() == AI_BUSY) {
@@ -2343,6 +2469,12 @@ UpdateSleepTime AIUpdateInterface::doLocomotor()
 						if( speed == FAST_AS_POSSIBLE || speed > myMaxSpeed )
 							speed = myMaxSpeed;
 
+						// zh-pipeline Phase 7 step 3 (level 4): keep our place in the queue.
+						if (speed > m_flowSpeedLimit)
+						{
+							speed = m_flowSpeedLimit;
+						}
+
 						if (blocked && speed>m_curMaxBlockedSpeed)
 						{
 							speed = m_curMaxBlockedSpeed;
@@ -2429,6 +2561,7 @@ UpdateSleepTime AIUpdateInterface::doLocomotor()
 
 		m_curMaxBlockedSpeed = FAST_AS_POSSIBLE;
 	}
+	m_flowSpeedLimit = FAST_AS_POSSIBLE;	// re-established by followInFlow each frame we are still in contact.
 
 	if (m_curLocomotor != nullptr &&
 			m_locomotorGoalType == NONE &&

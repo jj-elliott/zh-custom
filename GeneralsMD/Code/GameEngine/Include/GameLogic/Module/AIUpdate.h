@@ -527,6 +527,9 @@ public:
 	Bool hasHigherPathPriority(AIUpdateInterface *otherAI) const;
 	Int getPushRank() const;										///< zh-pipeline Phase 7 step 2: 2 player-ordered move, 1 other move, 0 not moving
 	Bool shouldAskToYield(Object *other) const;	///< zh-pipeline Phase 7 step 1: should idle "other" step aside for us
+	Bool isFlowPair(Object *other) const;				///< zh-pipeline Phase 7 step 3: ally moving the same way as us, to queue with rather than be blocked by
+	Bool isFlowStalled() const;									///< zh-pipeline Phase 7 step 3: nothing ahead of us in our queue has moved for 3 s
+	void followInFlow(Object *other);						///< zh-pipeline Phase 7 step 3: hold our place behind / beside flow partner "other"
 	void setFinalPosition(const Coord3D *pos) { m_finalPosition = *pos; m_doFinalPosition = false;}
 
 	virtual UpdateSleepTime update() override;	///< update this object's AI
@@ -735,6 +738,8 @@ private:
 	// xfer: a save/load only restarts the 2 s count, and the save format and the retail CRC stream stay unchanged.
 	UnsignedInt	m_jamStartFrame;						///< Frame the current unbroken spell of being blocked by allies began.
 	UnsignedInt	m_jamLastFrame;							///< Last frame we were blocked by an ally.
+	Real				m_flowSpeedLimit;						///< Speed cap from the ally we are queueing behind this frame (FAST_AS_POSSIBLE = none).
+	UnsignedInt	m_flowFrame;								///< Last frame we, or anyone ahead of us in our queue, actually moved.
 	/**
 		If nonzero and >= now, frame when we should queueForPath.
 

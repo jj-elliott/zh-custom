@@ -129,6 +129,9 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       `verify.ps1 -Import -Name move-01` + `verify.ps1 -SkipBuild` for the first Phase 7 baseline. If something feels wrong, replay the
       situation with `-moverules 2` / `1` to find the step. **Open, agent:** tune `YIELD_MIN_GOAL_DIST` (8 cells) and the 60° pass-through
       cone from that feedback; both launcher installs must ship the same exe before any two-player game (level mismatch = desync).
+      **2026-11-16 play-test of level 3:** flow good, overlap too free (chokes stop mattering). Level 4 (default) replaces overlap with
+      queue-following plus spread-out of stacked idle units; `move-01.rep` imported as the level 3 baseline. **Open, human:** play again at
+      the default level, watch a column at a choke and a group stopping; import as `move-02`.
 
 ## Findings from source inspection (2026-10-21, before first build) — read before starting the items above
 
