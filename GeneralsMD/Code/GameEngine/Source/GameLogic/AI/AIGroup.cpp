@@ -42,6 +42,7 @@
 #include "GameClient/Drawable.h"
 #include "GameClient/Line2D.h"
 
+#include "GameLogic/MoveRules.h"	// zh-pipeline Phase 7
 #include "GameLogic/AI.h"
 #include "GameLogic/AIPathfind.h"
 #include "GameLogic/Locomotor.h"
@@ -1173,6 +1174,170 @@ void AIGroup::friend_moveFormationToPos( const Coord3D *pos, CommandSourceType c
 	}
 }
 //-------------------------------------------------------------------------------------------------
+// zh-pipeline @feature 2026-11-16 Phase 7, movement rules level 9: vehicle group moves in lanes.
+//
+// Retail moves a vehicle group along ONE shared ground path in two columns, 1.5 cells either side of it, whatever the
+// size of the group and however much room there is: twelve tanks become two files of six, nose to tail, on a line
+// narrower than the tanks. That is the bunching and the column crawl, and no amount of dodging afterwards undoes it.
+// Here the group travels abreast: about sqrt(n) lanes (up to 8), spaced by its widest member, each unit following the
+// shared route shifted sideways by its lane. Where the route is too narrow for a lane, that lane's waypoint is pulled
+// in toward the centre line (the widest of 100/75/50/25% of the shift that is passable from it, else the centre),
+// so the group funnels through a gap and fans out again behind it. Units keep their left-to-right order, and at the
+// destination each lane lines up front to back in the order its units started.
+//
+// Deterministic: lane assignment and row order come from the sorted iterator and an insertion sort with ObjectID
+// as the tie-break; everything else is the retail walk over the ground path with a different sideways offset.
+static Bool moveVehiclesInLanes( Path *groundPath, const Coord3D *pos, CommandSourceType cmdSource,
+																 SimpleObjectIterator *iter, Int unitsToPath, PathNode *startNode,
+																 const Coord2D& startVector, const Coord2D& endVector, const Coord2D& endVectorNormal,
+																 Real farEnoughSqr, PlayerType controllingPlayerType )
+{
+	const Int MAX_LANES = 8;
+	Int lanes = 1;
+	while (lanes*lanes < unitsToPath && lanes < MAX_LANES)
+		++lanes;
+
+	Real widest = 0.0f;
+	Object *theUnit;
+	for (theUnit = iter->first(); theUnit; theUnit = iter->next())
+	{
+		const GeometryInfo& geom = theUnit->getGeometryInfo();
+		Real width = 2.0f * ((geom.getGeomType() == GEOMETRY_BOX) ? geom.getMinorRadius() : geom.getMajorRadius());
+		if (width > widest)
+			widest = width;
+	}
+	Real spacing = widest * 1.3f;
+	if (spacing < 2.0f*PATHFIND_CELL_SIZE_F)
+		spacing = 2.0f*PATHFIND_CELL_SIZE_F;
+
+	// Left to right across the direction of travel (the iterator's key is each unit's sideways position).
+	iter->sort(ITER_SORTED_FAR_TO_NEAR);
+	std::vector<Object *> laneUnits[MAX_LANES];
+	Int curIndex = 0;
+	for (theUnit = iter->first(); theUnit; theUnit = iter->next(), ++curIndex)
+	{
+		Int lane = (curIndex * lanes) / unitsToPath;
+		if (lane >= lanes)
+			lane = lanes - 1;
+		// Within a lane: front first, so rows at the destination fill front to back without units crossing.
+		std::vector<Object *>& members = laneUnits[lane];
+		Real forward = theUnit->getPosition()->x*startVector.x + theUnit->getPosition()->y*startVector.y;
+		size_t at = members.size();
+		members.push_back(theUnit);
+		while (at > 0)
+		{
+			Object *ahead = members[at-1];
+			Real aheadForward = ahead->getPosition()->x*startVector.x + ahead->getPosition()->y*startVector.y;
+			if (aheadForward > forward || (aheadForward == forward && ahead->getID() < theUnit->getID()))
+				break;
+			members[at] = ahead;
+			--at;
+		}
+		members[at] = theUnit;
+	}
+
+	static const Real SHARES[] = { 1.0f, 0.75f, 0.5f, 0.25f };
+	PathfindLayerEnum layer = TheTerrainLogic->getLayerForDestination(pos);
+	for (Int lane = 0; lane < lanes; ++lane)
+	{
+		Real laneOffset = (0.5f*(lanes-1) - lane) * spacing;
+		for (size_t row = 0; row < laneUnits[lane].size(); ++row)
+		{
+			theUnit = laneUnits[lane][row];
+			AIUpdateInterface *ai = theUnit->getAIUpdateInterface();
+			LocomotorSurfaceTypeMask surfaces = ai->getLocomotorSet().getValidSurfaces();
+
+			std::vector<Coord3D> path;
+			PathNode *node = startNode;
+			PathNode *previousNode = groundPath->getFirstNode();
+			Coord3D prevPos = *theUnit->getPosition();
+			while (node)
+			{
+				Coord3D centre = *node->getPosition();
+				PathNode *tmpNode;
+				PathNode *nextNode = nullptr;
+				for (tmpNode = node->getNextOptimized(); tmpNode; tmpNode = tmpNode->getNextOptimized())
+				{
+					Real dx = tmpNode->getPosition()->x - centre.x;
+					Real dy = tmpNode->getPosition()->y - centre.y;
+					if (dx*dx+dy*dy > farEnoughSqr)
+					{
+						nextNode = tmpNode;
+						break;
+					}
+				}
+				if (nextNode == nullptr)
+					break;
+				Coord2D cornerVector;
+				cornerVector.x = nextNode->getPosition()->x - previousNode->getPosition()->x;
+				cornerVector.y = nextNode->getPosition()->y - previousNode->getPosition()->y;
+				Coord2D cornerVectorNormal;
+				cornerVectorNormal.x = -cornerVector.y;
+				cornerVectorNormal.y = cornerVector.x;
+				cornerVectorNormal.normalize();
+
+				Coord3D dest = centre;
+				for (Int k = 0; k < 4; ++k)
+				{
+					Coord3D candidate = centre;
+					candidate.x += laneOffset * SHARES[k] * cornerVectorNormal.x;
+					candidate.y += laneOffset * SHARES[k] * cornerVectorNormal.y;
+					clampToMap(&candidate, controllingPlayerType);
+					if (TheAI->pathfinder()->isLinePassable(theUnit, surfaces, node->getLayer(), centre, candidate, false, true))
+					{
+						dest = candidate;
+						break;
+					}
+				}
+
+				Coord2D curVector;
+				curVector.x = dest.x - prevPos.x;
+				curVector.y = dest.y - prevPos.y;
+				// Make sure that this dest is going in the same direction as the vector.
+				if (cornerVector.x*curVector.x + cornerVector.y*curVector.y > 0)
+				{
+					path.push_back(dest);
+					prevPos = dest;
+				}
+
+				node = node->getNextOptimized();
+				for (tmpNode = previousNode->getNextOptimized(); tmpNode && tmpNode != node; tmpNode = tmpNode->getNextOptimized())
+				{
+					Real dx = tmpNode->getPosition()->x - node->getPosition()->x;
+					Real dy = tmpNode->getPosition()->y - node->getPosition()->y;
+					if (dx*dx+dy*dy > farEnoughSqr)
+						previousNode = tmpNode;
+				}
+			}
+
+			Coord3D dest = *pos;
+			dest.x += laneOffset * endVectorNormal.x - (Real)row * spacing * endVector.x;
+			dest.y += laneOffset * endVectorNormal.y - (Real)row * spacing * endVector.y;
+			dest.z = TheTerrainLogic->getLayerHeight( dest.x, dest.y, layer );
+
+			while (!path.empty())
+			{
+				Coord2D curVector;
+				prevPos = path[path.size()-1];
+				curVector.x = dest.x - prevPos.x;
+				curVector.y = dest.y - prevPos.y;
+				// Make sure that this dest is going in the same direction as the vector.
+				if (endVector.x*curVector.x + endVector.y*curVector.y <= 0)
+					path.pop_back();
+				else
+					break;
+			}
+			clampToMap(&dest, controllingPlayerType);
+			TheAI->pathfinder()->adjustDestination(theUnit, ai->getLocomotorSet(), &dest, nullptr);
+			TheAI->pathfinder()->updateGoal(theUnit, &dest, LAYER_GROUND);
+			path.push_back(dest);
+			ai->aiFollowPath( &path, nullptr, cmdSource );
+		}
+	}
+	return true;
+}
+
+//-------------------------------------------------------------------------------------------------
 // Internal function for moving a group of vehicles as a column.
 //
 
@@ -1322,6 +1487,13 @@ Bool AIGroup::friend_moveVehicleToPos( const Coord3D *pos, CommandSourceType cmd
 			iter->insert(theUnit, dx*startVectorNormal.x+dy*startVectorNormal.y);
 		}
 		iter2->makeEmpty();
+	}
+
+	// zh-pipeline level 9: abreast in lanes instead of two columns (see moveVehiclesInLanes above).
+	if (MoveRules::groupLanes())
+	{
+		return moveVehiclesInLanes(m_groundPath, pos, cmdSource, iter, unitsToPath, startNode,
+			startVector, endVector, endVectorNormal, farEnoughSqr, controllingPlayerType);
 	}
 
 	iter->sort(ITER_SORTED_FAR_TO_NEAR);

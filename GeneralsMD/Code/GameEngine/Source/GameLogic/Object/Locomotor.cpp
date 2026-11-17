@@ -1302,6 +1302,24 @@ void Locomotor::moveTowardsPositionTreads(Object* obj, PhysicsBehavior *physics,
 
 	Real goalSpeed = (1.0f - angleCoeff) * desiredSpeed;
 
+	// zh-pipeline @feature 2026-11-16 Phase 7 step 5 (level 9): tracked vehicles drive while they turn, to a degree,
+	// like wheeled ones. Up to 90 degrees off they keep at least 30% of their speed (so they sweep an arc instead
+	// of stopping to pivot); from 90 to 120 that falls to nothing, and beyond 120 they pivot on the spot as before.
+	if (MoveRules::groupLanes())
+	{
+		Real offAngle = (Real)WWMath::Fabs( relAngle );
+		const Real RIGHT_ANGLE = PI / 2.0f;
+		const Real PIVOT_ANGLE = PI * (2.0f / 3.0f);
+		Real factor;
+		if (offAngle <= RIGHT_ANGLE)
+			factor = 1.0f - 0.7f * (offAngle / RIGHT_ANGLE);
+		else if (offAngle < PIVOT_ANGLE)
+			factor = 0.3f * (PIVOT_ANGLE - offAngle) / (PIVOT_ANGLE - RIGHT_ANGLE);
+		else
+			factor = 0.0f;
+		goalSpeed = factor * desiredSpeed;
+	}
+
 
 //	if (speed < m_minTurnSpeed)
 //		speed = m_minTurnSpeed;

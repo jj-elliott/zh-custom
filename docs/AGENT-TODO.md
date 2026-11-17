@@ -147,6 +147,11 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       flow badly, units don't swing wide on curves. Level 8 (default): committed + eased steering, later start, no orbiting, vehicles steer
       around infantry. **Open, human:** play level 8, import as `move-05`. **Next candidate:** group lateral offsets / flow field so a
       group uses the width of a curve (PLAN step 6), if curves still bunch.
+      **2026-11-16 sixth play-test (level 8, `move-05.rep`):** corners clunky, groups collide; asks: parallel travel, tanks turn while
+      moving, congestion-aware path cost. Found retail forces vehicle groups into 2 columns on one path. Level 9 (default): up to 8 lanes
+      for vehicle group moves (`moveVehiclesInLanes`), tracked vehicles drive through turns. **Open, human:** play level 9, import as
+      `move-06`; say whether big groups now travel abreast. **Open, agent:** confirm how often the lanes path is taken (instrument or
+      read AIData.ini thresholds); same treatment for infantry groups; congestion-aware pathing for individually pathed units.
 
 ## Findings from source inspection (2026-10-21, before first build) — read before starting the items above
 

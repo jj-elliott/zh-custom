@@ -230,6 +230,9 @@ static Bool choose( Object *obj, AIUpdateInterface *ai, Real dirX, Real dirY, Re
 	Int numTurns = treads ? NUM_TURNS_TREADS : NUM_TURNS;
 	if (sticky && !treads && !weAreInfantry)
 		numTurns = NUM_TURNS_VEHICLE;
+	// Level 9: tracked vehicles now drive through turns, so they get the same +-60 degrees as other vehicles.
+	if (MoveRules::groupLanes() && treads)
+		numTurns = NUM_TURNS_VEHICLE;
 	for (Int t = 0; t < numTurns; ++t)
 	{
 		const Turn& turn = TURNS[t];

@@ -295,6 +295,32 @@ spot was seen and judged a feature.
   The real fix is in where units aim, not how they dodge: per-unit lateral offsets along a shared path for a group order, or a
   flow field for the group (step 6). Worth doing next if level 8's smoothing is not enough.
 
+**Sixth play-test 2026-11-16 (level 8, `tests/replays/move-05.rep`, 6:15, reproduces at `-moverules 8`):** no spins, much less jitter;
+still clunky around corners, groups still run into each other. The user's asks: (a) units travelling a long way should move in
+parallel, not bunch to a point; (b) tanks should turn and move at once, like wheeled vehicles; (c) "the real defect": the pathfinder's
+cost ignores other units' planned routes, so everyone gets the same shortest path; later units should prefer a slightly longer free one.
+
+- **Finding that reframes (a) and (c):** a vehicle *group* order does not run A* per unit at all. `AIGroup::friend_computeGroundPath`
+  finds ONE ground path for the group and `friend_moveVehicleToPos` sends every vehicle down it in **two columns 1.5 cells either
+  side of the centre line**, whatever the group size and however wide the terrain. Twelve tanks = two files of six on a line narrower
+  than a tank. That is the bunching and the "forming a column" crawl, by design. (Infantry: `friend_moveInfantryToPos`, 3 or 5 columns.)
+  A congestion term in the A* cost would not reach this code, and for units that do path individually the post-A* straightening
+  (`optimizePath`) would flatten lane-sized differences anyway.
+- **Level 9 (the default; level 8 kept for `move-05.rep`): lanes for vehicle group moves** (`moveVehiclesInLanes` in `AIGroup.cpp`).
+  About √n lanes, at most 8, spaced 1.3× the widest member (min 2 cells); units keep their left-to-right order; each follows the
+  shared route shifted sideways by its lane. Per waypoint the shift is the widest of 100/75/50/25/0% that is `isLinePassable` from
+  the centre line, so the group funnels through a gap and fans out after it. At the destination each lane lines up front to back.
+  This is (c)'s outcome, later units taking the slightly longer free route, computed from the group's shared route.
+- **Step 5, second part (level 9): tracked vehicles drive while turning.** Speed factor 1 → 0.3 from 0° to 90° off the aim point,
+  0.3 → 0 from 90° to 120°, pivot on the spot beyond. Steering lets them turn ±60° like other vehicles.
+- **Verification:** six baselines reproduce at their levels; soaked at level 9 all six run to the end, no crash, identical final
+  CRCs on two runs; level 9 diverges from the level 8 recording of `move-05.rep` at frame 2800. Not play-tested. **Not known:**
+  how often the lanes path is actually taken in play. It needs the retail group-move conditions (`m_minVehiclesForGroup`, the
+  group distance thresholds in AIData.ini, a ground path found); below those, units still path individually and bunch at corners.
+- **Still open after this:** infantry groups keep retail columns; individually pathed units (small groups, reinforcements, AI
+  teams) share corners; two *different* groups meeting rely on steering alone. A real congestion-aware pathfinder (reservation
+  per cell and time, with smoothing that respects it) is the general answer for those and is a pathfinder project of its own.
+
 Budget: steps 1–3 a couple of weekends; 4 another couple; 5 a month or two of evenings; 6 another month. Cheaper than Phase 6 and independent of it; can run in parallel on a `move/*` branch.
 
 ## Adjustments pulled forward to make Phase 6 cheap later

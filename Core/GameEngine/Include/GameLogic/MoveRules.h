@@ -49,8 +49,9 @@ namespace MoveRules
 		EASED_FLOW = 6,		///< step 3, fourth cut: light contact is free, the cap eases in with depth and relaxes gradually; a stalled queue or a stopped shooter ahead is pathed around after 1 s
 		STEERING = 7,			///< step 4: local avoidance (AISteering): units steer around each other before contact; tracked vehicles keep rolling through wider turns
 		STEERING_STICKY = 8,	///< step 4, second cut: steering commits to a side, eases its turn in and out, starts later, treats infantry as obstacles for vehicles
+		GROUP_LANES = 9,	///< vehicle group moves spread over up to 8 lanes across the route instead of 2 columns; tracked vehicles drive while turning
 
-		LATEST = STEERING_STICKY
+		LATEST = GROUP_LANES
 	};
 
 	Int getLevel();
@@ -64,4 +65,5 @@ namespace MoveRules
 	inline Bool easedFlow() { return getLevel() >= EASED_FLOW; }			///< eased, smoothed cap; quick path-around when the queue ahead stops
 	inline Bool steering() { return getLevel() >= STEERING; }					///< local avoidance before contact (GameLogic/AISteering.h)
 	inline Bool steeringSticky() { return getLevel() >= STEERING_STICKY; }	///< committed, smoothed steering
+	inline Bool groupLanes() { return getLevel() >= GROUP_LANES; }		///< wide lanes for vehicle group moves; rolling turns for tracked vehicles
 }
