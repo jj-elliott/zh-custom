@@ -5286,7 +5286,7 @@ void Pathfinder::prependCells( Path *path, const Coord3D *fromPos,
 	Coord3D pos;
 	PathfindCell *cell, *prevCell = nullptr;
 	Bool goalCellNull = (goalCell->getParentCell()==nullptr);
-	Int zhSincePin = 8;	// zh-pipeline: nodes since the last one pinned for traffic (see below)
+	Int zhSincePin = 1000;	// zh-pipeline: nodes since the last one pinned for traffic (see below)
 	for( cell = goalCell; cell->getParentCell(); cell = cell->getParentCell() )
 	{
 		m_zoneManager.setPassable(cell->getXIndex(), cell->getYIndex(), true);
@@ -5319,7 +5319,7 @@ void Pathfinder::prependCells( Path *path, const Coord3D *fromPos,
 		// the traffic this route was chosen to avoid. Pin a node that runs alongside traffic, but at most one in
 		// eight: pinning every third left stair-stepped paths that units wove along.
 		++zhSincePin;
-		if (canOptimize && zhSincePin >= 8 && cell->getLayer() == LAYER_GROUND
+		if (canOptimize && zhSincePin >= MoveTraffic::pinSpacing() && cell->getLayer() == LAYER_GROUND
 				&& MoveTraffic::cost(cell->getXIndex(), cell->getYIndex()) == 0
 				&& MoveTraffic::nearTraffic(cell->getXIndex(), cell->getYIndex())) {
 			canOptimize = false;

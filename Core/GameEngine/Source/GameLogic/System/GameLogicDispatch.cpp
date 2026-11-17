@@ -51,6 +51,7 @@
 #include "Common/StatsCollector.h"
 #include "Common/Radar.h"
 
+#include "GameLogic/MoveRules.h"	// zh-pipeline
 #include "GameLogic/AIPathfind.h"
 #include "GameLogic/GameLogic.h"
 #include "GameLogic/Locomotor.h"
@@ -1296,6 +1297,8 @@ bool GameLogic::onDoAttackmoveto(MAYBE_UNUSED GameMessage *msg, AIGroupPtr &curr
 	if (currentlySelectedGroup)
 	{
 		currentlySelectedGroup->releaseWeaponLockForGroup(LOCKED_TEMPORARILY);	// release any temporary locks.
+		if (MoveRules::moveOrderHook)	// zh-pipeline movement benchmark recorder
+			MoveRules::moveOrderHook(currentlySelectedGroup, &dest, TRUE);
 		currentlySelectedGroup->groupAttackMoveToPosition( &dest, NO_MAX_SHOTS_LIMIT, CMD_FROM_PLAYER );
 	}
 
@@ -1309,6 +1312,8 @@ bool GameLogic::onDoForcemoveto(MAYBE_UNUSED GameMessage *msg, AIGroupPtr &curre
 	if (currentlySelectedGroup)
 	{
 		currentlySelectedGroup->releaseWeaponLockForGroup(LOCKED_TEMPORARILY);	// release any temporary locks.
+		if (MoveRules::moveOrderHook)	// zh-pipeline movement benchmark recorder
+			MoveRules::moveOrderHook(currentlySelectedGroup, &dest, FALSE);
 		currentlySelectedGroup->groupMoveToPosition( &dest, false, CMD_FROM_PLAYER );
 	}
 
@@ -1323,6 +1328,8 @@ bool GameLogic::onDoMoveto(MAYBE_UNUSED GameMessage *msg, AIGroupPtr &currentlyS
 	{
 		//DEBUG_LOG(("GameLogicDispatch - got a MSG_DO_MOVETO command"));
 		currentlySelectedGroup->releaseWeaponLockForGroup(LOCKED_TEMPORARILY);	// release any temporary locks.
+		if (MoveRules::moveOrderHook)	// zh-pipeline movement benchmark recorder
+			MoveRules::moveOrderHook(currentlySelectedGroup, &dest, FALSE);
 		currentlySelectedGroup->groupMoveToPosition( &dest, false, CMD_FROM_PLAYER );
 	}
 

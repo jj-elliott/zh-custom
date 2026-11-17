@@ -126,6 +126,9 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       rules) after nine play-tested iterations; design, history and open points in PLAN.md Phase 7. `-moverules 0` = retail.
       Gates: `verify.ps1` (retail baseline at level 0) and `soak.ps1` (recorded games run to the end twice with equal final CRCs).
       **Open, human:** play UNIFIED; a test save via `movetest.ps1` makes that quick (no replay from a loaded save, though).
+      Benchmark: `scripts/movebench.ps1` (headless, ~2 s a run, averaged over course variants; results and what they
+      mean in PLAN.md). Finding: constants are at a flat optimum, steering causes over half the turn jitter.
+      **Open, human:** record a choke course and an infantry course (`movebench.ps1 -Record -Course x`).
       **Open, agent:** tune from feedback (constants at the top of `AISteering.cpp`, `MoveTraffic.cpp`); once it settles, record
       new baselines with `verify.ps1 -Import`; both installs need the same exe before any two-player game.
 

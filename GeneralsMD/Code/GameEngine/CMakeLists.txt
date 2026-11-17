@@ -236,6 +236,7 @@ set(GAMEENGINE_SRC
     Include/GameLogic/AISkirmishPlayer.h
     Include/GameLogic/AIStateMachine.h
     Include/GameLogic/AISteering.h
+    Include/GameLogic/MoveBench.h
     Include/GameLogic/AITNGuard.h
     Include/GameLogic/Armor.h
     Include/GameLogic/ArmorSet.h
@@ -832,6 +833,7 @@ set(GAMEENGINE_SRC
     Source/GameLogic/AI/AISkirmishPlayer.cpp
     Source/GameLogic/AI/AIStates.cpp
     Source/GameLogic/AI/AISteering.cpp
+    Source/GameLogic/AI/MoveBench.cpp
     Source/GameLogic/AI/AITNGuard.cpp
     Source/GameLogic/AI/Squad.cpp
     Source/GameLogic/AI/TurretAI.cpp

@@ -28,6 +28,7 @@
 
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
+#include "GameLogic/MoveBench.h"	// zh-pipeline
 #include "Common/FramePacer.h"
 #include "Common/GameEngine.h"
 #include "Common/ReplaySimulation.h"
@@ -45,7 +46,13 @@ Int GameMain()
 	TheGameEngine = CreateGameEngine();
 	TheGameEngine->init();
 
-	if (!TheGlobalData->m_simulateReplays.empty())
+	MoveBench::install();	// zh-pipeline: movement benchmark recorder, if asked for
+	if (MoveBench::wantsRun())
+	{
+		// zh-pipeline: headless movement benchmark instead of the normal game loop
+		exitcode = MoveBench::run();
+	}
+	else if (!TheGlobalData->m_simulateReplays.empty())
 	{
 		exitcode = ReplaySimulation::simulateReplays(TheGlobalData->m_simulateReplays, TheGlobalData->m_simulateReplayJobs);
 	}

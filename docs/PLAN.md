@@ -252,6 +252,52 @@ loaded from a save record no replay.
     If that shows, the next step is a bounded re-plan: after a group's paths exist, re-path the fastest units whose routes
     still share cells, a fixed number of rounds per frame.
 
+- **Fourth (2026-11-16):** "a better solve". Still some clumping; infantry sometimes oscillating along a vehicle's hull;
+  swinging wide works but not reliably. The user asked for a principled way to tune: a harness that measures how a mixed
+  group gets through a course. Built: see "Benchmark" below. Infantry oscillation: a nudged man is now put 3 units beyond the
+  hull's edge instead of exactly on it (`nudge.overshoot`).
+
+### Benchmark (`scripts/movebench.ps1`, `GameLogic/MoveBench.h`)
+
+A course = a test save + move orders. `generalszh.exe -headless -loadsave <save> -movebench <course|auto>` loads the save
+without a window, gives the orders, simulates flat out until every ordered unit is at rest, and prints: meanArrive, maxArrive,
+goalDist, overlap (vehicle-pair-seconds >40% inside each other), reversals (turn-direction flips per unit = jitter), stalled
+(unit-seconds standing while trying to move), detour. About 2 s a run. Random generators are re-seeded, so a run repeats to the
+last digit; `bench.seed=N` gives variant N (other seed, destination moved up to 3 cells) and the script averages over `-Seeds`.
+`-movetune name=value,...` overrides any tuning constant for the run (23 of them; `movebench.ps1 -ListTunables`).
+`-Record -Course x` launches the game with a recorder that writes the orders a person gives; `auto` needs nobody: every combat
+ground unit of the local player to the map centre.
+
+**First results (save `pathfinding`, course `auto`, 27 units, 6 variants; score = meanArrive + 0.5 maxArrive + 2 overlap +
+reversals + 0.5 stalled, lower is better):**
+
+| configuration | score | meanArrive | overlap | reversals | stalled |
+|---|---|---|---|---|---|
+| unified, defaults | 66 | 23.8 s | 2.6 | 15.5 | 5.5 |
+| retail (`-moverules 0`, 1 variant) | 2215 | 162 s, timed out | 0.7 | 177 | 3570 |
+| traffic cost off | 97 | 24.5 | 13.0 | 22.5 | 7.9 |
+| steering avoidance off | 73 | 23.3 | 10.7 | 6.9 | 3.8 |
+| steering and traffic off | 89 | 23.7 | 17.2 | 8.2 | 6.2 |
+| infantry nudge off | 67 | 23.7 | 2.9 | 15.2 | 5.7 |
+| queueing off | 69 | 23.8 | 3.8 | 15.0 | 5.6 |
+
+What that says:
+- Retail on this course never finishes: units spend most of three minutes standing while trying to move. Treat the size of
+  the gap with care (one course, and the retail group move to a possibly awkward map centre), but the direction is not in doubt.
+- The traffic map earns its keep: without it overlap is 5 times higher and jitter 45% higher. Steering cuts overlap 4-fold.
+- **Steering is where the jitter comes from:** 15.5 turn flips per unit with it, 6.9 without. That is the price currently
+  paid for the lower overlap. Arrival time is the same (23 to 24 s) in every configuration: none of this costs speed.
+- **The constants are not the problem.** Ten constants swept over 2 to 4 values each: no setting beats the defaults by more
+  than the spread between course variants (10 to 30 points). A single-variant sweep had suggested several "wins" (horizon 30
+  scored 53 against 67); with six variants they vanished. Do not tune on one run.
+- The nudge and the queueing rule are invisible to these metrics on this course (few infantry in the way, no real choke).
+
+So further gains need a structural change to steering, judged with this harness, not different numbers. Candidates: steer in
+continuous velocity space instead of 15-degree steps (ORCA proper); after passing, hold the sideways offset instead of
+returning to the path line (the return is a second turn and often a re-encounter); let the path follower aim further ahead.
+Missing from the harness: a course with a real choke and one with infantry in the way (record them), reversals per unit
+type, and anything about how it looks.
+
 ### Open
 
 - Play-test UNIFIED (test saves: `scripts/movetest.ps1`). Expected trouble spots: traffic penalty too weak or too strong

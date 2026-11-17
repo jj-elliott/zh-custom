@@ -32,14 +32,14 @@
 namespace
 {
 	// Tuning. Path costs are in the pathfinder's units: COST_ORTHOGONAL (10) per cell.
-	const UnsignedInt WINDOW = 5 * LOGICFRAMES_PER_SECOND;	// two units "meet" in a cell if they are due within this of each other.
+	UnsignedInt WINDOW = 5 * LOGICFRAMES_PER_SECOND;	// two units "meet" in a cell if they are due within this of each other.
 	// First play-test of the unified system: at 6 per unit (up to +18 on a 10-cost cell) units over-spread, some
 	// setting off sideways or backwards to get round the whole group. The penalty only has to break the tie between
 	// "the same line as everyone" and "the free line next to it", so it is small: at most +3, a 30% longer way round.
 	// Second play-test: at 1 per unit units no longer over-spread but shared lines again and got in each other's way.
 	// 2 per unit, at most +4 (a 40% longer way round), now that the other two causes of over-spreading are gone.
-	const Int COST_PER_UNIT = 2;														// extra cost per other unit due in a cell...
-	const Int MAX_COUNTED = 2;															// ...up to this many, so a real choke stays affordable.
+	Int COST_PER_UNIT = 2;														// extra cost per other unit due in a cell...
+	Int MAX_COUNTED = 2;															// ...up to this many, so a real choke stays affordable.
 	const Int MAX_LOAD = 250;
 
 	struct Cell
@@ -48,6 +48,21 @@ namespace
 		UnsignedInt owner;	// that stamper.
 		UnsignedByte load;	// how many units have stamped for about that time; 0 = never stamped.
 	};
+
+	Int PIN_SPACING = 8;	// at most one path node in this many is pinned beside traffic (used by the pathfinder hook).
+
+	// "-movetune" overrides, read once (GameLogic/MoveRules.h).
+	void loadTuning()
+	{
+		static Bool loaded = false;
+		if (loaded)
+			return;
+		loaded = true;
+		MoveTune::apply("traffic.windowFrames", WINDOW);
+		MoveTune::apply("traffic.costPerUnit", COST_PER_UNIT);
+		MoveTune::apply("traffic.maxCounted", MAX_COUNTED);
+		MoveTune::apply("traffic.pinSpacing", PIN_SPACING);
+	}
 
 	std::vector<Cell> s_cells;
 	Int s_loX = 0, s_loY = 0, s_width = 0, s_height = 0;
@@ -139,8 +154,15 @@ void reset( Int loX, Int loY, Int hiX, Int hiY )
 	s_hasMover = false;
 }
 
+Int pinSpacing()
+{
+	loadTuning();
+	return PIN_SPACING;
+}
+
 void setMover( UnsignedInt ownerID, Real framesPerCell, Int halfWidthCells, Real detourWillingness )
 {
+	loadTuning();
 	s_owner = ownerID;
 	s_framesPerCell = framesPerCell;
 	s_detourWillingness = detourWillingness;

@@ -64,6 +64,9 @@ namespace MoveTraffic
 	/// Is there other units' traffic for about the current mover's arrival time in or right next to (x, y)?
 	Bool nearTraffic( Int x, Int y );
 
+	/// How far apart (in path nodes) the pathfinder may pin nodes beside traffic.
+	Int pinSpacing();
+
 	/// Record the current mover's path (its optimized nodes) starting now.
 	void stamp( Path *path );
 }

@@ -516,6 +516,37 @@ Int parseReplaySoak(char *[], int)
 	return 1;
 }
 
+// zh-pipeline movement benchmark and tuning (GameLogic/MoveBench.h, MoveRules.h)
+Int parseMoveBench(char *args[], int num)
+{
+	if (num > 1)
+	{
+		MoveRules::setBenchRunFile(args[1]);
+		return 2;
+	}
+	return 1;
+}
+
+Int parseMoveBenchRecord(char *args[], int num)
+{
+	if (num > 1)
+	{
+		MoveRules::setBenchRecordFile(args[1]);
+		return 2;
+	}
+	return 1;
+}
+
+Int parseMoveTune(char *args[], int num)
+{
+	if (num > 1)
+	{
+		MoveTune::parse(args[1]);
+		return 2;
+	}
+	return 1;
+}
+
 Int parseMultiInstance(char *[], int)
 {
 	// Unlike -replay this keeps the primary instance: the first copy stays instance 1 (normal Options.ini),
@@ -1288,6 +1319,12 @@ static CommandLineParam paramsForStartup[] =
 	// For replay verification and bisecting only; in a network game both sides must use the same value.
 	{ "-moverules", parseMoveRules },
 	{ "-replaysoak", parseReplaySoak },
+	// zh-pipeline @feature 2026-11-16 Movement benchmark: -movebenchrecord <file> appends the move orders given in
+	// this session to <file>; -movebench <file> (with -headless -loadsave <x.sav>) replays them and prints
+	// measurements; -movetune name=value,... overrides movement tuning constants for this run.
+	{ "-movebench", parseMoveBench },
+	{ "-movebenchrecord", parseMoveBenchRecord },
+	{ "-movetune", parseMoveTune },
 
 	// zh-pipeline @feature 2026-10-21 Solo netcode rig and LAN-over-tailnet:
 	//  -multiinstance  allow a second copy on this machine (it gets Options_Instance02.ini)

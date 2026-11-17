@@ -31,6 +31,7 @@
 #include "GameLogic/Locomotor.h"
 #include "GameLogic/Module/AIUpdate.h"
 #include "GameLogic/Module/PhysicsUpdate.h"
+#include "GameLogic/MoveRules.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/PartitionManager.h"
 #include "GameLogic/TerrainLogic.h"
@@ -38,29 +39,66 @@
 namespace
 {
 	// ---- Tuning. Everything that decides how movement feels is here. ----
-	const Real HORIZON = 1.5f * LOGICFRAMES_PER_SECOND;	// frames we look ahead.
-	const Real CLEARANCE = 1.1f;												// combined radius is padded by 10%.
+	Real HORIZON = 1.5f * LOGICFRAMES_PER_SECOND;	// frames we look ahead.
+	Real CLEARANCE = 1.1f;												// combined radius is padded by 10%.
 	const Real STANDING_SPEED = 0.05f;									// world units per frame; slower counts as standing.
 	const Int MAX_NEIGHBOURS = 24;
 
-	const Real COST_COLLISION = 10.0f;	// a collision right now; falls off with the square of the time left.
+	Real COST_COLLISION = 10.0f;	// a collision right now; falls off with the square of the time left.
 	// Second play-test of the unified system: "sticky, not flowing enough". Slowing and stopping were too cheap next
 	// to going round (was 1.5 / 3.0), so units braked for each other where they had room to pass.
-	const Real COST_HALF_SPEED = 2.5f;
-	const Real COST_STOP = 5.0f;
-	const Real START_COST = 0.6f;				// a threat milder than this (about 1.1 s away) doesn't start a manoeuvre...
-	const UnsignedInt STEERING_RECENT = LOGICFRAMES_PER_SECOND/2;	// ...but one under way is seen through.
-	const UnsignedInt COMMIT_FRAMES = LOGICFRAMES_PER_SECOND;			// how long a chosen side stays chosen.
-	const Real COST_CHANGE_SIDE = 4.0f;	// switching side while committed: only to dodge something imminent.
-	const Real BONUS_SAME_SIDE = 0.8f;
-	const Real EASE = 0.25f;						// share of the wanted turn applied per frame; the rest is last frame's.
-	const UnsignedInt ESCAPE_AFTER = LOGICFRAMES_PER_SECOND;			// held at a standstill this long = jammed (was 2 s).
+	Real COST_HALF_SPEED = 2.5f;
+	Real COST_STOP = 5.0f;
+	Real START_COST = 0.6f;				// a threat milder than this (about 1.1 s away) doesn't start a manoeuvre...
+	UnsignedInt STEERING_RECENT = LOGICFRAMES_PER_SECOND/2;	// ...but one under way is seen through.
+	UnsignedInt COMMIT_FRAMES = LOGICFRAMES_PER_SECOND;			// how long a chosen side stays chosen.
+	Real COST_CHANGE_SIDE = 4.0f;	// switching side while committed: only to dodge something imminent.
+	Real BONUS_SAME_SIDE = 0.8f;
+	Real EASE = 0.25f;						// share of the wanted turn applied per frame; the rest is last frame's.
+	UnsignedInt ESCAPE_AFTER = LOGICFRAMES_PER_SECOND;			// held at a standstill this long = jammed (was 2 s).
 	// Queueing applies to a unit we are really into, not merely beside: within 85% of the bare combined radius and
 	// inside 45 degrees of dead ahead. (It used the padded avoidance radius and the whole front half-plane, so units
 	// travelling abreast were permanently "queued" behind whichever neighbour was a nose in front, and any that
 	// turned or slowed dragged its neighbours down with it.)
-	const Real QUEUE_CONTACT = 0.85f / CLEARANCE;	// of n.radius, which is padded by CLEARANCE.
-	const Real QUEUE_CONE = 0.70710678f;					// cos 45.
+	// Friendly infantry in a vehicle's way are slid sideways out of its track; the vehicle neither steers nor slows.
+	Real NUDGE_LOOKAHEAD = 1.5f * PATHFIND_CELL_SIZE_F;	// how far ahead of its nose the vehicle starts moving them.
+	Real NUDGE_MARGIN = 1.0f;														// clearance left beside the hull.
+	Real NUDGE_PER_FRAME = 1.5f;												// world units a frame: brisk walking pace, not a shove.
+
+	Real QUEUE_CONTACT = 0.85f;										// of the bare combined radius.
+	Real QUEUE_CONE = 0.70710678f;								// cos 45.
+	Real TURN_COST_SCALE = 1.0f;									// multiplies every Turn::cost below.
+	// A man nudged out of a vehicle's track is put this much beyond its edge, so that walking back toward his own
+	// path does not put him straight back in it (third play-test: infantry jittering along a hull).
+	Real NUDGE_OVERSHOOT = 3.0f;
+
+	// "-movetune" overrides, read once (GameLogic/MoveRules.h). Names are what a tuning sweep refers to.
+	void loadTuning()
+	{
+		static Bool loaded = false;
+		if (loaded)
+			return;
+		loaded = true;
+		MoveTune::apply("steer.horizon", HORIZON);
+		MoveTune::apply("steer.clearance", CLEARANCE);
+		MoveTune::apply("steer.costCollision", COST_COLLISION);
+		MoveTune::apply("steer.costHalfSpeed", COST_HALF_SPEED);
+		MoveTune::apply("steer.costStop", COST_STOP);
+		MoveTune::apply("steer.startCost", START_COST);
+		MoveTune::apply("steer.recentFrames", STEERING_RECENT);
+		MoveTune::apply("steer.commitFrames", COMMIT_FRAMES);
+		MoveTune::apply("steer.costChangeSide", COST_CHANGE_SIDE);
+		MoveTune::apply("steer.bonusSameSide", BONUS_SAME_SIDE);
+		MoveTune::apply("steer.ease", EASE);
+		MoveTune::apply("steer.turnCostScale", TURN_COST_SCALE);
+		MoveTune::apply("queue.escapeFrames", ESCAPE_AFTER);
+		MoveTune::apply("queue.contact", QUEUE_CONTACT);
+		MoveTune::apply("queue.cone", QUEUE_CONE);
+		MoveTune::apply("nudge.lookahead", NUDGE_LOOKAHEAD);
+		MoveTune::apply("nudge.margin", NUDGE_MARGIN);
+		MoveTune::apply("nudge.perFrame", NUDGE_PER_FRAME);
+		MoveTune::apply("nudge.overshoot", NUDGE_OVERSHOOT);
+	}
 
 	// Candidate directions: the path direction rotated by these angles. cos/sin as constants, so no runtime trig.
 	struct Turn
@@ -84,11 +122,6 @@ namespace
 		{ 0.0f,        -1.0f,         3.5f,  1 },	// 90
 		{ 0.0f,         1.0f,         3.5f, -1 },
 	};
-	// Friendly infantry in a vehicle's way are slid sideways out of its track; the vehicle neither steers nor slows.
-	const Real NUDGE_LOOKAHEAD = 1.5f * PATHFIND_CELL_SIZE_F;	// how far ahead of its nose the vehicle starts moving them.
-	const Real NUDGE_MARGIN = 1.0f;														// clearance left beside the hull.
-	const Real NUDGE_PER_FRAME = 1.5f;												// world units a frame: brisk walking pace, not a shove.
-
 	const Int NUM_TURNS_INFANTRY = 11;	// up to 90 degrees.
 	const Int NUM_TURNS_VEHICLE = 9;		// up to 60: a vehicle sent 90 degrees off its path tends to orbit what it is avoiding.
 
@@ -112,7 +145,7 @@ namespace
 	inline Bool queuedBehind( const Neighbour& n, Real dirX, Real dirY )
 	{
 		Real distSqr = n.x*n.x + n.y*n.y;
-		Real reach = n.radius * QUEUE_CONTACT;
+		Real reach = n.radius * QUEUE_CONTACT / CLEARANCE;	// n.radius is padded by CLEARANCE.
 		if (distSqr > reach*reach)
 			return FALSE;
 		Real ahead = n.x*dirX + n.y*dirY;
@@ -179,7 +212,9 @@ static void nudgeAside( Object *vehicle, Object *man, AIUpdateInterface *aiMan )
 	Real inside = clear - WWMath::Fabs(lateral);
 	if (inside <= 0.0f)
 		return;
-	Real step = (inside < NUDGE_PER_FRAME) ? inside : NUDGE_PER_FRAME;
+	Real step = inside + NUDGE_OVERSHOOT;
+	if (step > NUDGE_PER_FRAME)
+		step = NUDGE_PER_FRAME;
 
 	Real side = (lateral >= 0.0f) ? 1.0f : -1.0f;
 	for (Int attempt = 0; attempt < 2; ++attempt, side = -side)
@@ -324,7 +359,7 @@ static Bool choose( Object *obj, AIUpdateInterface *ai, Real dirX, Real dirY, Re
 			if (s == 2 && t != 0)
 				break;
 			Real factor = (s == 0) ? 1.0f : ((s == 1) ? 0.5f : 0.0f);
-			Real cost = turn.cost;
+			Real cost = turn.cost * TURN_COST_SCALE;
 			if (s == 1) cost += COST_HALF_SPEED;
 			if (s == 2) cost += COST_STOP;
 			if (committed && turn.side != 0)
@@ -368,6 +403,7 @@ static Bool choose( Object *obj, AIUpdateInterface *ai, Real dirX, Real dirY, Re
 //-------------------------------------------------------------------------------------------------
 Bool steer( Object *obj, AIUpdateInterface *ai, Coord3D& goalPos, Real& speed, State& state )
 {
+	loadTuning();
 	UnsignedInt now = TheGameLogic->getFrame();
 	const Coord3D *pos = obj->getPosition();
 	Real dx = goalPos.x - pos->x;
