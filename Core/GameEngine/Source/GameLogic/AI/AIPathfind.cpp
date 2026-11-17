@@ -2325,13 +2325,13 @@ struct ExamineCellsStruct
 				return 1; //abort.
 			}
 
-			// zh-pipeline: this is the half-price "beeline to the goal" shortcut. It must not run through cells other
-			// units have planned to be in at that time; the full search, which prices them, takes over from here.
-			if (to->getLayer() == LAYER_GROUND && MoveTraffic::cost(to_x, to_y) > 0) {
-				return 1;
-			}
-
 			UnsignedInt newCostSoFar = from->getCostSoFar() + 0.5f*COST_ORTHOGONAL;
+			// zh-pipeline: this is the half-price "beeline to the goal" shortcut; traffic is priced on it like anywhere
+			// else. (Stopping the beeline at traffic instead, as the first cut did, made any cell with a clear beeline
+			// look cheap, even one behind the unit: units set off sideways or backwards to reach one.)
+			if (to->getLayer() == LAYER_GROUND) {
+				newCostSoFar += MoveTraffic::cost(to_x, to_y);
+			}
 			if (to->getType() == PathfindCell::CELL_CLIFF ) {
 				return 1;
 			}
@@ -5286,6 +5286,7 @@ void Pathfinder::prependCells( Path *path, const Coord3D *fromPos,
 	Coord3D pos;
 	PathfindCell *cell, *prevCell = nullptr;
 	Bool goalCellNull = (goalCell->getParentCell()==nullptr);
+	Int zhSincePin = 8;	// zh-pipeline: nodes since the last one pinned for traffic (see below)
 	for( cell = goalCell; cell->getParentCell(); cell = cell->getParentCell() )
 	{
 		m_zoneManager.setPassable(cell->getXIndex(), cell->getYIndex(), true);
@@ -5315,11 +5316,14 @@ void Pathfinder::prependCells( Path *path, const Coord3D *fromPos,
 		}
 
 		// zh-pipeline: the smoother straightens the cell chain by line of sight and would cut straight back through
-		// the traffic this route was chosen to avoid. Pin every third node that runs alongside traffic.
-		if (canOptimize && cell->getLayer() == LAYER_GROUND && ((cell->getXIndex() + cell->getYIndex()) % 3) == 0
+		// the traffic this route was chosen to avoid. Pin a node that runs alongside traffic, but at most one in
+		// eight: pinning every third left stair-stepped paths that units wove along.
+		++zhSincePin;
+		if (canOptimize && zhSincePin >= 8 && cell->getLayer() == LAYER_GROUND
 				&& MoveTraffic::cost(cell->getXIndex(), cell->getYIndex()) == 0
 				&& MoveTraffic::nearTraffic(cell->getXIndex(), cell->getYIndex())) {
 			canOptimize = false;
+			zhSincePin = 0;
 		}
 		path->prependNode( &pos, cell->getLayer() );
 		path->getFirstNode()->setCanOptimize(canOptimize);

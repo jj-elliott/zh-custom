@@ -1299,18 +1299,19 @@ void Locomotor::moveTowardsPositionTreads(Object* obj, PhysicsBehavior *physics,
 
 	// zh-pipeline @feature 2026-11-16 MoveRules::UNIFIED: tracked vehicles drive while they turn, to a degree, like
 	// wheeled ones. Retail (above) scales speed to nothing by 45 degrees off the aim point, so a tank stops and
-	// pivots for any real course change. Now: up to 90 degrees off it keeps at least 30% of its speed and sweeps an
-	// arc; from 90 to 120 that falls to nothing; beyond 120 it pivots on the spot as before.
+	// pivots for any real course change. Now: up to 90 degrees off it keeps at least 20% of its speed and sweeps an
+	// arc; from 90 to 110 that falls to nothing; beyond 110 it pivots on the spot as before. (First cut was 30% and
+	// 120: tanks carried too much speed into turns, overshot their heading and wove back.)
 	if (MoveRules::unified())
 	{
 		Real offAngle = (Real)WWMath::Fabs( relAngle );
 		const Real RIGHT_ANGLE = PI / 2.0f;
-		const Real PIVOT_ANGLE = PI * (2.0f / 3.0f);
+		const Real PIVOT_ANGLE = PI * (110.0f / 180.0f);
 		Real factor;
 		if (offAngle <= RIGHT_ANGLE)
-			factor = 1.0f - 0.7f * (offAngle / RIGHT_ANGLE);
+			factor = 1.0f - 0.8f * (offAngle / RIGHT_ANGLE);
 		else if (offAngle < PIVOT_ANGLE)
-			factor = 0.3f * (PIVOT_ANGLE - offAngle) / (PIVOT_ANGLE - RIGHT_ANGLE);
+			factor = 0.2f * (PIVOT_ANGLE - offAngle) / (PIVOT_ANGLE - RIGHT_ANGLE);
 		else
 			factor = 0.0f;
 		goalSpeed = factor * desiredSpeed;

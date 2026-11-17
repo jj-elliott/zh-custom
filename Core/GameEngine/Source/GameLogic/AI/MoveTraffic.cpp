@@ -33,7 +33,10 @@ namespace
 {
 	// Tuning. Path costs are in the pathfinder's units: COST_ORTHOGONAL (10) per cell.
 	const UnsignedInt WINDOW = 5 * LOGICFRAMES_PER_SECOND;	// two units "meet" in a cell if they are due within this of each other.
-	const Int COST_PER_UNIT = 6;														// extra cost per other unit due in a cell...
+	// First play-test of the unified system: at 6 per unit (up to +18 on a 10-cost cell) units over-spread, some
+	// setting off sideways or backwards to get round the whole group. The penalty only has to break the tie between
+	// "the same line as everyone" and "the free line next to it", so it is small: at most +3, a 30% longer way round.
+	const Int COST_PER_UNIT = 1;														// extra cost per other unit due in a cell...
 	const Int MAX_COUNTED = 3;															// ...up to this many, so a real choke stays affordable.
 	const Int MAX_LOAD = 250;
 
@@ -191,9 +194,10 @@ void stamp( Path *path )
 	if (node == nullptr)
 		return;
 
-	// Walk the optimized path in half-cell steps; mark a square of our width (plus one cell) around each step.
+	// Walk the optimized path in half-cell steps; mark a square of our own width around each step. (Not wider: with a
+	// margin the bands of a group's units tiled its whole frontage, leaving no free line beside anyone.)
 	const Real STEP = PATHFIND_CELL_SIZE_F * 0.5f;
-	const Int reach = s_halfWidth + 1;
+	const Int reach = s_halfWidth;
 	Real travelled = 0.0f;	// world units along the path so far.
 	Int lastX = 0x7fffffff, lastY = 0x7fffffff;
 	UnsignedInt now = TheGameLogic->getFrame();

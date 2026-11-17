@@ -168,9 +168,9 @@ Three parts, each doing one job, and everything they replace switched off:
 | **Steering** (`AISteering`) | *how*: get past units over the next few metres; queue; escape a jam | `GeneralsMD/.../GameLogic/AISteering.h/.cpp`; called from `AIUpdateInterface::doLocomotor` |
 | **Contact rules** | only what the other two can't: idle ally steps aside, stacked idle units spread out, push priority, 2 s escape when blocked by standing allies | `AIUpdate.cpp` (`processCollision`, `blockedBy`, `hasHigherPathPriority`, `shouldAskToYield`, `isSteeredPair`) |
 
-- **Traffic map.** When a ground unit gets a path, every cell under it (unit width + 1) is stamped with the frame the unit expects
-  to be there and a load count. The A* adds 6 per other unit (max 3; a cell costs 10) for cells stamped within 5 s of our own
-  estimated arrival; the half-price "beeline to goal" shortcut stops at such cells; and every third path node running alongside
+- **Traffic map.** When a ground unit gets a path, every cell under it (unit width) is stamped with the frame the unit expects
+  to be there and a load count. The A* adds 1 per other unit (max 3; a cell costs 10) for cells stamped within 5 s of our own
+  estimated arrival; the half-price "beeline to goal" shortcut pays the same; and at most one path node in eight running alongside
   traffic is pinned (`setCanOptimize(false)`) so the line-of-sight smoother can't cut back through it. Stamps lapse by time, nothing
   is erased. Arrival time = straight-line cells from the search start × frames per cell at top speed.
 - **Group moves** no longer use the retail shared ground path with 2 (vehicles) or 3/5 (infantry) columns
@@ -184,8 +184,8 @@ Three parts, each doing one job, and everything they replace switched off:
 - **Between two moving allies there are no contact rules at all** (`isSteeredPair`): no blocked/stuck/repath, no shove, no
   deadlock-breaking. Retail's remain for enemies, standing units, and movement steering doesn't handle (taxiing aircraft,
   production exits, docking, entering).
-- **Tracked vehicles drive while turning** (`Locomotor::moveTowardsPositionTreads`): speed factor 1 → 0.3 from 0° to 90° off the
-  aim point, → 0 at 120°, pivot beyond. Retail stopped to pivot at 45°.
+- **Tracked vehicles drive while turning** (`Locomotor::moveTowardsPositionTreads`): speed factor 1 → 0.2 from 0° to 90° off the
+  aim point, → 0 at 110°, pivot beyond. Retail stopped to pivot at 45°.
 - All tuning constants are at the top of `AISteering.cpp` and `MoveTraffic.cpp`.
 
 ### Verification, and what it does not show
@@ -213,6 +213,18 @@ Three parts, each doing one job, and everything they replace switched off:
 Lessons worth keeping: a contact rule can't produce flow; every extra layer that also touches speed or path is a source of
 twitching; a reproducing replay is evidence only if the change under test could have altered it; campaign games and games
 loaded from a save record no replay.
+
+### Play-tests of UNIFIED
+
+- **First (2026-11-16, `tests/soak/move-06.rep`, 4:22; reproduced on the build that recorded it, the first real-play determinism
+  check):** "decent for a first pass". (1) Units over-turn, the back-and-forth jitter on turning is back. (2) Units over-spread,
+  some setting off sideways or backwards after an order. Causes found in the first cut and changed: the traffic penalty was up
+  to +18 on a 10-cost cell and is now at most +3; stamps were one cell wider than the unit each side, so a group's bands tiled
+  its whole frontage, now exactly unit width; the half-price beeline stopped at traffic, which made any cell with a clear
+  beeline look cheap even behind the unit, now traffic is priced on the beeline; every third node beside traffic was pinned,
+  leaving stair-stepped paths, now at most one in eight; tracked vehicles carried 30% speed to 90 degrees, now 20% and pivot
+  from 110. The user's guess (pathfind grid too coarse) was not the cause: the grid is 10 units, about half a tank.
+  A test save now exists (`movetest.ps1 -Name pathfinding`).
 
 ### Open
 
