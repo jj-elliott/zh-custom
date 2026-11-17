@@ -233,6 +233,25 @@ loaded from a save record no replay.
   traffic penalty 2 per unit, max +4 (was 1, max +3). If it is still sticky, ask *where*: setting off, mid-route, at a
   choke, or on arrival; each points at a different part.
 
+- **Third (2026-11-16):** "certainly an improvement". Two design asks from the user, both built:
+  - *Infantry.* Making vehicles path around friendly infantry adds load and jitter; do what StarCraft does: the vehicle is not
+    slowed at all and the infantry are gently, almost invisibly pushed aside. Built as `AISteering::nudgeAside`: friendly
+    infantry inside the strip the hull is about to sweep (hull length + 1.5 cells ahead, hull width + their radius + 1) are slid
+    sideways out of the nearer edge at up to 1.5 units a frame, by position only: no AI state on either side. Never onto ground
+    they can't walk on (other side tried, else the vehicle passes through). Busy infantry are left alone. A standing man's
+    pathfinder cell claim moves with him. Friendly infantry no longer block a vehicle in `blockedBy`, so the retail "stop,
+    send the infantry on a get-out-of-the-way errand" never runs for them; vehicles no longer steer around friendly infantry.
+  - *Route negotiation.* The user's idea: let every unit take its optimal path, then iteratively shift paths to remove
+    overlap, charging by how little a unit loses from a detour, so a Humvee is the one pushed off and a Crusader keeps the
+    inside track. Built as the one-pass form of that (prioritized planning): a group order is pathed slowest unit first
+    (`AIGroup::groupMoveToPosition` sorts by top speed, then distance), so slow units see an empty traffic map and get the
+    direct line; and what traffic costs a unit scales with its top speed (0.5× to 1.75×, 1 unit/frame = 1×), so nimble units
+    are the ones that go round. Infantry are out of the traffic map entirely. **Not built: the iterative part** (re-pathing
+    units after everyone has a route until overlap stops falling). One pass in the right order is what makes iterations
+    mostly unnecessary, but two groups ordered separately, or units ordered one at a time, still get first-come-first-served.
+    If that shows, the next step is a bounded re-plan: after a group's paths exist, re-path the fastest units whose routes
+    still share cells, a fixed number of rounds per frame.
+
 ### Open
 
 - Play-test UNIFIED (test saves: `scripts/movetest.ps1`). Expected trouble spots: traffic penalty too weak or too strong

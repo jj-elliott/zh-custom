@@ -1474,6 +1474,13 @@ Bool AIUpdateInterface::blockedBy(Object *other)
 	if (isSteeredPair(other)) {
 		return FALSE;
 	}
+	// zh-pipeline MoveRules::UNIFIED: friendly infantry never blocks a vehicle. The vehicle nudges them aside as it
+	// comes (AISteering::nudgeAside) and does not slow down; retail stopped the vehicle and sent the infantry off on
+	// a visible "get out of the way" errand.
+	if (MoveRules::unified() && canSteer() && !obj->isKindOf(KINDOF_INFANTRY) && other->isKindOf(KINDOF_INFANTRY)
+			&& obj->getRelationship(other) == ALLIES) {
+		return FALSE;
+	}
 
 	if (obj->isKindOf(KINDOF_INFANTRY) && other->isKindOf(KINDOF_INFANTRY)) {
 		// Infantry doesn't tend to impede other infantry...
@@ -1923,15 +1930,23 @@ Bool AIUpdateInterface::computePath( PathfindServicesInterface *pathServices, Co
 	// zh-pipeline @feature 2026-11-16 MoveRules::UNIFIED, congestion-aware pathing (GameLogic/MoveTraffic.h): tell the
 	// traffic map who is about to be pathed, so the search prices cells other units have planned to use, and the
 	// route found is recorded for the units pathed after us.
-	if (MoveRules::unified() && isDoingGroundMovement() && m_curLocomotor != nullptr && !getObject()->isKindOf(KINDOF_AIRCRAFT))
+	// Vehicles only: infantry walk through each other and are nudged aside by vehicles (AISteering), so they neither
+	// claim routes nor avoid claimed ones. How much traffic costs a vehicle scales with its top speed (1 world unit a
+	// frame, a main battle tank, = 1): a nimble unit loses little by a detour and is the one that takes it; a slow
+	// one keeps the direct line.
+	if (MoveRules::unified() && isDoingGroundMovement() && m_curLocomotor != nullptr
+			&& !getObject()->isKindOf(KINDOF_AIRCRAFT) && !getObject()->isKindOf(KINDOF_INFANTRY))
 	{
 		Real topSpeed = m_curLocomotor->getMaxSpeedForCondition(getObject()->getBodyModule()->getDamageState());
 		if (topSpeed > 0.01f)
 		{
 			const GeometryInfo& geom = getObject()->getGeometryInfo();
 			Real halfWidth = (geom.getGeomType() == GEOMETRY_BOX) ? geom.getMinorRadius() : geom.getMajorRadius();
+			Real willingness = topSpeed;
+			if (willingness < 0.5f) willingness = 0.5f;
+			if (willingness > 1.75f) willingness = 1.75f;
 			MoveTraffic::setMover((UnsignedInt)getObject()->getID(), PATHFIND_CELL_SIZE_F / topSpeed,
-				REAL_TO_INT_FLOOR(halfWidth / PATHFIND_CELL_SIZE_F + 0.5f));
+				REAL_TO_INT_FLOOR(halfWidth / PATHFIND_CELL_SIZE_F + 0.5f), willingness);
 		}
 	}
 

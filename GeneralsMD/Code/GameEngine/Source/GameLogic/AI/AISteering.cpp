@@ -33,6 +33,7 @@
 #include "GameLogic/Module/PhysicsUpdate.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/PartitionManager.h"
+#include "GameLogic/TerrainLogic.h"
 
 namespace
 {
@@ -83,6 +84,11 @@ namespace
 		{ 0.0f,        -1.0f,         3.5f,  1 },	// 90
 		{ 0.0f,         1.0f,         3.5f, -1 },
 	};
+	// Friendly infantry in a vehicle's way are slid sideways out of its track; the vehicle neither steers nor slows.
+	const Real NUDGE_LOOKAHEAD = 1.5f * PATHFIND_CELL_SIZE_F;	// how far ahead of its nose the vehicle starts moving them.
+	const Real NUDGE_MARGIN = 1.0f;														// clearance left beside the hull.
+	const Real NUDGE_PER_FRAME = 1.5f;												// world units a frame: brisk walking pace, not a shove.
+
 	const Int NUM_TURNS_INFANTRY = 11;	// up to 90 degrees.
 	const Int NUM_TURNS_VEHICLE = 9;		// up to 60: a vehicle sent 90 degrees off its path tends to orbit what it is avoiding.
 
@@ -145,6 +151,57 @@ namespace AISteering
 {
 
 //-------------------------------------------------------------------------------------------------
+// A vehicle makes room for itself among friendly infantry, as in StarCraft: anyone inside the strip its hull is
+// about to sweep is slid sideways, out of the nearer edge, a little each frame. No AI state changes on either side:
+// the infantryman keeps doing what he was doing, a step to the side; if he was walking somewhere his path follower
+// carries on from where he now is. He is never moved onto ground he couldn't walk on (then the other side is tried,
+// and failing that the vehicle simply passes through him, as it would have before). Men who are busy with something
+// that depends on where they stand are left alone.
+static void nudgeAside( Object *vehicle, Object *man, AIUpdateInterface *aiMan )
+{
+	if (aiMan->isBusy() || man->testStatus(OBJECT_STATUS_IS_USING_ABILITY))
+		return;
+
+	const Coord3D *heading = vehicle->getUnitDirectionVector2D();
+	const GeometryInfo& hull = vehicle->getGeometryInfo();
+	Real halfLength = hull.getMajorRadius();
+	Real halfWidth = (hull.getGeomType() == GEOMETRY_BOX) ? hull.getMinorRadius() : hull.getMajorRadius();
+
+	Real relX = man->getPosition()->x - vehicle->getPosition()->x;
+	Real relY = man->getPosition()->y - vehicle->getPosition()->y;
+	Real forward = relX*heading->x + relY*heading->y;
+	if (forward < -halfLength || forward > halfLength + NUDGE_LOOKAHEAD)
+		return;
+	Real leftX = -heading->y;	// unit vector to the vehicle's left.
+	Real leftY = heading->x;
+	Real lateral = relX*leftX + relY*leftY;
+	Real clear = halfWidth + man->getGeometryInfo().getMajorRadius() + NUDGE_MARGIN;
+	Real inside = clear - WWMath::Fabs(lateral);
+	if (inside <= 0.0f)
+		return;
+	Real step = (inside < NUDGE_PER_FRAME) ? inside : NUDGE_PER_FRAME;
+
+	Real side = (lateral >= 0.0f) ? 1.0f : -1.0f;
+	for (Int attempt = 0; attempt < 2; ++attempt, side = -side)
+	{
+		Coord3D to = *man->getPosition();
+		to.x += leftX * side * step;
+		to.y += leftY * side * step;
+		if (!TheAI->pathfinder()->validMovementPosition(FALSE, man->getLayer(), aiMan->getLocomotorSet(), &to))
+			continue;
+		to.z = TheTerrainLogic->getLayerHeight(to.x, to.y, man->getLayer());
+		man->setPosition(&to);
+		if (aiMan->isIdle())
+		{
+			// A standing man holds a cell in the pathfinder's map; move his claim with him.
+			TheAI->pathfinder()->updatePos(man, &to);
+			TheAI->pathfinder()->updateGoal(man, &to, man->getLayer());
+		}
+		return;
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
 // Look around and decide. Returns FALSE for "carry on as the path says"; otherwise bestTurn (index into TURNS) and
 // bestSpeedFactor hold the choice. followCap is lowered to the most we may do behind a moving unit we already
 // touch. dirX/dirY is the direction the path follower wants.
@@ -187,6 +244,12 @@ static Bool choose( Object *obj, AIUpdateInterface *ai, Real dirX, Real dirY, Re
 		// Infantry walk through infantry, as they always have. Nothing avoids what it can run over.
 		if (weAreInfantry && other->isKindOf(KINDOF_INFANTRY))
 			continue;
+		// A vehicle does not go round friendly infantry and does not slow for them: it moves them out of its track.
+		if (!weAreInfantry && other->isKindOf(KINDOF_INFANTRY) && obj->getRelationship(other) == ALLIES)
+		{
+			nudgeAside(obj, other, aiOther);
+			continue;
+		}
 		if (obj->canCrushOrSquish(other, TEST_CRUSH_OR_SQUISH))
 			continue;
 

@@ -48,8 +48,10 @@ namespace MoveTraffic
 	void reset( Int loX, Int loY, Int hiX, Int hiY );
 
 	/// Who the next path searches and the next stamp are for. framesPerCell: how long the unit takes to cross one
-	/// pathfind cell at top speed; halfWidthCells: its half width in cells. Call clearMover() when done.
-	void setMover( UnsignedInt ownerID, Real framesPerCell, Int halfWidthCells );
+	/// pathfind cell at top speed; halfWidthCells: its half width in cells; detourWillingness: scales what traffic
+	/// costs this unit (1 = normal; a nimble unit gets more, so it is the one that goes round; a slow one less, so
+	/// it keeps the direct line). Call clearMover() when done.
+	void setMover( UnsignedInt ownerID, Real framesPerCell, Int halfWidthCells, Real detourWillingness );
 	void clearMover();
 	Bool hasMover();
 

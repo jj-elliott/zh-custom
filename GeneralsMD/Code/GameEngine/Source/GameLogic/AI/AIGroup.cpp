@@ -1687,6 +1687,8 @@ void AIGroup::groupMoveToPosition( const Coord3D *p_posIn, Bool addWaypoint, Com
 	MemoryPoolObjectHolder iterHolder;
 	SimpleObjectIterator *iter = newInstance(SimpleObjectIterator);
 	iterHolder.hold(iter);
+	Object *nearestUnit = nullptr;	// zh-pipeline, see below
+	Real nearestDistSqr = 1.0e30f;
 	for( i = m_memberList.begin(); i != m_memberList.end(); ++i )
 	{
 		Real dx, dy;
@@ -1735,6 +1737,21 @@ void AIGroup::groupMoveToPosition( const Coord3D *p_posIn, Bool addWaypoint, Com
 			}
 		}
 #endif
+		// zh-pipeline @feature 2026-11-16 MoveRules::UNIFIED: who gets pathed first gets the direct line; the units
+		// pathed after it see its route in the traffic map and go round. So order by top speed, slowest first: the
+		// slow, clumsy units (a Crusader) take the inside track, the nimble ones (a Humvee), which lose least by a
+		// detour, give way. Distance to the goal, the retail order, only breaks ties. The speed term dwarfs any
+		// squared map distance.
+		if (MoveRules::unified()) {
+			AIUpdateInterface *memberAI = (*i)->getAIUpdateInterface();
+			if (dx*dx+dy*dy < nearestDistSqr) {
+				nearestDistSqr = dx*dx+dy*dy;
+				nearestUnit = (*i);
+			}
+			if (memberAI && memberAI->getCurLocomotor()) {
+				adjust = 1.0e9f * memberAI->getCurLocomotor()->getMaxSpeedForCondition(BODY_PRISTINE);
+			}
+		}
 		iter->insert((*i), adjust + dx*dx+dy*dy);
 	}
 
@@ -1744,6 +1761,12 @@ void AIGroup::groupMoveToPosition( const Coord3D *p_posIn, Bool addWaypoint, Com
 	// Move the ones nearest the goal first.  Reduces collision problems later.
 	Object *theUnit;
 	Bool firstUnit = true;
+	// zh-pipeline: the group keeps its shape around the unit nearest the goal, as retail does (there it is simply the
+	// first in the order; under UNIFIED the order is by speed, so pick it out explicitly).
+	if (MoveRules::unified() && nearestUnit != nullptr && !isFormation) {
+		center = *nearestUnit->getPosition();
+		firstUnit = false;
+	}
 	for (theUnit = iter->first(); theUnit; theUnit = iter->next())
 	{
 		theUnit->setFormationID(NO_FORMATION_ID);

@@ -56,6 +56,7 @@ namespace
 	UnsignedInt s_owner = 0;
 	Bool s_hasMover = false;
 	Real s_framesPerCell = 0.0f;
+	Real s_detourWillingness = 1.0f;
 	Int s_halfWidth = 0;
 	Int s_startX = 0, s_startY = 0;
 	UnsignedInt s_startFrame = 0;
@@ -138,10 +139,11 @@ void reset( Int loX, Int loY, Int hiX, Int hiY )
 	s_hasMover = false;
 }
 
-void setMover( UnsignedInt ownerID, Real framesPerCell, Int halfWidthCells )
+void setMover( UnsignedInt ownerID, Real framesPerCell, Int halfWidthCells, Real detourWillingness )
 {
 	s_owner = ownerID;
 	s_framesPerCell = framesPerCell;
+	s_detourWillingness = detourWillingness;
 	s_halfWidth = halfWidthCells;
 	s_hasMover = MoveRules::unified() && !s_cells.empty();
 	s_startFrame = TheGameLogic->getFrame();
@@ -173,7 +175,7 @@ Int cost( Int x, Int y )
 		return 0;
 	if (others > MAX_COUNTED)
 		others = MAX_COUNTED;
-	return others * COST_PER_UNIT;
+	return (Int)((Real)(others * COST_PER_UNIT) * s_detourWillingness + 0.5f);
 }
 
 Bool nearTraffic( Int x, Int y )
