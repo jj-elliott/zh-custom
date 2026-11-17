@@ -155,6 +155,32 @@ Target feel: StarCraft 2. The A-star pathfinder stays; the work is in the layer 
 5. **Vehicle constraints.** Run avoidance on a circular stand-in, then feed its velocity to the real locomotor as a *target* clamped by turn rate and acceleration, so tanks turn toward the heading rather than slide. Reverse rule: if the desired direction is >~120° behind and the distance is short, back up. Optionally cheat like SC2 and let vehicles rotate in place faster than physics allows.
 6. **Flow fields for large groups** (optional). One field per shared destination instead of per-unit searches, plus a formation or crowd target so 50 units don't converge on a single point.
 
+**Status 2026-11-16 — steps 1–3 implemented on `move/collision-rules`, not yet play-tested.** All three are gated on one integer, the
+*movement rules level* (`Core/.../GameLogic/MoveRules.h`): 0 retail, 1 = step 1, 2 = +step 2, 3 = +step 3. The exe defaults to the newest level;
+`-moverules <n>` overrides it for replay verification and for bisecting a feel problem to a step. It is sim state: both machines must match.
+
+What retail already had (found while reading `AIUpdateInterface::processCollision` / `blockedBy`, so the steps are smaller than planned):
+infantry in front of a vehicle is already told to step aside (`aiMoveAwayFromUnit` → `AI_MOVE_OUT_OF_THE_WAY`, a 10 s temporary state);
+`Pathfinder::moveAllies` already clears idle allies off a path the pathfinder marked blocked-by-ally; `hasHigherPathPriority` already breaks
+deadlocks (dozer > vehicle > infantry > whoever is in front > ObjectID); a stuck unit already gets a 2 s collision holiday in a few corner cases.
+The dated feel comes from everything else: a mover that touches an idle ally flags itself stuck and paths around it, and a column queues behind
+its slowest member.
+
+- **Step 1 as built:** in `processCollision`, a mover blocked by an idle ally asks it to step aside (same `aiMoveAwayFromUnit` retail uses), once
+  per contact; if the ally has nowhere to go the retail stuck-and-repath logic takes over next frame. Not asked: enemies, units that are
+  attacking / guarding / busy / using an ability / deployed / disabled, vehicles by infantry, and anything when the mover is within 8 pathfind
+  cells of its own goal (so a group arriving doesn't shove its first arrivals off their spots — the tunable to revisit after play-testing).
+- **Step 2 as built:** `hasHigherPathPriority` keeps dozer-first and vehicle-over-infantry, then ranks player-ordered move > any other move >
+  standing still (`getPushRank`), then heavier `Mass`; exact ties fall to the retail in-front rule. "Arrived first" from the plan is that rule.
+- **Step 3 as built:** `blockedBy` returns false for allies both moving within 60° of the same heading (they overlap while flowing and separate
+  at their own goal cells). Fail-safe: 2 s of unbroken blocking by allies (own counter; repaths reset `m_blockedFrames`) → collision off for that
+  unit for 2 s via the existing `m_ignoreCollisionsUntil`. Deviation from the plan: that timer ignores enemy units too for those 2 s, because
+  making it allies-only would change retail uses of the timer (transport exits). The retail repath-when-blocked stays alongside it.
+- **Verification so far:** `skirmish-01.rep` still reproduces at level 0 (the gates leak nothing). At levels 1 and 2 the same replay also
+  reproduces, i.e. that 6-minute game never hits those rules; at level 3 it diverges at frame 1600 as intended, identically on two runs. So
+  the new rules have had almost no automated exercise. **Needed: a played skirmish at the default level** (then `verify.ps1 -Import -Name x`
+  makes it the first Phase 7 baseline and the real determinism check), and a verdict on feel per step.
+
 Budget: steps 1–3 a couple of weekends; 4 another couple; 5 a month or two of evenings; 6 another month. Cheaper than Phase 6 and independent of it; can run in parallel on a `move/*` branch.
 
 ## Adjustments pulled forward to make Phase 6 cheap later

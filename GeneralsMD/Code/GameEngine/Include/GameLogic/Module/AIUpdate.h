@@ -525,6 +525,8 @@ public:
 
 	/// Return true if our path has higher priority.
 	Bool hasHigherPathPriority(AIUpdateInterface *otherAI) const;
+	Int getPushRank() const;										///< zh-pipeline Phase 7 step 2: 2 player-ordered move, 1 other move, 0 not moving
+	Bool shouldAskToYield(Object *other) const;	///< zh-pipeline Phase 7 step 1: should idle "other" step aside for us
 	void setFinalPosition(const Coord3D *pos) { m_finalPosition = *pos; m_doFinalPosition = false;}
 
 	virtual UpdateSleepTime update() override;	///< update this object's AI
@@ -729,6 +731,10 @@ private:
 	Real				m_curMaxBlockedSpeed;				///< Max speed we can have and not run into blocking things.
 	Real				m_bumpSpeedLimit;						///< Max speed after bumping a unit.
 	UnsignedInt	m_ignoreCollisionsUntil;		///< Timer to cheat if we get stuck.
+	// zh-pipeline Phase 7 step 3 stuck fail-safe. Like m_blockedFrames these are transient and deliberately not in
+	// xfer: a save/load only restarts the 2 s count, and the save format and the retail CRC stream stay unchanged.
+	UnsignedInt	m_jamStartFrame;						///< Frame the current unbroken spell of being blocked by allies began.
+	UnsignedInt	m_jamLastFrame;							///< Last frame we were blocked by an ally.
 	/**
 		If nonzero and >= now, frame when we should queueForPath.
 

@@ -54,6 +54,7 @@
 
 #include "GameLogic/AI.h"
 #include "GameLogic/AIPathfind.h"
+#include "GameLogic/MoveRules.h"	// zh-pipeline Phase 7
 #include "GameLogic/Locomotor.h"
 #include "GameLogic/Module/AIUpdate.h"
 #include "GameLogic/Module/BodyModule.h"
@@ -237,6 +238,8 @@ AIUpdateInterface::AIUpdateInterface( Thing *thing, const ModuleData* moduleData
 	m_curMaxBlockedSpeed = 0;
 	m_bumpSpeedLimit = FAST_AS_POSSIBLE;
 	m_ignoreCollisionsUntil = 0;
+	m_jamStartFrame = 0;
+	m_jamLastFrame = 0;
 	m_queueForPathFrame = 0;
 	m_finalPosition.zero();
 	m_repulsor1 = INVALID_ID;
@@ -1229,6 +1232,25 @@ Bool AIUpdateInterface::hasHigherPathPriority(AIUpdateInterface *otherAI) const
 		return FALSE;
 	}
 
+	// zh-pipeline @feature 2026-11-16 Phase 7 step 2, push priority: a unit on an explicit player move order outranks one
+	// that is moving on its own initiative, which outranks one standing still; then the heavier INI Mass wins. Only
+	// exact ties fall through to the retail "whoever is in front" rule. Antisymmetric like the retail rule (rank and
+	// mass are plain comparisons of lockstep state), so two units never both think they have right of way.
+	if (MoveRules::pushPriority()) {
+		Int ourRank = getPushRank();
+		Int otherRank = otherAI->getPushRank();
+		if (ourRank != otherRank) {
+			return ourRank > otherRank;
+		}
+		const PhysicsBehavior *ourPhysics = getObject()->getPhysics();
+		const PhysicsBehavior *otherPhysics = other->getPhysics();
+		Real ourMass = ourPhysics ? ourPhysics->getMass() : 0.0f;
+		Real otherMass = otherPhysics ? otherPhysics->getMass() : 0.0f;
+		if (ourMass != otherMass) {
+			return ourMass > otherMass;
+		}
+	}
+
 	// The paths aren't of the same group, so see which unit is in front.
 	Coord3D ourDir = *getObject()->getUnitDirectionVector2D();
 	Coord3D otherDir = *other->getUnitDirectionVector2D();
@@ -1247,6 +1269,69 @@ Bool AIUpdateInterface::hasHigherPathPriority(AIUpdateInterface *otherAI) const
 	if (dotProduct<0) return TRUE; // We are ahead of other.
 	// Exactly equal.  Use object id's to break the tie.
 	return getObject()->getID() < other->getID();
+}
+
+//-------------------------------------------------------------------------------------------------
+// zh-pipeline @feature 2026-11-16 Phase 7 step 2. 2 = moving because the player said so, 1 = moving for any other
+// reason (harvesting, guarding, getting out of someone's way, computer player orders), 0 = not moving.
+Int AIUpdateInterface::getPushRank() const
+{
+	if (!isMoving()) {
+		return 0;
+	}
+	if (getLastCommandSource() == CMD_FROM_PLAYER && getStateMachine()->getTemporaryState() == INVALID_STATE_ID) {
+		switch (getStateMachine()->getCurrentStateID())
+		{
+			case AI_MOVE_TO:
+			case AI_ATTACK_MOVE_TO:
+			case AI_FOLLOW_PATH:
+			case AI_MOVE_AND_TIGHTEN:
+			case AI_ENTER:
+				return 2;
+			default:
+				break;
+		}
+	}
+	return 1;
+}
+
+//-------------------------------------------------------------------------------------------------
+// zh-pipeline @feature 2026-11-16 Phase 7 step 1, yield rule: should the idle unit "other", which is in our way,
+// step aside for us? Retail only did this for infantry in front of a vehicle; everything else made the mover stop,
+// flag itself stuck and path around.
+Bool AIUpdateInterface::shouldAskToYield(Object *other) const
+{
+	const Object *obj = getObject();
+	AIUpdateInterface *aiOther = other->getAI();
+	if (aiOther == nullptr) {
+		return FALSE;
+	}
+	if (obj->getRelationship(other) != ALLIES) {
+		return FALSE;
+	}
+	if (obj->isKindOf(KINDOF_INFANTRY) && !other->isKindOf(KINDOF_INFANTRY)) {
+		return FALSE;	// infantry walks around a parked vehicle; the vehicle would take longer to turn and pull out.
+	}
+	if (!aiOther->isIdle() || aiOther->isMoving() || aiOther->isAttacking() || aiOther->isBusy()) {
+		return FALSE;	// only units with nothing to do. Guarding, attacking, docking, packing units hold their ground.
+	}
+	if (other->testStatus(OBJECT_STATUS_IS_USING_ABILITY) || other->testStatus(OBJECT_STATUS_DEPLOYED)) {
+		return FALSE;
+	}
+	if (other->isDisabled() || other->isKindOf(KINDOF_IMMOBILE)) {
+		return FALSE;
+	}
+
+	// A group arriving at its destination must not shove the members that got there first off their spots: close to
+	// our own goal we settle around whoever is parked, as retail does. Pushing is for traffic passing through.
+	const Real YIELD_MIN_GOAL_DIST = 8.0f * PATHFIND_CELL_SIZE_F;
+	const Coord3D *goalPos = getStateMachine()->getGoalPosition();
+	Real dx = goalPos->x - obj->getPosition()->x;
+	Real dy = goalPos->y - obj->getPosition()->y;
+	if (dx*dx + dy*dy < YIELD_MIN_GOAL_DIST*YIELD_MIN_GOAL_DIST) {
+		return FALSE;
+	}
+	return TRUE;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1325,6 +1410,17 @@ Bool AIUpdateInterface::blockedBy(Object *other)
 	Real dx = pos.x-otherPos.x;
 	Real dy = pos.y-otherPos.y;
 	Real curDSqr = dx*dx+dy*dy;
+
+	// zh-pipeline @feature 2026-11-16 Phase 7 step 3, group pass-through: allies heading the same way (within 60 degrees)
+	// don't block each other, so a column flows through a choke at each unit's own speed instead of queueing behind
+	// its slowest member and repathing. They separate again at the destination, where every unit has its own goal cell.
+	if (MoveRules::passThrough() && otherMoving && obj->getRelationship(other) == ALLIES) {
+		const Coord3D *ourHeading = obj->getUnitDirectionVector2D();
+		const Coord3D *theirHeading = other->getUnitDirectionVector2D();
+		if (ourHeading->x*theirHeading->x + ourHeading->y*theirHeading->y > 0.5f) {
+			return FALSE;
+		}
+	}
 
 	if (obj->isKindOf(KINDOF_INFANTRY) && other->isKindOf(KINDOF_INFANTRY)) {
 		// Infantry doesn't tend to impede other infantry...
@@ -1474,7 +1570,36 @@ Bool AIUpdateInterface::processCollision(PhysicsBehavior *physics, Object *other
 				m_curMaxBlockedSpeed = maxSpeed;
 			}
 
+			// zh-pipeline @feature 2026-11-16 Phase 7 step 3, stuck fail-safe: blocked by allies for 2 s without a break
+			// (repaths reset m_blockedFrames, so that can't measure it) means the polite rules have failed. Drop collision
+			// for this unit only, for 2 s, and let it walk out of the jam.
+			if (MoveRules::passThrough() && getObject()->getRelationship(other) == ALLIES)
+			{
+				UnsignedInt now = TheGameLogic->getFrame();
+				if (now - m_jamLastFrame > LOGICFRAMES_PER_SECOND/2)
+				{
+					m_jamStartFrame = now;	// a new episode: we were free for at least half a second.
+				}
+				m_jamLastFrame = now;
+				if (now - m_jamStartFrame > 2*LOGICFRAMES_PER_SECOND)
+				{
+					m_jamStartFrame = now;
+					setIgnoreCollisionTime(2*LOGICFRAMES_PER_SECOND);
+					m_isBlocked = FALSE;
+					return FALSE;
+				}
+			}
+
 			if (!aiOther->isMovingAwayFrom(getObject())) {
+
+				// zh-pipeline @feature 2026-11-16 Phase 7 step 1, yield rule: ask an idle ally to step aside, once per
+				// contact (m_blockedFrames is 0 on first touch and again after each repath). If it has nowhere to go
+				// we fall through to the retail stuck-and-path-around logic on the next frame.
+				if (MoveRules::yieldRule() && m_blockedFrames == 0 && shouldAskToYield(other))
+				{
+					aiOther->aiMoveAwayFromUnit(getObject(), CMD_FROM_AI);
+					return FALSE;
+				}
 
 				if (other->isKindOf(KINDOF_INFANTRY) && !getObject()->isKindOf(KINDOF_INFANTRY))
 				{

@@ -122,6 +122,13 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       Optional later: map + player names in the archived replay filename; overlay font sizes.
 - [ ] **12. Netcode test flags already exist** in debug builds: `-packetloss`, `-latAvg`, `-latAmp`, `-latPeriod`, `-latNoise` (`CommandLine.cpp`).
       Expose them in release (or use a `win32-profile` build) and make `net-sim.ps1` prefer them over clumsy.
+- [~] **15. Phase 7 steps 1–3 (yield rule, push priority, pass-through + stuck fail-safe)** — implemented 2026-11-16 on `move/collision-rules`
+      behind the movement rules level (`MoveRules.h`, `-moverules <n>`, default 3); details and deviations in PLAN.md Phase 7. Retail baseline
+      verifies at level 0 via `tests/replays/skirmish-01.rep.args`. **Open, human:** play a skirmish at the default level (drive columns through
+      chokes and through parked units, move a mixed group, let harvesters run through a parked army), say how each feels, then
+      `verify.ps1 -Import -Name move-01` + `verify.ps1 -SkipBuild` for the first Phase 7 baseline. If something feels wrong, replay the
+      situation with `-moverules 2` / `1` to find the step. **Open, agent:** tune `YIELD_MIN_GOAL_DIST` (8 cells) and the 60° pass-through
+      cone from that feedback; both launcher installs must ship the same exe before any two-player game (level mismatch = desync).
 
 ## Findings from source inspection (2026-10-21, before first build) — read before starting the items above
 
