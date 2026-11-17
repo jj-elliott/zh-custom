@@ -25,6 +25,7 @@
 #include "Common/Recorder.h"
 #include "Common/WorkerProcess.h"
 #include "GameLogic/GameLogic.h"
+#include "GameLogic/MoveRules.h"	// zh-pipeline
 #include "GameClient/GameClient.h"
 
 
@@ -170,10 +171,12 @@ int ReplaySimulation::simulateReplaysInWorkerProcesses(const std::vector<AsciiSt
 			filenameWide.translate(filenames[filenamePositionStarted]);
 			UnicodeString command;
 			// Pass -useCwd, so that the worker keeps the working directory that it inherits from this process.
-			command.format(L"\"%s\"%s%s -useCwd -replay \"%s\"",
+			// zh-pipeline: the movement rules level is sim state, so the workers must simulate at this process's level.
+			command.format(L"\"%s\"%s%s -useCwd -moverules %d -replay \"%s\"",
 				exePath,
 				TheGlobalData->m_windowed ? L" -win" : L"",
 				TheGlobalData->m_headless ? L" -headless" : L"",
+				MoveRules::getLevel(),
 				filenameWide.str());
 
 			processes.push_back(WorkerProcess());

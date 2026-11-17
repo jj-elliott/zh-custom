@@ -22,7 +22,7 @@ decoupled/uncapped render rate, then visual and movement upgrades. Full plan: `d
 | `.\scripts\status.ps1` | environment report: branch, build age, toolchain, replay/baseline counts. Run first each session. |
 | `.\scripts\build.ps1 [-Clean]` | compiler output on stdout; nonzero exit on failure |
 | `.\scripts\run.ps1 [-Args ..] [-TimeoutSec N] [-Screenshot N]` | launches the game, harvests stdout, exit code, game logs, new crash dumps, optional screenshot into `tests\out\run-*\`; prints `OUTPUT_DIR=`. `-TimeoutSec 30` = smoke test ("still alive after 30 s" is a pass). |
-| `.\scripts\verify.ps1 [-SkipBuild] [-Replay x.rep] [-Import -Name x]` | build + headless replay CRC check of `tests\replays\*.rep`; per-replay verdicts, exit code = failures, auto-postmortem on crash |
+| `.\scripts\verify.ps1 [-SkipBuild] [-Replay x.rep] [-Import -Name x]` | build + headless replay CRC check of `tests\replays\*.rep`; per-replay verdicts, exit code = failures, auto-postmortem on crash. Each replay runs with the engine args in its `<x>.rep.args` (the `-moverules` level it was recorded at; `-Import` writes it) |
 | `.\scripts\postmortem.ps1 [-Dump x.dmp]` | **crash? run this first.** Newest minidump → exception, faulting module (+ ours/windows/third-party verdict), symbolized stack, logs, all in `tests\out\crash-*\summary.txt`. `run.ps1` calls it automatically when a run produced a dump. |
 | `.\scripts\symbolize.ps1 <dmp>` | raw cdb output for a dump (used by postmortem) |
 | `.\scripts\stage-install.ps1` | re-stage `gameDir` from the Steam folder: vanilla files, then our verified add-ons (`addons\addons.json`), our exe + PDB, regenerates `assets.sha256`. The way back to a known state. |

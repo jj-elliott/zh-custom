@@ -27,6 +27,7 @@
 
 #include "Common/ArchiveFileSystem.h"
 #include "GameNetwork/NetLog.h"	// zh-pipeline netlog
+#include "GameLogic/MoveRules.h"	// zh-pipeline -moverules
 #include "GameNetwork/NetSim.h"	// zh-pipeline
 #include "Common/OptionPreferences.h"	// zh-pipeline
 #include "GameNetwork/LANAPI.h"	// zh-pipeline
@@ -491,6 +492,17 @@ Int parseNetLog(char *args[], int num)
 	if (num > 1)
 	{
 		NetLog::SetPath(args[1]);
+		return 2;
+	}
+	return 1;
+}
+
+// zh-pipeline -moverules <n>: unit movement rules level (GameLogic/MoveRules.h). Sim state: both machines must match.
+Int parseMoveRules(char *args[], int num)
+{
+	if (num > 1)
+	{
+		MoveRules::setLevel(atoi(args[1]));
 		return 2;
 	}
 	return 1;
@@ -1263,6 +1275,10 @@ static CommandLineParam paramsForStartup[] =
 	{ "-classicui", parseClassicUI },
 	{ "-uitest", parseUITest },
 	{ "-uiscreen", parseUIScreen },
+
+	// zh-pipeline @feature 2026-11-16 Unit movement rules level (PLAN.md Phase 7): 0 = retail, default = newest.
+	// For replay verification and bisecting only; in a network game both sides must use the same value.
+	{ "-moverules", parseMoveRules },
 
 	// zh-pipeline @feature 2026-10-21 Solo netcode rig and LAN-over-tailnet:
 	//  -multiinstance  allow a second copy on this machine (it gets Options_Instance02.ini)
