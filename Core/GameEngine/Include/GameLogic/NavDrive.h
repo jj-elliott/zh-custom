@@ -77,6 +77,7 @@ namespace NavDrive
 		float h0, turn;							///< PIVOT: heading before, signed turn
 		float length;								///< distance travelled on it (0 for a pivot)
 		float vmax;									///< most speed allowed on it
+		int next;										///< the first of the plan's points not yet passed while on this primitive
 	};
 
 	struct Plan
@@ -86,6 +87,9 @@ namespace NavDrive
 		int smallerArcs;	///< corners whose arc had to be made smaller than the unit's normal one
 		int pivots;				///< corners (not counting the start) reduced to stop-and-pivot
 		int cheats;				///< wheeled unit given a turn tighter than its turning circle (no room for the real one)
+		int brakingRun;		///< 1: made for a rolling unit that could not take the line at its speed; it first runs straight
+											///< on, braking, and the line starts where it could have stopped
+		std::vector<Pt> points;	///< the points the line was laid through: the path's, less the corners that were dropped
 	};
 
 	struct State
@@ -99,7 +103,12 @@ namespace NavDrive
 	};
 
 	/// pts: start, corners, goal (at least 2 points). heading: the unit's now.
-	void build( const std::vector<Pt>& pts, float heading, const Kinematics& kin, Plan& out );
+	/// rollingSpeed: the unit's speed now, when a plan is made for a unit already under way. Such a unit does not
+	/// stop to pivot: whatever its drive, it starts on the turning circle it has at that speed.
+	void build( const std::vector<Pt>& pts, float heading, const Kinematics& kin, Plan& out, float rollingSpeed = 0.0f );
+
+	/// The points of the plan the unit has not passed yet (for making a new plan from where it is).
+	void remaining( const Plan& plan, const State& st, std::vector<Pt>& out );
 
 	void start( const Plan& plan, float x, float y, float heading, float speed, State& st );
 

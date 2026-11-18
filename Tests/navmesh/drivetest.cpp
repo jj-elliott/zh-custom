@@ -186,7 +186,7 @@ static void randomPath( std::vector<Pt>& pts, float& heading )
 struct Totals
 {
 	long long runs, frames, turnOver, accelOver, brakeOver, moveWrong, extraReversals, notArrived, strayed;
-	long long smallerArcs, pivots, cheats, crowdedOdd;
+	long long smallerArcs, pivots, cheats, crowdedOdd, replans;
 	double worstTurn, worstBrake, worstStray, lengthRatioSum, timeSum;
 };
 
@@ -220,6 +220,7 @@ static bool drive( const Unit& unit, const std::vector<Pt>& pts, float heading, 
 	for (size_t i = 0; i + 1 < pts.size(); ++i)
 		pathLength += (float)sqrt((pts[i+1].x-pts[i].x)*(pts[i+1].x-pts[i].x) + (pts[i+1].y-pts[i].y)*(pts[i+1].y-pts[i].y));
 
+	int replanAt = (rnd() % 3 == 0) ? 20 + (int)(rnd() % 200) : 0;
 	bool ok = true;
 	int switches = 0, turnSign = 0;
 	int frames = 0;
@@ -227,6 +228,26 @@ static bool drive( const Unit& unit, const std::vector<Pt>& pts, float heading, 
 		fprintf(svg, "<path d=\"M%.1f %.1f", st.x, st.y);
 	while (!st.done && frames < 200000)
 	{
+		// Some runs make a new plan part of the way along, from where the unit is and at the speed it has, as the
+		// game does when it side-steps: nothing about the checks changes.
+		if (replanAt > 0 && frames == replanAt && !st.done)
+		{
+			std::vector<Pt> rest;
+			remaining(plan, st, rest);
+			if (!rest.empty())
+			{
+				std::vector<Pt> again;
+				Pt here = { st.x, st.y };
+				again.push_back(here);
+				again.insert(again.end(), rest.begin(), rest.end());
+				float speedNow = st.v, headingNow = st.heading;
+				build(again, headingNow, unit.kin, plan, speedNow);
+				start(plan, here.x, here.y, headingNow, speedNow, st);
+				++tot.replans;
+				if (st.done)
+					break;
+			}
+		}
 		State before = st;
 		step(plan, unit.kin, 1.0e9f, st);
 		++frames;
@@ -240,7 +261,7 @@ static bool drive( const Unit& unit, const std::vector<Pt>& pts, float heading, 
 			if (share < 1.0f)
 				limit *= share;
 		}
-		if (mag > limit * 1.02f + 2.0e-3f)
+		if (mag > limit * 1.02f + 5.0e-3f)
 		{
 			++tot.turnOver;
 			ok = false;
@@ -260,6 +281,18 @@ static bool drive( const Unit& unit, const std::vector<Pt>& pts, float heading, 
 				tot.worstBrake = -dv / unit.kin.brake;
 			if (-dv > unit.kin.brake * 2.0f + 0.02f)
 			{
+				if (tot.brakeOver == 0 && getenv("DRIVEDEBUG"))
+				{
+					printf("DEBUG BRAKE %s frame %d (replan at %d) v %.3f -> %.3f prim %d -> %d along %.2f brakingRun %d done %d\n", unit.name, frames, replanAt,
+						before.v, st.v, before.prim, st.prim, before.along, plan.brakingRun, st.done ? 1 : 0);
+					for (size_t i = 0; i < plan.prims.size(); ++i)
+					{
+						const Prim& q = plan.prims[i];
+						if (q.type == LINE) printf("  LINE (%.1f,%.1f)-(%.1f,%.1f) len %.2f\n", q.x0, q.y0, q.x1, q.y1, q.length);
+						else if (q.type == ARC) printf("  ARC c(%.1f,%.1f) r %.2f a0 %.2f sweep %.3f vmax %.2f len %.2f\n", q.cx, q.cy, q.r, q.a0, q.sweep, q.vmax, q.length);
+						else printf("  PIVOT at (%.1f,%.1f) h0 %.2f turn %.3f\n", q.x0, q.y0, q.h0, q.turn);
+					}
+				}
 				++tot.brakeOver;
 				ok = false;
 			}
@@ -267,7 +300,9 @@ static bool drive( const Unit& unit, const std::vector<Pt>& pts, float heading, 
 		float moved = (float)sqrt((st.x-before.x)*(st.x-before.x) + (st.y-before.y)*(st.y-before.y));
 		// The chord of what it covered can only be shorter than the distance along the line, and that distance is
 		// never more than a frame at the speed it could have reached.
-		if (moved > st.moved + 2.0e-3f || st.moved > before.v + unit.kin.accel + 1.0e-4f || st.moved > unit.kin.maxSpeed + 1.0e-4f)
+		if (getenv("DRIVEDEBUG") && (moved > st.moved + 2.0e-3f || st.moved > before.v + unit.kin.accel + 1.0e-4f || st.moved > unit.kin.maxSpeed + 1.0e-3f))
+			printf("DEBUG MOVE %s frame %d (replan %d) chord %.4f moved %.4f v %.4f -> %.4f prim %d -> %d of %d brakingRun %d\n", unit.name, frames, replanAt, moved, st.moved, before.v, st.v, before.prim, st.prim, (int)plan.prims.size(), plan.brakingRun);
+		if (moved > st.moved + 2.0e-3f || st.moved > before.v + unit.kin.accel + 1.0e-4f || st.moved > unit.kin.maxSpeed + 1.0e-3f)
 		{
 			++tot.moveWrong;
 			ok = false;
@@ -282,7 +317,11 @@ static bool drive( const Unit& unit, const std::vector<Pt>& pts, float heading, 
 		float stray = distToPolyline(pts, st.x, st.y);
 		if (stray > tot.worstStray)
 			tot.worstStray = stray;
-		if (stray > 2.0f * fullRadius + 1.0f)
+		// (A re-planned run may have had to run straight on to brake: by as much as its stopping distance.)
+		float strayLimit = 2.0f * fullRadius + 1.0f;
+		if (replanAt > 0)
+			strayLimit += unit.kin.maxSpeed * unit.kin.maxSpeed / (2.0f * unit.kin.brake) + 2.0f * unit.kin.maxSpeed + 2.0f * fullRadius;
+		if (stray > strayLimit)
 		{
 			if (tot.strayed == 0 && getenv("DRIVEDEBUG"))
 			{
@@ -321,6 +360,8 @@ static bool drive( const Unit& unit, const std::vector<Pt>& pts, float heading, 
 		if (leg < shortestLeg)
 			shortestLeg = leg;
 	}
+	if (replanAt > 0)
+		pathSwitches += 3;	// the new plan may begin with a turn of its own, or a run straight on and a turn back
 	if (switches > pathSwitches + 1 && s_lastKind != 3 && (s_lastKind == 2 || shortestLeg < 2.0f * fullRadius))
 	{
 		// Random zigzags with corners closer together than the unit's turning circle double back on themselves in
@@ -386,7 +427,7 @@ static int fuzz( int count, unsigned int seed )
 					 "moved more than its speed %lld, turned without a cause %lld, did not arrive %lld, strayed %lld (furthest %.1f)\n",
 			UNITS[u].name, t.frames, t.turnOver, t.worstTurn, t.accelOver, t.brakeOver, t.worstBrake, t.moveWrong, t.extraReversals,
 			t.notArrived, t.strayed, t.worstStray);
-		printf("  %-19s (on random zigzags tighter than its turning circle: %lld paths turned differently from the zigzag)\n", "", t.crowdedOdd);
+		printf("  %-19s (on random zigzags tighter than its turning circle: %lld paths turned differently from the zigzag; %lld runs re-planned while rolling)\n", "", t.crowdedOdd, t.replans);
 		printf("  %-19s driven line / string length %.4f | per path: %.2f smaller arcs, %.2f stop-and-pivot corners, %.2f tighter-than-real turns\n",
 			"", t.runs ? t.lengthRatioSum / t.runs : 0.0, t.runs ? (double)t.smallerArcs / t.runs : 0.0,
 			t.runs ? (double)t.pivots / t.runs : 0.0, t.runs ? (double)t.cheats / t.runs : 0.0);

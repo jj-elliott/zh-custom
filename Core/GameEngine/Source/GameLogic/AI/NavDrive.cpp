@@ -127,8 +127,12 @@ namespace
 }
 
 //-------------------------------------------------------------------------------------------------
-void build( const std::vector<Pt>& pts, float heading, const Kinematics& kin, Plan& out )
+namespace
 {
+void buildOnce( const std::vector<Pt>& pts, float heading, const Kinematics& kin, Plan& out, float rollingSpeed )
+{
+	out.points.clear();
+	out.brakingRun = 0;
 	out.prims.clear();
 	out.length = 0.0f;
 	out.smallerArcs = 0;
@@ -200,9 +204,13 @@ void build( const std::vector<Pt>& pts, float heading, const Kinematics& kin, Pl
 			posts.erase(posts.begin() + i);
 	}
 	m = posts.size();
-	// A wheeled unit not already pointing along its first stretch starts on its turning circle.
+	// A wheeled unit not already pointing along its first stretch starts on its turning circle, and so does any
+	// unit that is already rolling (it does not stop to pivot): the circle it has at the speed it is doing.
 	float h0x = (float)cos(heading), h0y = (float)sin(heading);
-	if (wheels)
+	float startRadius = tightRadius;
+	if (rollingSpeed > 0.05f && rollingSpeed / kin.turnRate > startRadius)
+		startRadius = rollingSpeed / kin.turnRate;
+	if (startRadius > 0.0f)
 	{
 		float tx = posts[1].at.x - p[0].x, ty = posts[1].at.y - p[0].y;
 		float cr = h0x * ty - h0y * tx;
@@ -214,8 +222,8 @@ void build( const std::vector<Pt>& pts, float heading, const Kinematics& kin, Pl
 			q.side = cr >= 0.0f ? 1.0f : -1.0f;
 			q.inward.x = -h0y * q.side;	// the left normal of the heading for a left turn, the right one for a right
 			q.inward.y = h0x * q.side;
-			q.rho = tightRadius;	// from a standing start: the tight circle
-			q.full = tightRadius;
+			q.rho = startRadius;	// from a standing start: the tight circle
+			q.full = startRadius;
 			q.startCircle = true;
 			place(q);
 		}
@@ -382,6 +390,7 @@ void build( const std::vector<Pt>& pts, float heading, const Kinematics& kin, Pl
 		{
 			Prim arc;
 			arc.type = ARC;
+			arc.next = (int)k + 1;
 			arc.cx = a.c.x; arc.cy = a.c.y; arc.r = a.rho;
 			float aOut = (float)atan2(leave.y - a.c.y, leave.x - a.c.x);
 			float aIn;
@@ -401,7 +410,7 @@ void build( const std::vector<Pt>& pts, float heading, const Kinematics& kin, Pl
 				++out.smallerArcs;
 			if (wheels && a.rho < tightRadius * 0.999f)
 				++out.cheats;
-			if (sw > 1.0e-4f)
+			if (arc.length > 1.0e-4f)	// (by length, not angle: on a big circle a tiny angle is still a visible step)
 				out.prims.push_back(arc);
 		}
 		else
@@ -412,6 +421,7 @@ void build( const std::vector<Pt>& pts, float heading, const Kinematics& kin, Pl
 			{
 				Prim pv;
 				pv.type = PIVOT;
+				pv.next = (int)k + 1;
 				pv.x0 = a.at.x; pv.y0 = a.at.y;
 				pv.h0 = cur;
 				pv.turn = turn;
@@ -427,6 +437,7 @@ void build( const std::vector<Pt>& pts, float heading, const Kinematics& kin, Pl
 		}
 		Prim ln;
 		ln.type = LINE;
+		ln.next = (int)k + 1;
 		ln.x0 = leave.x; ln.y0 = leave.y; ln.x1 = arrive.x; ln.y1 = arrive.y;
 		ln.length = dist(leave, arrive);
 		ln.vmax = kin.maxSpeed;
@@ -437,6 +448,88 @@ void build( const std::vector<Pt>& pts, float heading, const Kinematics& kin, Pl
 	}
 	for (size_t i = 0; i < out.prims.size(); ++i)
 		out.length += out.prims[i].length;
+	for (size_t i = 0; i < m; ++i)
+		out.points.push_back(posts[i].at);
+}
+
+/// Braking a frame at a time from speed u covers this much before the unit stands.
+inline float stoppingDistance( float u, float brake )
+{
+	return u * u / (2.0f * brake) + u * 0.5f;
+}
+
+/// Can a unit doing 'speed' at the start of the plan get down to every limit on it in time?
+bool withinBrakes( const Plan& plan, const Kinematics& kin, float speed )
+{
+	float d = 0.0f;
+	for (size_t j = 0; j < plan.prims.size(); ++j)
+	{
+		const Prim& p = plan.prims[j];
+		float vq = (p.type == PIVOT) ? 0.0f : p.vmax;
+		if (vq < speed)
+		{
+			float room = (d > vq ? d - vq : 0.0f) + stoppingDistance(vq, kin.brake);
+			float most = (-kin.brake + (float)sqrt(kin.brake * kin.brake + 8.0f * kin.brake * room)) * 0.5f;
+			if (most < vq)
+				most = vq;
+			if (speed > most + 1.0e-3f)
+				return false;
+		}
+		if (p.type == PIVOT)
+			return true;	// it stands there: nothing after depends on the speed it came with
+		d += p.length;
+		if (d > stoppingDistance(speed, kin.brake) + speed)
+			return true;
+	}
+	// And the end of the line, where it must stand.
+	float most = (-kin.brake + (float)sqrt(kin.brake * kin.brake + 8.0f * kin.brake * d)) * 0.5f;
+	return speed <= most + 1.0e-3f;
+}
+}	// namespace
+
+//-------------------------------------------------------------------------------------------------
+void build( const std::vector<Pt>& pts, float heading, const Kinematics& kin, Plan& out, float rollingSpeed )
+{
+	buildOnce(pts, heading, kin, out, rollingSpeed);
+	if (rollingSpeed <= 0.05f || out.prims.empty() || kin.brake <= 0.0f || withinBrakes(out, kin, rollingSpeed))
+		return;
+	// The line asks for a turn or a stop sooner than this unit's brakes allow at the speed it is doing. It cannot
+	// be asked for that: it runs straight on for as far as it needs to stop, and the line is laid from there.
+	float run = stoppingDistance(rollingSpeed, kin.brake) + 1.0f;
+	Pt ahead;
+	ahead.x = pts[0].x + (float)cos(heading) * run;
+	ahead.y = pts[0].y + (float)sin(heading) * run;
+	std::vector<Pt> rest;
+	rest.push_back(ahead);
+	for (size_t i = 1; i < pts.size(); ++i)
+		rest.push_back(pts[i]);
+	buildOnce(rest, heading, kin, out, 0.0f);	// from there it is a unit that could be standing
+	Prim ln;
+	ln.type = LINE;
+	ln.x0 = pts[0].x; ln.y0 = pts[0].y; ln.x1 = ahead.x; ln.y1 = ahead.y;
+	ln.length = run;
+	ln.vmax = kin.maxSpeed;
+	ln.cx = ln.cy = ln.r = ln.a0 = ln.sweep = ln.h0 = ln.turn = 0.0f;
+	ln.next = 0;
+	for (size_t i = 0; i < out.prims.size(); ++i)
+		++out.prims[i].next;
+	if (out.points.empty())
+		out.points.push_back(ahead);
+	out.points.insert(out.points.begin(), pts[0]);
+	ln.next = 1;
+	out.prims.insert(out.prims.begin(), ln);
+	out.length += run;
+	out.brakingRun = 1;
+}
+
+//-------------------------------------------------------------------------------------------------
+void remaining( const Plan& plan, const State& st, std::vector<Pt>& out )
+{
+	out.clear();
+	if (st.done || st.prim < 0 || st.prim >= (int)plan.prims.size())
+		return;
+	for (size_t i = (size_t)plan.prims[st.prim].next; i < plan.points.size(); ++i)
+		out.push_back(plan.points[i]);
 }
 
 //-------------------------------------------------------------------------------------------------
