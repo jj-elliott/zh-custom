@@ -75,34 +75,37 @@ namespace
 	// Separation: two allied vehicles under way that are inside each other are eased apart, each moving itself half
 	// the way. The suite showed that nearly all overlap (44 of 45 pair-seconds) is between units of one group
 	// travelling together, which avoidance cannot see: they are not on a collision course, they are on the same line.
-	Real SEP_SHARE = 0.9f;		// of the bare combined radius: closer than this is "inside".
+	Real SEP_SHARE = 0.8f;		// of the bare combined radius: closer than this is "inside" (two tanks abreast touch at about 0.8).
 	Real SEP_GAIN = 0.25f;		// share of our half of the penetration removed per frame.
 	Real SEP_MAX = 0.5f;			// world units a frame at most.
 
-	// Fellow travellers are not obstacles. A unit heading our way (within SAME_DIR_COS of our path direction) at no
-	// less than SAME_DIR_PACE of our speed is left to separation and queueing: dodging the neighbours in one's own
-	// group produced most of the turn reversals (single group across open desert: 14 a unit with, 2 without) and
-	// prevented nothing that separation does not.
-	Real SAME_DIR_COS = 0.5f;		// above 1 = off (everything is avoided, as before).
-	Real SAME_DIR_PACE = 0.7f;
+	// THE INVARIANT (2026-11-17, after the play-test "units that have no business freaking out"): a unit does what
+	// its path says unless it has a reason not to, and each reason is one of exactly three, each a fact about this
+	// frame, none remembered:
+	//   follow    a unit ahead of us, in our lane, going our way, slower than we would go: we slow down. Never turn.
+	//   avoid     carrying on AS WE ARE ACTUALLY MOVING would hit a unit that is not going our way: least turn that
+	//             clears it, let go the moment it is not needed.
+	//   separate  we are inside an allied vehicle: ease apart.
+	// What broke it before, all found by reading the code against that sentence:
+	//   - collisions were predicted at the unit's top speed, not its speed. A Humvee keeping pace behind a Crusader
+	//     "was about to ram it" every frame, for ever, and danced left and right to avoid a collision that was not
+	//     going to happen.
+	//   - a manoeuvre under way continued for any threat at all, however far off (the start threshold dropped to 0).
+	//   - a turn was held 8 frames after its reason had gone and could only grow while it lasted (added the same
+	//     morning to make a number go down; it made units swing wide).
+	//   - separation began at 90% of the combined radius, which two tanks abreast are inside of without touching.
+	// MoveBench's steerPct / pushPct (share of moving unit-frames with a deviation) are the measure of this.
+	Real SAME_DIR_COS = 0.5f;				// "going our way": within 60 degrees of our path direction.
+	Real FOLLOW_LANE = 0.8f;				// of the bare combined radius: closer to our line than this = in our lane.
+	Real FOLLOW_GAP = 1.1f;					// of the bare combined radius: the gap we keep is measured from here.
+	Real FOLLOW_HEADWAY = 20.0f;		// frames: we may go faster than the leader by gap / headway.
+	Real RELEASE_SHARE = 0.5f;			// a manoeuvre under way ends when the threat is below this share of START_COST.
 
-	// Hysteresis. A manoeuvre that is under way judges its neighbours HOLD_CLEARANCE times larger, so "straight on"
-	// only wins again once it is properly clear, and the turn is let go more slowly than it is taken (EASE_OUT).
-	// Without these a unit turned away, saw the way clear, turned back into the threat and turned away again.
-	Real HOLD_CLEARANCE = 1.0f;
-	Real EASE_OUT = 0.12f;
 	// The candidate chosen last frame is this much cheaper than the others. Traced on a Humvee tailing a Crusader:
 	// "straight at half speed" and "15 degrees left at half speed" were within 0.05 of each other and it took them
 	// alternately, every frame, for seconds (99 turn reversals for that one unit).
 	Real STICK = 0.6f;
-	// A turn is held this many frames after the last frame that asked for it. Traced: the need for a turn comes and
-	// goes every few frames (a neighbour crosses one of the yes/no tests above), "2 2 2 . 2 2 2 . 2", and each gap
-	// started the unit back toward its path.
-	UnsignedInt HOLD_FRAMES = 8;
-	// While a manoeuvre lasts the turn only grows. Traced on an Overlord: the least turn that clears the obstacle
-	// shrinks as the unit swings away and grows again as it swings back, 60 > 15 > 30 > 45 > 60 > 30 degrees within
-	// two seconds, each change a visible wobble. With the ratchet a manoeuvre is: out, hold, back.
-	UnsignedInt RATCHET = 1;
+	Real EASE_OUT = 0.12f;				// EASE on the way back to the path direction.
 	UnsignedInt DEBUG_UNIT = 0;
 
 	// "-movetune" overrides, read once (GameLogic/MoveRules.h). Names are what a tuning sweep refers to.
@@ -135,12 +138,12 @@ namespace
 		MoveTune::apply("sep.gain", SEP_GAIN);
 		MoveTune::apply("sep.max", SEP_MAX);
 		MoveTune::apply("steer.sameDirCos", SAME_DIR_COS);
-		MoveTune::apply("steer.sameDirPace", SAME_DIR_PACE);
-		MoveTune::apply("steer.holdClearance", HOLD_CLEARANCE);
+		MoveTune::apply("follow.lane", FOLLOW_LANE);
+		MoveTune::apply("follow.gap", FOLLOW_GAP);
+		MoveTune::apply("follow.headway", FOLLOW_HEADWAY);
+		MoveTune::apply("steer.releaseShare", RELEASE_SHARE);
 		MoveTune::apply("steer.easeOut", EASE_OUT);
 		MoveTune::apply("steer.stick", STICK);
-		MoveTune::apply("steer.holdFrames", HOLD_FRAMES);
-		MoveTune::apply("steer.ratchet", RATCHET);
 		MoveTune::apply("debug.unit", DEBUG_UNIT);
 	}
 
@@ -372,38 +375,63 @@ static Bool choose( Object *obj, AIUpdateInterface *ai, Real dirX, Real dirY, Re
 			}
 		}
 
-		// Queueing: a unit under way that we already touch and that is in front of us sets our pace. A unit with
-		// nowhere to go doesn't (slowing never gets us past it; the contact rules deal with it).
-		if (queuedBehind(n, dirX, dirY) && aiOther->isMoving())
-		{
-			Real pace = n.vx*dirX + n.vy*dirY;	// its speed in our direction.
-			if (pace < 0.0f)
-				pace = 0.0f;
-			if (pace < followCap)
-				followCap = pace;
-		}
-
-		// A moving unit behind us is its own problem: it sees us ahead and goes around. Without this every column
-		// would have its front units dodging the ones catching up.
-		if (!n.standing && ahead < 0.0f)
-			continue;
-		if (alreadySteering)
-			n.radius *= HOLD_CLEARANCE;
-		if (!n.standing)
+		// Follow: a unit ahead, in our lane, going our way, sets our pace: its own speed in our direction plus what
+		// the gap allows. Slowing is the whole response; a fellow traveller is never turned away from.
+		Bool fellow = FALSE;
+		if (!n.standing && aiOther->isMoving())
 		{
 			Real pace = n.vx*dirX + n.vy*dirY;
 			Real otherSpeedSqr = n.vx*n.vx + n.vy*n.vy;
-			if (pace > 0.0f && pace*pace >= SAME_DIR_COS*SAME_DIR_COS*otherSpeedSqr && pace >= SAME_DIR_PACE*speed)
-				continue;
+			if (pace > 0.0f && pace*pace >= SAME_DIR_COS*SAME_DIR_COS*otherSpeedSqr)
+			{
+				fellow = TRUE;
+				Real lateral = -n.x*dirY + n.y*dirX;
+				// It leads only if we are behind it by its own heading too: two units converging on one line each see
+				// the other "ahead", and would slow each other to a stop.
+				Bool weAreBehindIt = (n.x*n.vx + n.y*n.vy) > 0.0f;
+				if (ahead > 0.0f && weAreBehindIt && WWMath::Fabs(lateral) < bareRadius*FOLLOW_LANE)
+				{
+					Real gap = ahead - bareRadius*FOLLOW_GAP;
+					if (gap < 0.0f)
+						gap = 0.0f;
+					Real cap = pace + gap / FOLLOW_HEADWAY;
+					if (cap < followCap)
+						followCap = cap;
+				}
+			}
 		}
+		// A unit that is under orders but not getting anywhere (a jam), touched and dead ahead: we wait behind it. This
+		// is the one case that can hold us at a standstill, and the caller's escape is for it.
+		else if (n.standing && aiOther->isMoving() && queuedBehind(n, dirX, dirY))
+		{
+			followCap = 0.0f;
+		}
+
+		// A moving unit behind us is its own problem: it sees us ahead.
+		if (!n.standing && ahead < 0.0f)
+			continue;
+		if (fellow)
+			continue;
 		++count;
 	}
 	if (count == 0)
 		return FALSE;
 
 	//
-	// Is there anything to avoid? Carrying straight on at full speed must hit something within the horizon.
+	// Is there anything to avoid? Carrying on as we are must hit something within the horizon. "As we are" is the
+	// speed we are doing (a little more, since we may be accelerating; at least a quarter of what we want, so that a
+	// unit setting off sees what is right in front of it), not the speed we would like.
 	//
+	const Coord3D *ourVel = obj->getPhysics() ? obj->getPhysics()->getVelocity() : nullptr;
+	Real wanted = speed;
+	if (ourVel != nullptr)
+	{
+		Real doing = WWMath::Sqrtf(ourVel->x*ourVel->x + ourVel->y*ourVel->y) * 1.2f + 0.1f;
+		if (doing < 0.25f*wanted)
+			doing = 0.25f*wanted;
+		if (doing < speed)
+			speed = doing;
+	}
 	Real straightCost = 0.0f;
 	Int i;
 	Int dbgWorst = -1;
@@ -427,8 +455,8 @@ static Bool choose( Object *obj, AIUpdateInterface *ai, Real dirX, Real dirY, Re
 	if (straightCost <= 0.0f)
 		return FALSE;
 	// A far-off, mild threat doesn't start a manoeuvre (at that range the best answer flips with every small change
-	// in the picture); one already under way is seen through.
-	if (!alreadySteering && straightCost < START_COST)
+	// in the picture). One under way ends at a lower mark than it started at, so it does not stop and start.
+	if (straightCost < (alreadySteering ? START_COST*RELEASE_SHARE : START_COST))
 		return FALSE;
 
 	//
@@ -524,28 +552,12 @@ Bool steer( Object *obj, AIUpdateInterface *ai, Coord3D& goalPos, Real& speed, S
 	Real pushX = 0.0f, pushY = 0.0f;
 	Int bestSpeedStep = 0;
 	Bool chose = choose(obj, ai, dirX, dirY, speed, state, now, bestTurn, bestSpeedFactor, followCap, pushX, pushY, bestSpeedStep);
-	// The turn we want: this frame's choice, or the one being held (HOLD_FRAMES), or with RATCHET the larger of the
-	// two when they are on the same side.
+	// The turn we want is this frame's choice and nothing else: no reason, no turn.
 	Int wantTurn = chose ? bestTurn : 0;
-	Bool holding = state.lastTurn > 0 && (now - state.lastChoiceFrame) <= HOLD_FRAMES;
-	if (holding)
-	{
-		if (wantTurn == 0)
-			wantTurn = state.lastTurn;
-		else if (RATCHET && TURNS[wantTurn].side == TURNS[state.lastTurn].side && wantTurn < state.lastTurn)
-			wantTurn = state.lastTurn;
-	}
+	state.lastTurn = wantTurn;
+	state.lastSpeedStep = chose ? bestSpeedStep : 0;
 	if (chose && bestTurn > 0)
 		state.lastChoiceFrame = now;
-	if (chose || holding)
-	{
-		state.lastTurn = wantTurn;
-		state.lastSpeedStep = chose ? bestSpeedStep : 0;
-	}
-	else
-	{
-		state.lastTurn = 0;
-	}
 
 	if (pushX != 0.0f || pushY != 0.0f)
 	{
@@ -562,6 +574,7 @@ Bool steer( Object *obj, AIUpdateInterface *ai, Coord3D& goalPos, Real& speed, S
 		{
 			to.z = TheTerrainLogic->getLayerHeight(to.x, to.y, obj->getLayer());
 			obj->setPosition(&to);
+			state.pushFrame = now;
 		}
 	}
 

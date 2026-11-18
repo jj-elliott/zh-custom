@@ -380,6 +380,56 @@ Things learnt that change how the numbers are read:
 Not looked at by a person yet: separation slides a vehicle sideways without turning it. The numbers cannot say
 whether that reads as "units making room" or as "tanks skating".
 
+### Play-test of that build, and the invariant (2026-11-17, later)
+
+User, on the pathfinding save: "way too much oversteering", "units that have no business continuing to freak out and
+shift left and right", four Crusaders swinging wide and blocking Humvees that then "did that back and forth dance";
+"we're doing odd parameter tuning in a spot where we're structurally incorrect". Then two principles, in their words:
+- **Least action:** "a unit won't deviate from its planned course unless it has a reason to do so."
+- **One model:** "are we making decisions based off a shared fundamental model of how unit movement works? This is
+  a deterministic system, so there shouldn't be any surprises after we plan."
+
+The morning's suite numbers had improved while the thing the user sees got worse: reversals fell because turns were
+held and ratcheted, which is oversteer. **Lesson: a count of reversals does not measure unjustified deviation.** New
+suite columns do: `steerPct` and `pushPct`, the share of moving unit-frames in which avoidance bent the aim or cut the
+speed, and in which separation moved the unit. Before: 12% and 12% (14% and 3% on the user's save).
+
+The code was then read against the first principle. Five violations, all fixed in `AISteering.cpp` (its header
+comment states the invariant and the three permitted reasons: follow, avoid, separate):
+1. Collisions were predicted at the unit's top speed, not the speed it was doing. A Humvee keeping pace behind a
+   Crusader was "about to ram it" every frame and dodged a collision that was never going to happen. This is the
+   back-and-forth dance.
+2. A manoeuvre under way continued for any threat however distant (the start threshold dropped to zero).
+3. A turn was held 8 frames after its reason had gone, and could only grow (the morning's hold and ratchet). Removed.
+4. Separation began at 90% of the combined radius; two tanks abreast are inside that without touching. Now 80%.
+5. Queueing was all-or-nothing and only on contact. Replaced by **follow**: a unit ahead, in our lane, going our way
+   sets our speed (its pace plus gap / headway). Speed only, never a turn. Fellow travellers are never avoided.
+
+Result (5 variants; save = the user's pathfinding save, 3 variants):
+
+| | steerPct | pushPct | reversals | wobble | overlap | meanArrive |
+|---|---|---|---|---|---|---|
+| suite, morning build | 11.7 | 12.4 | 18.1 | 7.1 | 1.2 | 65.1 s |
+| suite, now | 6.0 | 10.5 | 17.0 | 7.9 | 2.6 | 66.3 s |
+| save, morning build | 14.2 | 3.0 | 12.7 | 5.5 | 1.0 | 23.5 s |
+| save, now | 4.9 | 9.8 | 9.7 | 3.8 | 2.1 | 23.7 s |
+
+Honest reading: avoidance now fires half to a third as often, and that is all this step bought. Units are still pushed
+apart in one frame in ten, which means **the plans themselves put units of one group on the same line** and the local
+layers spend the journey repairing that. That is the user's second principle, and it is the next piece of work:
+
+**Next: the plan must already be collision-free for the group it is made for.** Sketch, to be confirmed with the user:
+- One route per group move (a corridor), and each unit a lane in it: its lateral offset, kept from where it stood
+  relative to the others when the order came, squeezed where the corridor narrows. Units of one group then never
+  plan onto each other's line, and need neither avoidance nor separation among themselves.
+- The traffic map becomes a reservation in time made with the locomotor's own numbers (acceleration, speed lost in
+  turns), not top speed, so that "who is where when" is a prediction the simulation keeps.
+- Measure it before trusting it: `planErr`, the difference between the frame a unit was planned to enter a cell and
+  the frame it did. If that is small, conflicts can be settled when the plan is made; if not, the model is wrong and
+  that is the thing to fix.
+- Local avoidance stays only for what a plan cannot know: a new order, the enemy, a unit that stopped to shoot.
+  Target: steerPct and pushPct near zero for a single group on open ground.
+
 ### Open
 
 - Play-test UNIFIED (test saves: `scripts/movetest.ps1`). Expected trouble spots: traffic penalty too weak or too strong

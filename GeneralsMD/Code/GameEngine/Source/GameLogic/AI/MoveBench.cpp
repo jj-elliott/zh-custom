@@ -548,6 +548,7 @@ int run()
 	UnsignedInt startFrame = TheGameLogic->getFrame();
 	UnsignedInt lastOffset = orders[orders.size()-1].offset;
 	UnsignedInt overlapPairFrames = 0;
+	UnsignedInt movingFrames = 0, steerFrames = 0, pushFrames = 0;	// unit-frames under way, and of those with avoidance bending the aim or cutting speed.
 	UnsignedInt ovMM = 0, ovMS = 0, ovSS = 0, ovCross = 0;	// breakdown: both moving / one / neither; pairs with different orders.
 	Bool timedOut = false;
 	for (;;)
@@ -614,6 +615,12 @@ int run()
 			if (moving)
 			{
 				t.lastMovingFrame = now;
+				++movingFrames;
+				// The logic frame counter has moved on since the unit's update: its stamps are one behind.
+				if (ai->getSteerState().activeFrame + 1 >= now)
+					++steerFrames;
+				if (ai->getSteerState().pushFrame + 1 >= now)
+					++pushFrames;
 				if (moved < STANDING_SPEED)
 					++t.stalledFrames;
 			}
@@ -721,7 +728,7 @@ int run()
 	}
 	if (counted == 0)
 		counted = 1;
-	printf("MoveBench: units=%d meanArrive=%.2f maxArrive=%.2f goalDist=%.1f overlap=%.2f reversals=%.2f stalled=%.2f detour=%.3f timeout=%d frames=%u level=%d ovMM=%.2f ovMS=%.2f ovSS=%.2f ovCross=%.2f revSteer=%.2f revStart=%.2f revEnd=%.2f wobble=%.2f\n",
+	printf("MoveBench: units=%d meanArrive=%.2f maxArrive=%.2f goalDist=%.1f overlap=%.2f reversals=%.2f stalled=%.2f detour=%.3f timeout=%d frames=%u level=%d ovMM=%.2f ovMS=%.2f ovSS=%.2f ovCross=%.2f revSteer=%.2f revStart=%.2f revEnd=%.2f wobble=%.2f steerPct=%.1f pushPct=%.1f\n",
 		counted, sumArrive / counted, maxArrive, sumShort / counted,
 		(Real)overlapPairFrames / (Real)LOGICFRAMES_PER_SECOND,
 		(Real)reversals / counted,
@@ -730,7 +737,8 @@ int run()
 		timedOut ? 1 : 0, TheGameLogic->getFrame() - startFrame, MoveRules::getLevel(),
 		(Real)ovMM / (Real)LOGICFRAMES_PER_SECOND, (Real)ovMS / (Real)LOGICFRAMES_PER_SECOND,
 		(Real)ovSS / (Real)LOGICFRAMES_PER_SECOND, (Real)ovCross / (Real)LOGICFRAMES_PER_SECOND,
-		(Real)revSteer / counted, (Real)revStart / counted, (Real)revEnd / counted, (Real)wobble / counted);
+		(Real)revSteer / counted, (Real)revStart / counted, (Real)revEnd / counted, (Real)wobble / counted, movingFrames ? 100.0f * (Real)steerFrames / (Real)movingFrames : 0.0f,
+		movingFrames ? 100.0f * (Real)pushFrames / (Real)movingFrames : 0.0f);
 	fflush(stdout);
 	return timedOut ? 1 : 0;
 }

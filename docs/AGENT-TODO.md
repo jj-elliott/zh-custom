@@ -132,7 +132,10 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       Baseline and targets in PLAN.md: unified is 20% faster and never stalls but overlaps 8x and jitters 4x retail.
       2026-11-17 first unattended iteration: separation between moving allies, no avoidance of fellow travellers,
       steering choice with memory (stick / hold / ratchet). Overlap 45 -> 1.4, reversals 29 -> 18, arrival unchanged; see PLAN.md.
-      **Open, human:** play the build: does separation look right (vehicles slide sideways to make room)?
+      2026-11-17 later: played; "too much oversteering". Steering read against "no deviation without a reason":
+      five violations fixed (see PLAN.md). steerPct 12 -> 6. Units still pushed apart 10% of the time: plans overlap.
+      **Open, agent, needs the user's go-ahead on the design:** group corridor + per-unit lanes, time reservations with
+      the locomotor's real kinematics, `planErr` metric (PLAN.md, "Next").
       **Open, agent:** reversals in chokes (city-mixed 26, river-cross 28; open ground is at target). Start from
       `movetrace.ps1 -Scenario river-cross`; add a narrow-choke scenario.
       **Open, agent:** tune from feedback (constants at the top of `AISteering.cpp`, `MoveTraffic.cpp`); once it settles, record

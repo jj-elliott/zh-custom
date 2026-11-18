@@ -20,7 +20,7 @@ if (-not $SkipBuild) { & "$PSScriptRoot\build.ps1" | Out-Null; if ($LASTEXITCODE
 $scenarios = @(Get-ChildItem "$repo\tests\courses\*.scenario" | ForEach-Object BaseName)
 if (-not $scenarios) { throw "no scenarios in tests\courses" }
 
-$metrics = "score", "meanArrive", "maxArrive", "overlap", "reversals", "stalled", "detour", "timeout", "ovMM", "ovMS", "ovCross", "revSteer", "revEnd", "wobble"
+$metrics = "score", "meanArrive", "maxArrive", "overlap", "reversals", "stalled", "detour", "timeout", "ovMM", "ovMS", "ovCross", "wobble", "steerPct", "pushPct"
 $runs = @([pscustomobject]@{ name = "unified (defaults)"; tune = ""; level = -1 })
 foreach ($c in $Configs) { $runs += [pscustomobject]@{ name = $c; tune = $c; level = -1 } }
 if (-not $NoRetail) { $runs += [pscustomobject]@{ name = "RETAIL"; tune = ""; level = 0 } }

@@ -22,21 +22,18 @@
 // metres. It sits in AIUpdateInterface::doLocomotor between the point the path follower aims at and the Locomotor,
 // and its whole output is a replacement aim point and speed for this frame.
 //
-// Each logic frame, for a ground unit following a path:
-//   look     the nearest units within reach of a 1.5 s horizon (not buildings: those are the pathfinder's).
-//   avoid    if carrying on would hit one, score the path direction turned 15..90 degrees either way, at full or
-//            half speed, or stopping, by how soon it collides + how far it strays + how much speed it gives up, and
-//            take the cheapest that is passable. A chosen side is kept for a second and the turn is eased in and
-//            out, so the choice does not flicker.
-//   queue    a moving unit ahead that we already touch is not dodged but followed: we go no faster than it does
-//            in our direction. This is what makes a gap pass units at the rate they fit, without overlap.
-//   escape   if following has held us at a standstill for 2 s, the queue is a jam; the caller then lets this one
-//            unit ignore collisions for 2 s. The only place units are allowed through each other.
-//   separate an allied vehicle under way that we are inside (closer than 90% of the combined radius) is not a
-//            collision course, so "avoid" cannot see it: we ease our own position away from it, a little a frame.
-//            Units heading our way at about our speed are left to this and to "queue", and are not avoided.
-// The choice has memory (last candidate cheaper, a turn held a few frames after it was last needed, and within one
-// manoeuvre the turn only grows), so a manoeuvre is out, hold, back.
+// THE INVARIANT: a unit does what its path says unless it has a reason not to. There are three reasons, each a
+// fact about this frame and none remembered:
+//   follow    a unit ahead of us, in our lane, going our way, slower than we would go: we take its pace plus what
+//             the gap allows. Speed only; a unit going our way is never turned away from.
+//   avoid     carrying on at the speed we are actually doing would hit a unit that is not going our way (or is
+//             standing): score the path direction turned 15..90 degrees either way, at full or half speed, or
+//             stopping, and take the cheapest passable one. Eased in and out; ends when the threat does.
+//   separate  we are inside an allied vehicle under way: ease our position away from it, a little a frame.
+// Plus the jam rule: touching a unit dead ahead that is under orders but not moving, we wait, and after a second
+// the caller lets this one unit ignore collisions for 2 s.
+// MoveBench's steerPct / pushPct measure how often a unit deviates; for one group on open ground both should be
+// near zero, and a change that raises them needs a reason of its own.
 //
 // SIM CODE. Deterministic by construction: inputs are positions, headings and physics velocities already in the
 // lockstep state; candidate directions are constant rotation pairs (no runtime trig); the neighbour scan takes a
@@ -63,9 +60,10 @@ namespace AISteering
 		Int lastTurn;							///< the candidate chosen last frame (index of the turn, -1 none) and its speed step:
 		Int lastSpeedStep;				///< staying with it is cheaper than changing, so the choice does not flicker.
 		UnsignedInt lastChoiceFrame;
+		UnsignedInt pushFrame;		///< last frame separation moved us. Read by MoveBench only.
 		UnsignedInt activeFrame;	///< last frame the aim point was bent or the speed cut. Read by MoveBench only.
 
-		State() : side(0), sideFrame(0), offCos(1.0f), offSin(0.0f), heldFrames(0), lastTurn(0), lastSpeedStep(0), lastChoiceFrame(0), activeFrame(0) { }
+		State() : side(0), sideFrame(0), offCos(1.0f), offSin(0.0f), heldFrames(0), lastTurn(0), lastSpeedStep(0), lastChoiceFrame(0), pushFrame(0), activeFrame(0) { }
 	};
 
 	/**
