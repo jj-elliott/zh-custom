@@ -900,10 +900,38 @@ with less than half the standing about and less overlap, and it looks like a gro
 desert courses have no corners and are unchanged; river-cross is still on grid paths.
 Suite at level 2 now: reversals 0.47, wobble 0, arrival 68.5 s, stalled 9.0, overlap 9.2 (8.5 of it head-on).
 
+**M4, second part, step 2: side-steps for oncoming and standing units** (2026-11-18; `AIDrive` `trySidestep`,
+first version). The bridges branch was merged first (river-cross now takes every path from the mesh).
+- A unit on rails cannot swerve, so it gets a new line: the old one moved sideways from a little way ahead until it
+  is past, then on to the rest of its route. Decided once, on a straight, then held for at least 1.5 s.
+- Traffic's rule: **each to its own right, half each.** Against an oncoming unit the line only moves right, by half
+  of what would clear it (the other is assumed to do the same; if it does not, there is a second side-step later).
+  A standing (idle) unit is passed on the nearer side by the whole of it. Looks 2 s ahead.
+- This needed a plan made for a unit that is rolling (`NavDrive::build(..., rollingSpeed)`): it starts on the
+  turning circle it has at that speed instead of stopping to pivot, and if its brakes cannot make the new line it
+  is not given one (`Plan::brakingRun`). drivetest re-plans a third of its runs at speed: 160000 runs, 0 failures.
+
+Suite, level 2, 3 variants, before -> after side-steps:
+
+| | overlap (crossing) | reversals | wobble | meanArrive | stalled |
+|---|---|---|---|---|---|
+| desert-cross | 20.2 (13.0) -> 13.2 (4.0) | 0 -> 3.8 | 0 -> 0.55 | 55.2 -> 57.1 | 14.0 -> 22.3 |
+| river-cross (bridges) | 16.3 (12.9) -> 4.8 (0) | 1.3 -> 5.1 | 0.04 -> 1.3 | 103.3 -> 104.0 | 30.8 -> 33.1 |
+| all five courses | 7.7 (5.2) -> 4.5 (0.8) | 0.55 -> 2.2 | 0.01 -> 0.39 | 68.7 -> 69.3 | 11.1 -> 13.2 |
+
+Honest reading: units no longer drive through oncoming units where there is room to step aside, and the price is
+two planned turns per side-step. What is **not** right yet:
+- **A unit steps into its own neighbours.** Each member decides alone, so on desert-cross the overlap that is left
+  is mostly inside a group (10.7 of 13.2). The fix is for the group to move over as a body (the first member's
+  side-step sets the shift for its group; members beside it take the same one), not more per-unit rules.
+- Looking further ahead (4 s, 6 s) made it worse, not better (more side-steps, more neighbours stepped into).
+- river-cross is slow at level 2 (104 s against 69 s at level 1) because both groups queue nose to tail for the
+  bridges; the bridge decks are not places `spreadCorners` or the side-step ask the mesh about yet.
+
 **Next (M4, second part, continued): what units do about each other, still on rails.**
 1. (Done, above: corners abreast.)
-2. Oncoming and crossing traffic: a new plan with a side step (a line means a plan), chosen once and held; who
-   gives way by push priority.
+2. (First version done, above.) Next: a group moves over as a body; crossing traffic (at right angles) is still
+   driven through; who gives way by push priority where there is no room for both.
 3. Idle units in the way: pushed aside by priority (moving beats idle), as SC2 does.
 4. Arrival: a spot for each unit round the destination, decided when the order is given.
 

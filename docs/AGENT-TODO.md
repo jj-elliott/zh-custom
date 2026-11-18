@@ -171,8 +171,11 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       wheeled units corner wide and fast where there is room.
       User looked again: "it looked good and can verify the animations worked."
       Groups take corners abreast now (`AIDrive::spreadCorners`, at most three places; PLAN.md has the table).
-      **Open, agent, next:** oncoming / crossing traffic (side-step replans, push priority), idle units pushed
-      aside, arrival spots. Head-on overlap is the big remaining number (8.5 of 9.2).
+      Side-steps for oncoming / standing units, first version (`trySidestep`; each to its own right, half each):
+      crossing overlap 5.2 -> 0.8 across the suite, at 2 planned turns a side-step. PLAN.md has the table.
+      **Open, agent, next:** the group moves over as a body (members step into their own neighbours today); crossing
+      traffic; bridges are single file (mesh not asked about decks by `spreadCorners` / side-step); arrival spots;
+      idle units that cannot be passed (no room) still rely on the old yield-on-contact.
       **Open, human:** a group move round buildings at level 2: does it read as a group?
       **Bridges are in the mesh (2026-11-18):** a sheet per bridge joined to the ground mesh (`NavQuery::Atlas`,
       `NavBuild::assignSheets`; PLAN.md "Bridges in the mesh" has the design, what was thrown away, and the numbers).
