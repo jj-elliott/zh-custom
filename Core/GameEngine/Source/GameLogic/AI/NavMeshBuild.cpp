@@ -693,6 +693,30 @@ namespace
 			// distance^2 = cross^2 / len2 (or the plain distance^2 when the ends coincide); compare with (num/den)^2.
 			bool off = (len2 == 0) ? (worstVal * den * den > num * num || worstVal > 0)
 															: (worstVal * den * den > num * num * len2);
+			// And whatever the tolerance: the straight line may not leave the centre of a cell beside the boundary on
+			// the wrong side of it. That is what keeps the mesh and the grid in agreement about every cell (so about
+			// what is connected to what) however much the boundary is straightened. In doubled coordinates the centres
+			// of the two cells beside a unit edge are its midpoint moved one step along its left / right normal.
+			if (!off && worstVal > 0 && len2 != 0)
+			{
+				Vert a2, b2;
+				a2.x = a.x*2; a2.y = a.y*2;
+				b2.x = b.x*2; b2.y = b.y*2;
+				for (int i = lo; i < hi; ++i)
+				{
+					Vert p = latticePoint(g, pts[i]);
+					Vert q = latticePoint(g, pts[i+1]);
+					int dx = q.x - p.x, dy = q.y - p.y;
+					Vert leftCentre, rightCentre;
+					leftCentre.x = 2*p.x + dx - dy;  leftCentre.y = 2*p.y + dy + dx;
+					rightCentre.x = 2*p.x + dx + dy; rightCentre.y = 2*p.y + dy - dx;
+					if (orient(a2, b2, leftCentre) < 0 || orient(a2, b2, rightCentre) > 0)
+					{
+						off = true;
+						break;
+					}
+				}
+			}
 			if (off)
 			{
 				keep[worst] = 1;
@@ -1014,6 +1038,70 @@ void buildMesh( const unsigned char *labels, int width, int height, int simplify
 	}
 	out.verts.swap(cdt.verts);
 	out.tris.swap(cdt.tris);
+}
+
+//-------------------------------------------------------------------------------------------------
+void erode( const unsigned char *labels, int width, int height, unsigned passMask, int radiusHalfCells,
+						std::vector<unsigned char>& out )
+{
+	int W = width * 2, H = height * 2;
+	int R = radiusHalfCells < 0 ? 0 : radiusHalfCells;
+	std::vector<unsigned char> wall(W * H);
+	int x, y;
+	for (y = 0; y < H; ++y)
+	{
+		for (x = 0; x < W; ++x)
+		{
+			unsigned char label = labels[(y/2)*width + (x/2)];
+			wall[y*W + x] = (label < 32 && ((passMask >> label) & 1u)) ? 0 : 1;
+		}
+	}
+	out = wall;
+	if (R == 0)
+		return;
+	I64 limit = (I64)(2*R) * (2*R);
+	for (y = 0; y < H; ++y)
+	{
+		for (x = 0; x < W; ++x)
+		{
+			if (x < R || y < R || x >= W - R || y >= H - R)
+				out[y*W + x] = 1;	// too near the map edge
+			if (!wall[y*W + x])
+				continue;
+			// Only a wall half-cell with open ground beside it can be the nearest wall to anything.
+			bool edge = false;
+			for (int ny = y - 1; ny <= y + 1 && !edge; ++ny)
+			{
+				for (int nx = x - 1; nx <= x + 1; ++nx)
+				{
+					if (nx >= 0 && ny >= 0 && nx < W && ny < H && !wall[ny*W + nx])
+					{
+						edge = true;
+						break;
+					}
+				}
+			}
+			if (!edge)
+				continue;
+			for (int dy = -R; dy <= R; ++dy)
+			{
+				int ty = y + dy;
+				if (ty < 0 || ty >= H)
+					continue;
+				// Distance from the centre of the target half-cell to this wall half-cell's square, in quarter-cells.
+				I64 ey = dy == 0 ? 0 : 2 * (dy < 0 ? -dy : dy) - 1;
+				for (int dx = -R; dx <= R; ++dx)
+				{
+					int tx = x + dx;
+					if (tx < 0 || tx >= W)
+						continue;
+					I64 ex = dx == 0 ? 0 : 2 * (dx < 0 ? -dx : dx) - 1;
+					if (ex*ex + ey*ey < limit)
+						out[ty*W + tx] = 1;
+				}
+			}
+		}
+	}
 }
 
 //-------------------------------------------------------------------------------------------------

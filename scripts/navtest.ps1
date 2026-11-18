@@ -5,7 +5,9 @@
 #   .\scripts\navtest.ps1 -Scenario river-cross [-Tol 1/1]   # that scenario's map as the built game classifies it
 #                                                 # (headless run with -movetune navmesh.dump=1) -> statistics + SVG
 #   .\scripts\navtest.ps1 -Grid tests\out\navtest\navgrid-x.txt [-Tol 1/1]   # a grid dumped earlier
-param([int]$Fuzz = 3000, [int]$Seed = 12345, [string]$Grid = "", [string]$Tol = "1/1", [string]$Scenario = "")
+#   ... -Radius n    with -Scenario / -Grid: draw the mesh a unit of radius n half-cells uses (ground shrunk by its
+#                    radius) and a path across the map on it; prints search time
+param([int]$Fuzz = 3000, [int]$Seed = 12345, [string]$Grid = "", [string]$Tol = "1/1", [string]$Scenario = "", [int]$Radius = -1)
 $ErrorActionPreference = "Stop"
 $repo = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $out = Join-Path $repo "tests\out\navtest"
@@ -14,7 +16,8 @@ $vcvars = Get-ChildItem "C:\Program Files*\Microsoft Visual Studio\2022\*\VC\Aux
 if (-not $vcvars) { throw "vcvars32.bat not found" }
 $exe = Join-Path $out "navtest.exe"
 $src = @("$repo\tests\navmesh\navtest.cpp", "$repo\Core\GameEngine\Source\GameLogic\AI\NavMeshBuild.cpp")
-$cl = "cl /nologo /O2 /W3 /EHsc /DNAVMESH_STANDALONE /D_CRT_SECURE_NO_WARNINGS /I`"$repo\Core\GameEngine\Include`" /Fo`"$out\\`" /Fe`"$exe`" `"$($src[0])`" `"$($src[1])`""
+$src += "$repo\Core\GameEngine\Source\GameLogic\AI\NavMeshQuery.cpp"
+$cl = "cl /nologo /O2 /W3 /EHsc /DNAVMESH_STANDALONE /D_CRT_SECURE_NO_WARNINGS /I`"$repo\Core\GameEngine\Include`" /Fo`"$out\\`" /Fe`"$exe`" `"$($src[0])`" `"$($src[1])`" `"$($src[2])`""
 $env:Path += ";C:\Program Files (x86)\Microsoft Visual Studio\Installer"
 $ErrorActionPreference = "Continue"
 cmd /c "call `"$($vcvars.FullName)`" >nul && $cl 2>&1"
@@ -41,8 +44,8 @@ if ($Scenario) {
 if ($Grid) {
   $parts = $Tol.Split("/")
   $svg = Join-Path $out ((Split-Path $Grid -Leaf) -replace "\.txt$", "")
-  $svg = "$svg-tol$($parts[0])_$($parts[1]).svg"
-  & $exe svg (Resolve-Path $Grid).Path $svg $parts[0] $parts[1]
+  $svg = "$svg-tol$($parts[0])_$($parts[1])$(if ($Radius -ge 0) { "-r$Radius" }).svg"
+  & $exe svg (Resolve-Path $Grid).Path $svg $parts[0] $parts[1] $Radius
   $code = $LASTEXITCODE
   Write-Host "SVG=$svg"
   exit $code

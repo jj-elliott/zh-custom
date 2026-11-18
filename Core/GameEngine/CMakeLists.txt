@@ -253,6 +253,7 @@ set(GAMEENGINE_SRC
     Include/GameLogic/MoveTraffic.h
     Include/GameLogic/NavMesh.h
     Include/GameLogic/NavMeshBuild.h
+    Include/GameLogic/NavMeshQuery.h
 #    Include/GameLogic/AIPlayer.h
 #    Include/GameLogic/AISkirmishPlayer.h
 #    Include/GameLogic/AIStateMachine.h
@@ -886,6 +887,7 @@ set(GAMEENGINE_SRC
     Source/GameLogic/AI/MoveTraffic.cpp
     Source/GameLogic/AI/NavMesh.cpp
     Source/GameLogic/AI/NavMeshBuild.cpp
+    Source/GameLogic/AI/NavMeshQuery.cpp
 #    Source/GameLogic/AI/AIPlayer.cpp
 #    Source/GameLogic/AI/AISkirmishPlayer.cpp
 #    Source/GameLogic/AI/AIStates.cpp

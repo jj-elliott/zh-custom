@@ -507,7 +507,7 @@ layer checked on its own before the next one stands on it.
 | Walkability grid | Exists: the pathfinder's cells (10 world units; clear / water / cliff / rubble / obstacle / impassable, fence bit). It stays the source of truth for *what the ground is*; structures keep stamping it as they do now. |
 | Constrained Delaunay navmesh | **New, M1 done.** One mesh for every kind of unit: every boundary between cell types is a constrained edge and every triangle has a label, so a search filters by the unit's surfaces (ground, water, cliff, rubble, fence for crushers) the way the grid search does. |
 | Dynamic obstacle carving | **M2.** Every footprint change already funnels through three places (`internal_classifyObjectFootprint`, `classifyFence`, `classifyMap`; bridges through `changeBridgeState`). A whole 475x475 map rebuilds in 5 ms, so M2 starts with "rebuild when the grid changed, at most once a frame" and only goes to local retriangulation if a measured late-game base says it must. |
-| Clearance, layers | **M2.** Width of every triangle crossing precomputed per obstacle set (Demyen's method), so a search for a wide unit never enters a gap it cannot pass. Bridges and wall tops are the engine's layers 2..15: each gets its own small mesh joined to the ground mesh by portal edges where the grid has connect cells. |
+| Clearance, layers | **M2.** A mesh per unit size, built from ground shrunk by that radius (Demyen's per-crossing widths were built and dropped, see below), so a wide unit's mesh simply has no gap it cannot pass. Bridges and wall tops are the engine's layers 2..15: each gets its own small mesh joined to the ground mesh by portal edges where the grid has connect cells. |
 | A* over triangles + funnel | **M3.** A* on triangle edges with the clearance test, then the funnel with the unit's radius, so the path is the taut string a unit of that width can follow. Replaces `findPath` / `findGroundPath` / `patchPath` for ground units at the new level; aircraft are untouched. First playable milestone (new paths, old follower). |
 | Path caching / throttling | **M3.** The engine already queues path requests (5000 cells a frame). A group order searches the triangle corridor once per cluster and funnels per unit. |
 | Velocity steering (seek, separation, cohesion), spatial hash | **M4.** Replaces `AISteering`, lanes, the traffic map and the retail blocked/stuck/repath machinery at the new level. Neighbours from `ThePartitionManager` (iteration order is deterministic). |
@@ -548,8 +548,8 @@ What that means for M3/M4 (the test every steering decision is held to):
 | | what | done when |
 |---|---|---|
 | **M1** | Mesh from the grid: boundary chains, simplification, CDT, labels. Standalone test tool. | **Done 2026-11-17**, see below. |
-| M2 | Rebuild on grid change (**done**, below); clearance per crossing; bridge / wall layers and portals; debug overlay in game. | fuzz covers edits; mesh == grid after every footprint change in a soak run; overlay looks right to the user. |
-| M3 | Point location, A* with clearance, funnel with radius; `MoveRules` level 2 routes ground paths through it. | path exists <=> grid says a path exists, on every suite map; lengths <= grid paths; plays. |
+| M2 | Rebuild on grid change (**done**); unit width (**done**: a mesh per size, below); bridge / wall layers and portals; debug overlay in game. | fuzz covers edits; mesh == grid after every footprint change in a soak run; overlay looks right to the user. |
+| M3 | Point location, A*, funnel (**done standalone**, below); `MoveRules` level 2 routes ground paths through it; corners as drivable arcs. | path exists <=> grid says a path exists, on every suite map; lengths <= grid paths; plays. |
 | M4 | Drive model + steering + hard separation + push priorities; removes level 1's layers at level 2. | suite: no overlap, deviation only with a neighbour as cause; the user plays it against SC2 in their head. |
 | M5 | Arrival radius, group goals, attack-move. | same. |
 | M6 | Delete level 1 (`AISteering`, lanes, `MoveTraffic`); level 2 becomes the default. | verify + soak; docs. |
@@ -582,11 +582,56 @@ the seven recorded games with `-movetune navmesh.check=1,navmesh.log=1` (every s
 the mesh was built from): 14 to 53 rebuilds a game, never stale, every rebuilt mesh passes validation. At a few
 milliseconds each that is far below anything worth a partial rebuild.
 
-Known and deliberate: simplification moves boundaries by up to a cell (0.6..0.75% of cells change side), in both
-directions. From M3 the mesh is where units may be; the grid stays what structures are placed on. If a unit ends up
-on a cell the grid calls cliff, engine code that asks the grid (`validMovementPosition`, `fixInvalidPosition`) will
-object: M3 has to either simplify conservatively (never into blocked cells) or route those checks to the mesh.
-Decide with the overlay in front of the user.
+**Search and unit width, standalone** (2026-11-17, `NavMeshQuery.h/.cpp`, `NavBuild::erode`; not wired into the game):
+- **A unit's width is in the mesh, not in the search.** Each size of unit gets a mesh built from ground already
+  shrunk by its radius (`erode`: half-cell resolution, exact integer distances, per pass-mask), and on that mesh the
+  unit is a point. Consequences: the pulled string is exactly as far from every wall as the unit needs, "is my
+  centre on my mesh" is the whole wall test (M4's steering needs nothing else), and the funnel is the plain one.
+  Sizes follow the engine's own quantisation (the grid pathfinder already rounds units to diameters of 1..5 cells).
+- **What was tried first and thrown away:** one mesh, Demyen's crossing widths, and a funnel that wraps the string
+  round a circle at every corner. Reachability was right, but the string was not: when a gap is seen at a slant the
+  circles at its two ends swap sides as seen from the apex, and the funnel bends the string round the wrong one (a
+  full loop round a corner in the fuzz). The point-shrinking shortcut (move portal ends inward) let paths pass at
+  0.04 radii from a wall. Neither is a tuning problem, so the approach went.
+- **Search:** A* over (triangle, entry edge). Each node keeps the corridor with the shortest *pulled string* to its
+  entry edge (a real length), the open list is ordered by a lower bound, and the search continues past the first
+  complete corridor until no open node's bound beats the best string. One corridor per node is a heuristic.
+- **Simplification is now safe by construction:** a boundary is never straightened so far that the centre of a cell
+  beside it changes side. So at every tolerance the mesh and the grid agree about every cell, and therefore about
+  what is connected to what. (Before this rule a 1-cell tolerance cut the city map in two for wide units.) This
+  settles the earlier worry about the mesh and the grid disagreeing.
+
+Fuzz (40000 random grids; each also shrunk for radius 0.5 and 1.5 cells; exact and simplified boundaries; ~500000
+start/goal pairs against an exhaustive grid search):
+
+| | result |
+|---|---|
+| path exists on the mesh <=> path exists on the grid | always |
+| path leaves its mesh | never |
+| wide unit's path nearer a wall than its radius | never (nearest: exactly 1.000 radii) |
+| length vs the grid's 8-direction path | mean 0.91 (radius 0), 0.95 (wide); longer than the grid path in 0.03% of searches, worst +12% |
+
+Real maps, simplified boundaries, a path between opposite corners:
+
+| map | radius (cells) | triangles | shrink + build | path search |
+|---|---|---|---|---|
+| city-mixed (475x475) | 0 / 0.5 / 1.5 | 7926 / 7764 / 4848 | 17-18 ms | 1.0-1.8 ms, 1100-1660 nodes |
+| river-cross (320x320) | 0 / 0.5 / 1.5 | 3856 / 3704 / 2556 | 8-9 ms | 0.02-0.04 ms |
+| desert-mixed (204x270) | 0 / 0.5 / 1.5 | 1294 / 1218 / 928 | 4 ms | 0.02-0.04 ms |
+
+What this costs and what is still owed:
+- A mesh per (pass-mask, size) in use, each 4-18 ms to rebuild when a structure changes the grid. Rebuild lazily
+  (on the next search that needs that mesh), never all in one frame.
+- The search re-pulls the string for every node (quadratic in corridor length): 1-2 ms across the city map. Fine for
+  now; an incremental funnel is the known fix if group orders make it matter.
+- `locate` is a linear scan. Needs a bucket grid before the game calls it every frame.
+- The 0.03% longer-than-grid paths: acceptable, but they are the kind of thing that reads as a bug when seen. If one
+  shows up in play, the fix is to keep more than one corridor per node.
+
+**Next (the rest of M2/M3, in the engine):** the per-(mask, size) mesh cache with lazy rebuild; bridge and wall
+layers as meshes joined by portals; an in-game overlay (mesh + a unit's path); `MoveRules` level 2 routing ground
+paths through `NavQuery::findPath`; then the string's corners turned into arcs a unit can drive (the user's
+criterion above).
 
 ### Open (level 1; superseded by the section above)
 

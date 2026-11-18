@@ -148,8 +148,12 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       seven recordings with `navmesh.check=1`.
       **Decided by the user:** keep Generals turn rates; slowness must read as deliberate (one planned turn, no
       corrections, waiting looks like waiting). PLAN.md has the criterion; it is the test for M3/M4.
-      **Open, agent, next:** rest of M2: clearance per crossing, bridge/wall layers + portals, in-game debug overlay.
-      Then M3 (search + funnel with turning arcs, `MoveRules` level 2).
+      Search done standalone (`NavMeshQuery`, `NavBuild::erode`): a mesh per unit size from ground shrunk by its
+      radius, A* + funnel, fuzzed against a grid search (`scripts\navtest.ps1`). A radius-aware funnel on one mesh
+      was built and dropped (PLAN.md says why; do not rebuild it).
+      **Open, agent, next:** in the engine: per-(mask, size) mesh cache with lazy rebuild; bridge/wall layers +
+      portals; in-game overlay; `MoveRules` level 2 routing ground paths through `NavQuery::findPath`; corners as
+      drivable arcs. `locate` needs a bucket grid first.
       **Open, human:** look at a mesh picture: `scripts\navtest.ps1 -Scenario river-cross`.
       **Open, agent:** reversals in chokes (city-mixed 26, river-cross 28; open ground is at target). Start from
       `movetrace.ps1 -Scenario river-cross`; add a narrow-choke scenario.

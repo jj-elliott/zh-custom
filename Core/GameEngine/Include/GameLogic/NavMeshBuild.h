@@ -20,8 +20,10 @@
 //
 // Turns a grid of labelled cells (the pathfinder's cell types) into a triangle mesh:
 //   1. the boundaries between cells of different label are traced into chains of lattice points;
-//   2. each chain is simplified (Douglas-Peucker, tolerance in cells), and any chain whose simplified form would touch
-//      another goes back to its exact form, so the set of boundaries always stays a planar graph;
+//   2. each chain is simplified (Douglas-Peucker, tolerance in cells) but never so far that the centre of a cell
+//      ends up on the other side of the boundary: the mesh and the grid always agree about every cell, so about
+//      what is connected to what. Any chain whose simplified form would touch another goes back to its exact form,
+//      so the set of boundaries always stays a planar graph;
 //   3. a constrained Delaunay triangulation of the map rectangle is built with every boundary segment as a
 //      constrained edge;
 //   4. every triangle gets the label of the region it lies in.
@@ -113,6 +115,15 @@ namespace NavBuild
 	/// labels: width*height bytes, row-major (index = y*width + x). simplifyNum/simplifyDen: the tolerance in cells
 	/// (0 = keep the grid's boundaries exactly, collinear points removed).
 	void buildMesh( const unsigned char *labels, int width, int height, int simplifyNum, int simplifyDen, Mesh& out );
+
+	/// The ground as a unit of a given size sees it: where its centre may be. The result has cells of half the size
+	/// (2*width x 2*height, row-major), 0 where the centre of a unit of radius 'radiusHalfCells' half-cells may be and
+	/// 1 elsewhere: a half-cell is 0 only if its centre is at least that far from every cell the unit may not stand
+	/// on and from the map edge. passMask: bit n set = the unit may stand on label n. A mesh built from the result
+	/// has one passable label (0), and on it the unit is a point (see NavMeshQuery.h for why width is handled here).
+	/// Integer arithmetic only.
+	void erode( const unsigned char *labels, int width, int height, unsigned passMask, int radiusHalfCells,
+							std::vector<unsigned char>& out );
 
 	/// Checks everything a correct mesh must satisfy; returns the number of violations and describes the first few in
 	/// 'report'. Used by the fuzz test and, cheaply, after a build in a debug run.
