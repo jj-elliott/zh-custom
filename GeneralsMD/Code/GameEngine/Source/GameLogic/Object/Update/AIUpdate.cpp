@@ -247,6 +247,10 @@ AIUpdateInterface::AIUpdateInterface( Thing *thing, const ModuleData* moduleData
 	m_laneKey = 0;
 	m_laneRow = 0;
 	m_drive = nullptr;
+	m_groupOffsetX = 0.0f;
+	m_groupOffsetY = 0.0f;
+	m_groupRadius = 0.0f;
+	m_groupKey = 0;
 	m_queueForPathFrame = 0;
 	m_finalPosition.zero();
 	m_repulsor1 = INVALID_ID;
@@ -2927,6 +2931,7 @@ void AIUpdateInterface::aiDoCommand(const AICommandParms* parms)
 		return;
 
 	m_laneKey = 0;	// zh-pipeline: a new command ends the lane plan (the lane planner sets it after its own command).
+	m_groupRadius = 0.0f;	// zh-pipeline: ... and the unit's place in a group (the group order sets it after its command).
 
 #ifdef ALLOW_SURRENDER
 	// surrendered items have very limited options, and only via AI cmds

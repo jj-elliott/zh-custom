@@ -65,6 +65,10 @@ namespace NavQuery
 	bool nearestPassable( const NavBuild::Mesh& mesh, Pt p, unsigned mask, float maxDist, const int *component,
 												int wantComponent, Pt& out, int& tri );
 
+	/// Can a point go straight from a to b without leaving passable ground? Each end may be up to 'snap' off the
+	/// mesh (it is joined to the nearest point of it first). Walks the triangles the segment crosses.
+	bool segmentClear( const NavBuild::Mesh& mesh, Pt a, Pt b, unsigned mask, float snap );
+
 	/// False if either end is not on passable ground or no way exists.
 	bool findPath( const NavBuild::Mesh& mesh, Pt start, Pt goal, unsigned mask, Path& out );
 }

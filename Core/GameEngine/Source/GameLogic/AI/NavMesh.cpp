@@ -330,6 +330,21 @@ Bool NavMesh::onMesh( Object *obj, const LocomotorSet& locomotorSet, Real x, Rea
 }
 
 //-------------------------------------------------------------------------------------------------
+Bool NavMesh::segmentOnMesh( Object *obj, const LocomotorSet& locomotorSet, Real x0, Real y0, Real x1, Real y1 )
+{
+	unsigned mask;
+	Int radius;
+	if (s_labels.empty() || obj == nullptr || !classOf(obj, locomotorSet, mask, radius))
+		return FALSE;
+	SizedMesh *sm = sizedMesh(mask, radius);
+	const Real HALF = PATHFIND_CELL_SIZE_F * 0.5f;
+	NavQuery::Pt a, b;
+	a.x = x0 / HALF; a.y = y0 / HALF;
+	b.x = x1 / HALF; b.y = y1 / HALF;
+	return NavQuery::segmentClear(sm->mesh, a, b, 1u, 2.0f);
+}
+
+//-------------------------------------------------------------------------------------------------
 Path *NavMesh::findPath( Object *obj, const LocomotorSet& locomotorSet, const Coord3D *from, const Coord3D *to, Int *cost )
 {
 	if (cost)

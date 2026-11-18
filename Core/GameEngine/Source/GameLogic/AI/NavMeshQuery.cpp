@@ -261,6 +261,45 @@ bool nearestPassable( const Mesh& mesh, Pt p, unsigned mask, float maxDist, cons
 }
 
 //-------------------------------------------------------------------------------------------------
+bool segmentClear( const Mesh& mesh, Pt a, Pt b, unsigned mask, float snap )
+{
+	Pt s, e;
+	int t = -1, te = -1;
+	if (!nearestPassable(mesh, a, mask, snap, 0, -1, s, t) || !nearestPassable(mesh, b, mask, snap, 0, -1, e, te))
+		return false;
+	float len = dist(s, e);
+	float tol = 1.0e-3f * (len > 1.0f ? len : 1.0f);
+	int guard = (int)mesh.tris.size() + 8;
+	while (--guard > 0)
+	{
+		if (t == te)
+			return true;
+		const Tri& tr = mesh.tris[t];
+		Pt v[3];
+		v[0] = pointOf(mesh, tr.v[0]);
+		v[1] = pointOf(mesh, tr.v[1]);
+		v[2] = pointOf(mesh, tr.v[2]);
+		// Already in the triangle the end is in (te is only one of those that hold it)?
+		if (cross(v[0], v[1], e) >= -tol && cross(v[1], v[2], e) >= -tol && cross(v[2], v[0], e) >= -tol)
+			return true;
+		// The edge the segment leaves by: the end is outside it, and the segment passes between its two points
+		// (the edge runs right to left as the traveller sees it).
+		int out = -1;
+		for (int i = 0; i < 3 && out < 0; ++i)
+		{
+			const Pt& right = v[i];
+			const Pt& left = v[(i+1)%3];
+			if (cross(right, left, e) < 0.0f && cross(s, e, right) <= tol && cross(s, e, left) >= -tol)
+				out = i;
+		}
+		if (out < 0 || blocked(mesh, t, out, mask))
+			return false;
+		t = tr.n[out];
+	}
+	return false;
+}
+
+//-------------------------------------------------------------------------------------------------
 bool findPath( const Mesh& mesh, Pt start, Pt goal, unsigned mask, Path& out )
 {
 	out.pts.clear();

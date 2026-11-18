@@ -537,6 +537,16 @@ public:
 	// merge in row order (AISteering, follow). Transient like m_steer: cleared by the next command, not saved.
 	void setLane( UnsignedInt key, Int row ) { m_laneKey = key; m_laneRow = row; }
 	UnsignedInt getLaneKey() const { return m_laneKey; }
+	// zh-pipeline MoveRules::NAVMESH: where this unit is in the group it was ordered to move with: its offset from
+	// the group's middle (world units; the group keeps its shape, so this is also its place at the destination) and
+	// how far the furthest member is from the middle. Radius 0 = moving alone. AIDrive uses it to take corners
+	// abreast instead of in one file. Transient like the lane: cleared by the next command, not saved.
+	void setGroupSlot( Real offsetX, Real offsetY, Real groupRadius ) { m_groupOffsetX = offsetX; m_groupOffsetY = offsetY; m_groupRadius = groupRadius; }
+	Real getGroupRadius() const { return m_groupRadius; }
+	void setGroupKey( UnsignedInt key ) { m_groupKey = key; }	///< which group shape (AIDrive::registerGroup)
+	UnsignedInt getGroupKey() const { return m_groupKey; }
+	Real getGroupOffsetX() const { return m_groupOffsetX; }
+	Real getGroupOffsetY() const { return m_groupOffsetY; }
 	Int getLaneRow() const { return m_laneRow; }
 	const AISteering::State& getSteerState() const { return m_steer; }	///< for MoveBench's diagnostics
 	Bool isSteeredPair(Object *other) const;			///< we and ally "other" are both under way and steered: no contact rules between us
@@ -748,6 +758,10 @@ private:
 	// restarts these, and the save format and the retail CRC stream stay unchanged.
 	UnsignedInt	m_jamStartFrame;						///< Frame the current unbroken spell of being blocked by standing allies began.
 	AIDrive::Data *m_drive;									///< zh-pipeline MoveRules::NAVMESH: this unit's drive plan (GameLogic/AIDrive.h); transient.
+	Real				m_groupOffsetX;							///< see setGroupSlot.
+	Real				m_groupOffsetY;
+	Real				m_groupRadius;
+	UnsignedInt	m_groupKey;
 	UnsignedInt	m_laneKey;									///< see setLane.
 	Int					m_laneRow;
 	UnsignedInt	m_jamLastFrame;							///< Last frame we were blocked by a standing ally.

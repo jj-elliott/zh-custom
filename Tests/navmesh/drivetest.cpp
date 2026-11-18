@@ -22,6 +22,7 @@
 
 using namespace NavDrive;
 
+static long long s_segTests = 0, s_segWrong = 0, s_segGraze = 0;
 static unsigned int s_seed = 1;
 static unsigned int rnd()
 {
@@ -106,6 +107,36 @@ static bool meshPath( std::vector<Pt>& pts, float& heading )
 	}
 	if (clear.size() < 2)
 		return false;
+	// While a mesh is to hand: the straight-line test (NavQuery::segmentClear, which walks triangles) against the
+	// plain way of finding out (look up many points along the line).
+	for (int k = 0; k < 6; ++k)
+	{
+		int a = clear[rnd() % clear.size()], b = clear[rnd() % clear.size()];
+		NavQuery::Pt s = { (a % (2*W)) + 0.5f, (a / (2*W)) + 0.5f }, g = { (b % (2*W)) + 0.5f, (b / (2*W)) + 0.5f };
+		bool walked = NavQuery::segmentClear(mesh, s, g, 1u, 0.25f);
+		float len = (float)sqrt((g.x-s.x)*(g.x-s.x) + (g.y-s.y)*(g.y-s.y));
+		int steps = (int)(len / 0.1f) + 1;
+		bool sampled = true;
+		float worst = 0.0f;	// how far off the mesh the line gets, if it does
+		for (int i = 0; i <= steps; ++i)
+		{
+			NavQuery::Pt p = { s.x + (g.x - s.x) * i / steps, s.y + (g.y - s.y) * i / steps };
+			NavQuery::Pt q;
+			int tri;
+			if (!NavQuery::nearestPassable(mesh, p, 1u, 0.02f, 0, -1, q, tri))
+			{
+				sampled = false;
+				if (!NavQuery::nearestPassable(mesh, p, 1u, 0.3f, 0, -1, q, tri))
+					worst = 1.0f;
+			}
+		}
+		++s_segTests;
+		// They may differ only where the line just grazes a wall (a corner within a hair of it).
+		if (walked != sampled && (worst > 0.5f || walked))
+			++s_segWrong;
+		else if (walked != sampled)
+			++s_segGraze;
+	}
 	for (int tries = 0; tries < 8; ++tries)
 	{
 		int a = clear[rnd() % clear.size()], b = clear[rnd() % clear.size()];
@@ -360,6 +391,9 @@ static int fuzz( int count, unsigned int seed )
 			"", t.runs ? t.lengthRatioSum / t.runs : 0.0, t.runs ? (double)t.smallerArcs / t.runs : 0.0,
 			t.runs ? (double)t.pivots / t.runs : 0.0, t.runs ? (double)t.cheats / t.runs : 0.0);
 	}
+	printf("straight-line test on the mesh: %lld lines, %lld wrong, %lld differ only by grazing a wall\n", s_segTests, s_segWrong, s_segGraze);
+	if (s_segWrong)
+		++failures;
 	return failures ? 1 : 0;
 }
 

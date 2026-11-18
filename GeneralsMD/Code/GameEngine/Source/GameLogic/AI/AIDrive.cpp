@@ -71,8 +71,25 @@ namespace
 	// frame instead: it leans into a turn over a few frames and settles out of it, and trails the plan's heading by
 	// about (turn rate / this) in a steady turn. The line the unit travels is not changed, only how its body faces.
 	Real TURN_EASE = 0.5f;
+	Int SPREAD = 1;									// a group takes corners abreast (spreadCorners)
+	Real SPREAD_SPACING = 1.15f;		// places across a narrow corner are this many unit widths apart
+	// At most this many places abreast at a corner, however wide the group (0 = no limit). Measured on city-mixed
+	// (3 variants): one file 98.1 s to arrive / 12.7 stalled / overlap 1.3; three abreast 98.4 / 5.5 / 0.6; no limit
+	// 102.2 / 7.9 / 2.3 (the outside of a wide wheel is a long way round).
+	Real SPREAD_MAX = 3.0f;
 	Int DEBUG_UNIT = 0;
 	Bool s_loaded = false;
+	Int s_spread = 0, s_spreadUndone = 0;
+
+	// The shapes of the groups most recently ordered to move (AIDrive::registerGroup).
+	struct GroupShape
+	{
+		UnsignedInt key;
+		std::vector<Real> offsets;	// x, y per member
+	};
+	const size_t MAX_SHAPES = 48;
+	std::vector<GroupShape> s_shapes;
+	UnsignedInt s_nextShapeKey = 1;
 
 	Int s_plans = 0, s_smaller = 0, s_pivots = 0, s_cheats = 0, s_offMesh = 0, s_abandoned = 0;
 	Int s_frames = 0, s_followFrames = 0;
@@ -88,6 +105,9 @@ namespace
 		MoveTune::apply("drive.followGap", FOLLOW_GAP);
 		MoveTune::apply("drive.offPlan", OFF_PLAN);
 		MoveTune::apply("drive.turnEase", TURN_EASE);
+		MoveTune::apply("drive.spread", SPREAD);
+		MoveTune::apply("drive.spreadSpacing", SPREAD_SPACING);
+		MoveTune::apply("drive.spreadMax", SPREAD_MAX);
 		MoveTune::apply("debug.unit", DEBUG_UNIT);
 	}
 
@@ -143,6 +163,107 @@ namespace
 		return TRUE;
 	}
 
+	/// A group ordered to one place keeps its shape, so on open ground its members' paths are parallel. But every
+	/// one of those strings bends round the same wall corners, which would bring the whole group into one file at
+	/// each. So each member's corner is moved out from the wall by where the member is across the group: the one
+	/// nearest the wall keeps the corner, the others pass outside it in the order they stand, and the group wheels
+	/// round the corner abreast. Where the ground has no room for the whole width there are as many places as fit
+	/// (a unit's width apart), and members who share a place follow one another: a narrow gap makes a column, a wide
+	/// one does not. A moved corner whose straights would leave the unit's ground goes back where it was.
+	void spreadCorners( Object *obj, AIUpdateInterface *ai, std::vector<NavDrive::Pt>& pts )
+	{
+		if (!SPREAD || ai->getGroupRadius() < 1.0f || ai->getGroupKey() == 0 || pts.size() < 3)
+			return;
+		const GroupShape *shape = nullptr;
+		for (size_t g = 0; g < s_shapes.size(); ++g)
+		{
+			if (s_shapes[g].key == ai->getGroupKey())
+				shape = &s_shapes[g];
+		}
+		if (shape == nullptr)
+			return;
+		Real offX = ai->getGroupOffsetX(), offY = ai->getGroupOffsetY();
+		Real spacing = 2.0f * radiusOf(obj) * SPREAD_SPACING + 1.0f;
+		std::vector<NavDrive::Pt> original = pts;
+		std::vector<unsigned char> moved(pts.size(), 0);
+		size_t i;
+		for (i = 1; i + 1 < pts.size(); ++i)
+		{
+			const NavDrive::Pt& v = original[i];
+			Real ix = v.x - original[i-1].x, iy = v.y - original[i-1].y;
+			Real ox = original[i+1].x - v.x, oy = original[i+1].y - v.y;
+			Real il = sqrt(ix*ix + iy*iy), ol = sqrt(ox*ox + oy*oy);
+			if (il < 0.01f || ol < 0.01f)
+				continue;
+			Real bx = ox/ol - ix/il, by = oy/ol - iy/il;	// towards the inside of the turn: towards the wall
+			Real bl = sqrt(bx*bx + by*by);
+			if (bl < 0.02f)
+				continue;
+			bx /= bl; by /= bl;
+			// How far this member stands from the wall side of the group, across the turn, and how wide the group
+			// is that way. (The member nearest the wall keeps the corner.)
+			Real nearest = -1.0e9f, furthest = 1.0e9f;
+			for (size_t g = 0; g + 1 < shape->offsets.size(); g += 2)
+			{
+				Real across = shape->offsets[g] * bx + shape->offsets[g+1] * by;
+				if (across > nearest) nearest = across;
+				if (across < furthest) furthest = across;
+			}
+			Real width = nearest - furthest;
+			Real want = nearest - (offX * bx + offY * by);
+			if (want < 0.0f) want = 0.0f;
+			if (want > width) want = width;
+			if (want < 1.0f || width < 1.0f)
+				continue;
+			// How much room there is outward from the corner.
+			Real room = 0.0f;
+			for (Real d = width; d >= spacing * 0.5f; d *= 0.5f)
+			{
+				if (NavMesh::segmentOnMesh(obj, ai->getLocomotorSet(), v.x - bx * 1.0f, v.y - by * 1.0f, v.x - bx * d, v.y - by * d))
+				{
+					room = d;
+					break;
+				}
+			}
+			if (SPREAD_MAX > 0.0f && room > SPREAD_MAX * spacing)
+				room = SPREAD_MAX * spacing;
+			Real out;
+			if (room >= width * 0.999f)
+				out = want;
+			else
+			{
+				Int places = REAL_TO_INT_FLOOR(room / spacing);
+				if (places <= 0)
+					continue;
+				Int place = REAL_TO_INT_FLOOR(want / width * (Real)places + 0.5f);
+				out = (Real)place * spacing;
+			}
+			if (out < 1.0f)
+				continue;
+			pts[i].x = v.x - bx * out;
+			pts[i].y = v.y - by * out;
+			moved[i] = 1;
+			++s_spread;
+		}
+		// The straights between moved corners must still be on the unit's ground.
+		for (Int pass = 0; pass < 4; ++pass)
+		{
+			Bool allClear = TRUE;
+			for (i = 0; i + 1 < pts.size(); ++i)
+			{
+				if (!moved[i] && !moved[i+1])
+					continue;
+				if (NavMesh::segmentOnMesh(obj, ai->getLocomotorSet(), pts[i].x, pts[i].y, pts[i+1].x, pts[i+1].y))
+					continue;
+				allClear = FALSE;
+				if (moved[i]) { pts[i] = original[i]; moved[i] = 0; ++s_spreadUndone; }
+				if (moved[i+1]) { pts[i+1] = original[i+1]; moved[i+1] = 0; ++s_spreadUndone; }
+			}
+			if (allClear)
+				break;
+		}
+	}
+
 	Bool makePlan( Object *obj, AIUpdateInterface *ai, Path *path, const NavDrive::Kinematics& kin, AIDrive::Data *data )
 	{
 		// The string: where the unit is, then the path's corners (its optimized nodes) after the first.
@@ -163,6 +284,8 @@ namespace
 		}
 		if (pts.size() < 2)
 			return FALSE;
+		if (allGround)
+			spreadCorners(obj, ai, pts);
 
 		// Full-size arcs if they are on the unit's ground, else smaller ones, else none (stop and pivot). Paths that
 		// use a bridge are not checked: bridges are not in the mesh yet.
@@ -248,6 +371,18 @@ namespace
 		}
 		return cap;
 	}
+}
+
+//-------------------------------------------------------------------------------------------------
+UnsignedInt AIDrive::registerGroup( const Real *offsetsXY, Int members )
+{
+	if (s_shapes.size() >= MAX_SHAPES)
+		s_shapes.erase(s_shapes.begin());
+	s_shapes.push_back(GroupShape());
+	GroupShape& shape = s_shapes.back();
+	shape.key = s_nextShapeKey++;
+	shape.offsets.assign(offsetsXY, offsetsXY + members * 2);
+	return shape.key;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -384,6 +519,7 @@ void AIDrive::printStats()
 {
 	if (!MoveRules::navmesh())
 		return;
-	printf("AIDrive: plans=%d smallerArcs=%d pivots=%d cheats=%d arcsOffMesh=%d abandoned=%d followPct=%.1f\n", s_plans, s_smaller,
-		s_pivots, s_cheats, s_offMesh, s_abandoned, s_frames ? 100.0f * (Real)s_followFrames / (Real)s_frames : 0.0f);
+	printf("AIDrive: plans=%d smallerArcs=%d pivots=%d cheats=%d arcsOffMesh=%d abandoned=%d followPct=%.1f cornersSpread=%d spreadUndone=%d\n",
+		s_plans, s_smaller, s_pivots, s_cheats, s_offMesh, s_abandoned, s_frames ? 100.0f * (Real)s_followFrames / (Real)s_frames : 0.0f,
+		s_spread, s_spreadUndone);
 }

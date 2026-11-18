@@ -57,6 +57,12 @@ namespace AIDrive
 
 	void destroy( Data *& data );
 
+	/// A group has been ordered to move together: remember its shape (each member's offset from its middle, world
+	/// units, 2 numbers a member) so that each member can find, at a corner, how far it stands from the side of the
+	/// group that passes nearest the wall. Returns the key the members are given (setGroupKey). Only the most
+	/// recent few dozen shapes are kept; a member of a forgotten one simply takes its corners as if alone.
+	UnsignedInt registerGroup( const Real *offsetsXY, Int members );
+
 	/// One line for the benchmark.
 	void printStats();
 }

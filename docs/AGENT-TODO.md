@@ -168,8 +168,11 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       User's first look: Humvee wheels did not animate, turning wanted easing, Humvee felt slow. Fixed/changed
       (PLAN.md "First look by the user"): physics kept driven and told the speed; heading eased (`drive.turnEase`);
       wheeled units corner wide and fast where there is room.
-      **Open, human:** look again (`.\scripts\movetest.ps1 -Name pathfinding -Level 2`): do wheels and treads animate
-      now, does the eased turning read as weight, is the Humvee's pace right? Group behaviour is not done.
+      User looked again: "it looked good and can verify the animations worked."
+      Groups take corners abreast now (`AIDrive::spreadCorners`, at most three places; PLAN.md has the table).
+      **Open, agent, next:** oncoming / crossing traffic (side-step replans, push priority), idle units pushed
+      aside, arrival spots. Head-on overlap is the big remaining number (8.5 of 9.2).
+      **Open, human:** a group move round buildings at level 2: does it read as a group?
       **Open, human (optional, nothing to judge yet beyond path shape):** `.\scripts\movetest.ps1 -Name pathfinding -Level 2`.
       **Open, human:** look at a mesh picture: `scripts\navtest.ps1 -Scenario river-cross`.
       **Open, agent:** reversals in chokes (city-mixed 26, river-cross 28; open ground is at target). Start from

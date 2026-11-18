@@ -762,10 +762,35 @@ Reading it honestly:
   A wheeled unit's circle grows with speed above `turnSpeed`, so corners are now planned wide and fast where the
   mesh has room and come down to the tight circle only where it has not.
 
-**Next (M4, second part): what units do about each other, still on rails.**
-1. One destination, many units: each unit keeps its offset from the group (SC2 does this when the group is compact),
-   so strings are parallel on open ground instead of identical; where they converge (a choke) units merge by
-   arrival order, which follow already does.
+Second look by the user (same evening): "it looked good and can verify the animations worked."
+
+**M4, second part, step 1: a group takes corners abreast** (2026-11-17, late night; `AIDrive::spreadCorners`).
+A group order already gives each member its own destination (the group keeps its shape), so on open ground the
+strings were parallel all along; what made a group file into one line was that every string bends round the same
+wall corners. Now, when a member's plan is made, each corner of its string is moved out from the wall by where the
+member stands across the group at that corner (the group's shape is remembered per order: `AIDrive::registerGroup`,
+`AIUpdateInterface::setGroupSlot`): the member nearest the wall keeps the corner, the others pass outside it in the
+order they stand. There are as many places as the ground has room for, a unit's width apart and **at most three**;
+members who share a place follow one another. A moved corner whose straights would leave the unit's ground
+(`NavMesh::segmentOnMesh`, a triangle walk tested against sampling in `drivetest`) goes back where it was.
+
+Why three (city-mixed, 3 variants):
+
+| abreast at a corner | meanArrive | stalled | overlap | detour |
+|---|---|---|---|---|
+| 1 (one file, before) | 98.1 s | 12.7 | 1.3 | 1.06 |
+| 2 | 99.6 | 6.5 | 0.1 | 1.08 |
+| **3** | 98.4 | 5.5 | 0.6 | 1.09 |
+| 5 | 100.7 | 7.6 | 2.1 | 1.11 |
+| no limit | 102.2 | 7.9 | 2.3 | 1.12 |
+
+Honest reading: it does not get the group there sooner (the outside of the wheel is a longer way), it gets it there
+with less than half the standing about and less overlap, and it looks like a group instead of a queue. The two
+desert courses have no corners and are unchanged; river-cross is still on grid paths.
+Suite at level 2 now: reversals 0.47, wobble 0, arrival 68.5 s, stalled 9.0, overlap 9.2 (8.5 of it head-on).
+
+**Next (M4, second part, continued): what units do about each other, still on rails.**
+1. (Done, above: corners abreast.)
 2. Oncoming and crossing traffic: a new plan with a side step (a line means a plan), chosen once and held; who
    gives way by push priority.
 3. Idle units in the way: pushed aside by priority (moving beats idle), as SC2 does.

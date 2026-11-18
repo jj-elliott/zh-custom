@@ -43,6 +43,7 @@
 #include "GameClient/Line2D.h"
 
 #include "GameLogic/MoveRules.h"	// zh-pipeline Phase 7
+#include "GameLogic/AIDrive.h"
 #include "GameLogic/AI.h"
 #include "GameLogic/AIPathfind.h"
 #include "GameLogic/Locomotor.h"
@@ -2190,6 +2191,7 @@ void AIGroup::groupMoveToPosition( const Coord3D *p_posIn, Bool addWaypoint, Com
 	}
 
 	Coord3D goalPos = *pos;
+	std::vector<ObjectID> slotted;	// zh-pipeline: members given a place in the group (see the end of the loop below)
 	iter->sort(ITER_SORTED_NEAR_TO_FAR);
 	// Works better if you let the near units get the first paths... jba.
 	// Move the ones nearest the goal first.  Reduces collision problems later.
@@ -2245,10 +2247,51 @@ void AIGroup::groupMoveToPosition( const Coord3D *p_posIn, Bool addWaypoint, Com
 		if( !addWaypoint )
 		{
 			ai->aiMoveToPosition( &dest, cmdSource );
+			// zh-pipeline MoveRules::NAVMESH: remember where in the group this unit is (set after the command, which
+			// clears it). The group's radius is filled in below, once every member's place is known.
+			if (MoveRules::navmesh())
+			{
+				ai->setGroupSlot(dest.x - goalPos.x, dest.y - goalPos.y, 0.0f);
+				slotted.push_back(theUnit->getID());
+			}
 		}
 		else
 		{
 			ai->aiFollowPathAppend(&dest, cmdSource);
+		}
+	}
+	if (slotted.size() > 1)
+	{
+		Real groupRadius = 0.0f;
+		size_t n;
+		for (n = 0; n < slotted.size(); ++n)
+		{
+			Object *member = TheGameLogic->findObjectByID(slotted[n]);
+			AIUpdateInterface *memberAi = member ? member->getAIUpdateInterface() : nullptr;
+			if (memberAi == nullptr)
+				continue;
+			Real r = sqrt(sqr(memberAi->getGroupOffsetX()) + sqr(memberAi->getGroupOffsetY()));
+			if (r > groupRadius)
+				groupRadius = r;
+		}
+		std::vector<Real> shape;
+		for (n = 0; n < slotted.size(); ++n)
+		{
+			Object *member = TheGameLogic->findObjectByID(slotted[n]);
+			AIUpdateInterface *memberAi = member ? member->getAIUpdateInterface() : nullptr;
+			if (memberAi == nullptr)
+				continue;
+			memberAi->setGroupSlot(memberAi->getGroupOffsetX(), memberAi->getGroupOffsetY(), groupRadius);
+			shape.push_back(memberAi->getGroupOffsetX());
+			shape.push_back(memberAi->getGroupOffsetY());
+		}
+		UnsignedInt key = shape.empty() ? 0 : AIDrive::registerGroup(&shape[0], (Int)(shape.size() / 2));
+		for (n = 0; n < slotted.size(); ++n)
+		{
+			Object *member = TheGameLogic->findObjectByID(slotted[n]);
+			AIUpdateInterface *memberAi = member ? member->getAIUpdateInterface() : nullptr;
+			if (memberAi != nullptr)
+				memberAi->setGroupKey(key);
 		}
 	}
 }
