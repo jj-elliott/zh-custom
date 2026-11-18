@@ -140,6 +140,14 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       **Open, human:** play it (single-group moves, corners, a choke); does a group now travel as a body?
       **Open, agent:** opposing clusters share the width at plan time; `planErr` + time reservations; attack-move
       through the planner; arrival is 2 s slower than before lanes.
+      **2026-11-17 night: DIRECTION CHANGE.** The user wants SC2's architecture emulated, not more rules: CDT navmesh,
+      A* over triangles + funnel, velocity steering (PLAN.md "Direction change: the StarCraft 2 model", milestones
+      M1..M6). Level 1 work (lanes, AISteering reasons, the open items below) is frozen; do not tune it, and do not
+      report parity with retail as progress. M1 (mesh from the grid, `NavMeshBuild`, `scripts/navtest.ps1`) is done.
+      **Open, agent, next:** M2: rebuild on grid change (hook the three footprint choke points), clearance per
+      crossing, bridge/wall layers + portals, in-game debug overlay. Then M3 (search + funnel, `MoveRules` level 2).
+      **Open, human:** before M4, decide how far units move toward SC2 kinematics (keep INI turn rates, or let
+      vehicles pivot fast). Look at a mesh picture: `scripts\navtest.ps1 -Scenario river-cross`.
       **Open, agent:** reversals in chokes (city-mixed 26, river-cross 28; open ground is at target). Start from
       `movetrace.ps1 -Scenario river-cross`; add a narrow-choke scenario.
       **Open, agent:** tune from feedback (constants at the top of `AISteering.cpp`, `MoveTraffic.cpp`); once it settles, record

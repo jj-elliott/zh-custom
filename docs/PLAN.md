@@ -146,6 +146,8 @@ Budget: 3–6 months of evenings. Start only after Phases 1–5 are shipped and 
 
 ## Phase 7 — pathfinding and unit movement (long term, after Phase 4)
 
+**Current plan: the section "Direction change: the StarCraft 2 model" below. Everything between here and there is history.**
+
 Target feel: StarCraft 2. The A-star pathfinder stays; the work is in the layer between "where" (pathfinder) and "how" (`Locomotor`). Everything here runs inside the sim, so it must be deterministic: fixed-point or controlled float, verified by the CRC half of the regression harness. Ordered so each step is useful on its own and the cheap ones come first.
 
 1. **Yield rule (~50 lines, no new maths).** An idle unit that is blocking a moving unit steps aside instead of making the mover wait. Lives in the AI idle state. Kills the single most common stall.
@@ -485,7 +487,88 @@ it off costs about 4 reversals a unit, so it stays for now.
 3. Attack-move through the same planner.
 4. Why arrival is 2 s slower.
 
-### Open
+### Direction change: the StarCraft 2 model (2026-11-17, night). THIS IS THE PLAN NOW
+
+The user, after the lanes build: "we really should not be re-inventing the wheel here and just try to emulate the
+fantastic unit movement of SC2 ... we're getting into the same 'rules-based' whack a mole that we didn't like from the
+retail build. The fact that we're using 'at retail levels' like it's a good thing is showing me that we've lost the
+plot." And: implement it "figuring out what we need to do to support the best version of it, not rushing to the
+finish line."
+
+So `UNIFIED` (level 1: traffic map, `AISteering`'s three reasons, group lanes) is a dead end that stays only as a
+comparison until the new system plays better, then is deleted. **Retail is not a yardstick any more**: level 0 exists
+to verify old replays. The bar is SC2's feel; the method is SC2's architecture, built in its own order with each
+layer checked on its own before the next one stands on it.
+
+**The architecture (the user's brief), and what each part meets in this engine:**
+
+| SC2 | here |
+|---|---|
+| Walkability grid | Exists: the pathfinder's cells (10 world units; clear / water / cliff / rubble / obstacle / impassable, fence bit). It stays the source of truth for *what the ground is*; structures keep stamping it as they do now. |
+| Constrained Delaunay navmesh | **New, M1 done.** One mesh for every kind of unit: every boundary between cell types is a constrained edge and every triangle has a label, so a search filters by the unit's surfaces (ground, water, cliff, rubble, fence for crushers) the way the grid search does. |
+| Dynamic obstacle carving | **M2.** Every footprint change already funnels through three places (`internal_classifyObjectFootprint`, `classifyFence`, `classifyMap`; bridges through `changeBridgeState`). A whole 475x475 map rebuilds in 5 ms, so M2 starts with "rebuild when the grid changed, at most once a frame" and only goes to local retriangulation if a measured late-game base says it must. |
+| Clearance, layers | **M2.** Width of every triangle crossing precomputed per obstacle set (Demyen's method), so a search for a wide unit never enters a gap it cannot pass. Bridges and wall tops are the engine's layers 2..15: each gets its own small mesh joined to the ground mesh by portal edges where the grid has connect cells. |
+| A* over triangles + funnel | **M3.** A* on triangle edges with the clearance test, then the funnel with the unit's radius, so the path is the taut string a unit of that width can follow. Replaces `findPath` / `findGroundPath` / `patchPath` for ground units at the new level; aircraft are untouched. First playable milestone (new paths, old follower). |
+| Path caching / throttling | **M3.** The engine already queues path requests (5000 cells a frame). A group order searches the triangle corridor once per cluster and funnels per unit. |
+| Velocity steering (seek, separation, cohesion), spatial hash | **M4.** Replaces `AISteering`, lanes, the traffic map and the retail blocked/stuck/repath machinery at the new level. Neighbours from `ThePartitionManager` (iteration order is deterministic). |
+| Predictive avoidance | **M4.** |
+| Push priorities (moving displaces idle; right of way) | **M4.** Today allied units are never pushed apart by physics, they overlap and "blocking" is AI speed limits. The new level gives ground units hard circles: positional separation, with idle units pushed and returning (or not: SC2 leaves them). |
+| Dynamic arrival radius | **M5.** Replaces `adjustDestination`'s one-cell-per-unit goal stamping for group moves. |
+| Attack-move transition | **M5.** Target acquisition already exists; the work is leaving and re-joining the group's flow. |
+
+**The one place this engine is not SC2, and it decides M4.** SC2 units are circles that turn almost instantly and
+accelerate almost instantly, so the velocity steering asks for is the velocity the unit has. Here a Crusader is a
+long box that pivots at a limited rate, wheeled units cannot turn at all while stopped, and motion is forces and
+friction in `PhysicsBehavior`. Every jitter of the last two days came from that gap: a layer asking for a motion the
+locomotor could not deliver, then correcting. M4 therefore has two halves:
+- steering produces a *desired velocity* from the navmesh path and the neighbours;
+- a single drive model turns it into motion with the unit's own limits (turn rate, acceleration), and steering's
+  predictions use that same model (the user's "one model" principle). Ground units stop being force-driven:
+  position and heading are integrated directly, as the engine already does for a braking unit.
+
+Open question for the user before M4 (does not block M1..M3): how far to move the units themselves toward SC2:
+keep each unit's INI turn rate and acceleration (tanks stay ponderous, steering has to plan for it), or raise turn
+rates / let vehicles pivot quickly as SC2 does (movement feels like SC2, units feel less like Generals tanks).
+
+**Milestones. Each ends with its own check; nothing is wired into the sim until M3.**
+
+| | what | done when |
+|---|---|---|
+| **M1** | Mesh from the grid: boundary chains, simplification, CDT, labels. Standalone test tool. | **Done 2026-11-17**, see below. |
+| M2 | Rebuild on grid change; clearance per crossing; bridge / wall layers and portals; debug overlay in game. | fuzz covers edits; mesh == grid after every footprint change in a soak run; overlay looks right to the user. |
+| M3 | Point location, A* with clearance, funnel with radius; `MoveRules` level 2 routes ground paths through it. | path exists <=> grid says a path exists, on every suite map; lengths <= grid paths; plays. |
+| M4 | Drive model + steering + hard separation + push priorities; removes level 1's layers at level 2. | suite: no overlap, deviation only with a neighbour as cause; the user plays it against SC2 in their head. |
+| M5 | Arrival radius, group goals, attack-move. | same. |
+| M6 | Delete level 1 (`AISteering`, lanes, `MoveTraffic`); level 2 becomes the default. | verify + soak; docs. |
+
+**M1 as built** (`Core/.../GameLogic/NavMeshBuild.h/.cpp`, the method is in the header; `NavMesh.h/.cpp` is the
+engine side; `tests/navmesh/navtest.cpp` + `scripts/navtest.ps1` test it without the engine):
+- Boundaries between cells of different label are traced into chains between junctions, simplified
+  (Douglas-Peucker, 1 cell), and any chain whose simplified form touches another goes back to its exact form, so the
+  boundary set is always a planar graph and the triangulator never sees crossing constraints.
+- Incremental Delaunay (Lawson flips) then constraint insertion by edge flipping (Sloan), region labels by flood
+  fill from the two sides of every boundary.
+- **Determinism:** integer lattice coordinates and exact 64-bit predicates only; no floating point anywhere in the
+  build, loop orders fixed by the grid. The mesh is derived state like the grid: rebuilt after load, not saved, not
+  in the CRC.
+- Not sim state yet: built only with `-movetune navmesh.build=1` or `navmesh.dump=1`. `skirmish-01.rep` verifies.
+
+| map (scenario) | grid | boundary points | triangles | build | cells on the other side of a simplified boundary |
+|---|---|---|---|---|---|
+| desert-mixed | 204x270 | 3040 -> 327 | 542 | 1.2 ms | 0.60% |
+| river-cross | 320x320 | 7004 -> 877 | 1452 | 2.8 ms | 0.75% |
+| city-mixed | 475x475 | 11042 -> 1268 | 2108 | 4.8 ms | 0.62% |
+
+Fuzz: 20000 random grids x 4 tolerances, 0 failures (neighbour symmetry, orientation, area, Delaunay on every
+unconstrained edge, labels, and at tolerance 0 the mesh equals the grid cell for cell).
+
+Known and deliberate: simplification moves boundaries by up to a cell (0.6..0.75% of cells change side), in both
+directions. From M3 the mesh is where units may be; the grid stays what structures are placed on. If a unit ends up
+on a cell the grid calls cliff, engine code that asks the grid (`validMovementPosition`, `fixInvalidPosition`) will
+object: M3 has to either simplify conservatively (never into blocked cells) or route those checks to the mesh.
+Decide with the overlay in front of the user.
+
+### Open (level 1; superseded by the section above)
 
 - Play-test UNIFIED (test saves: `scripts/movetest.ps1`). Expected trouble spots: traffic penalty too weak or too strong
   (units still sharing a corner, or taking silly detours), pinned nodes making paths stair-step, infantry clumps overlapping

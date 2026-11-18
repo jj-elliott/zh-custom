@@ -1,0 +1,120 @@
+/*
+**	Command & Conquer Generals Zero Hour(tm)
+**	Copyright 2026 zh-pipeline
+**
+**	This program is free software: you can redistribute it and/or modify
+**	it under the terms of the GNU General Public License as published by
+**	the Free Software Foundation, either version 3 of the License, or
+**	(at your option) any later version.
+**
+**	This program is distributed in the hope that it will be useful,
+**	but WITHOUT ANY WARRANTY; without even the implied warranty of
+**	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+**	GNU General Public License for more details.
+**
+**	You should have received a copy of the GNU General Public License
+**	along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+// zh-pipeline @feature 2026-11-17 Navigation mesh construction (docs/PLAN.md Phase 7, "The StarCraft 2 model", M1).
+//
+// Turns a grid of labelled cells (the pathfinder's cell types) into a triangle mesh:
+//   1. the boundaries between cells of different label are traced into chains of lattice points;
+//   2. each chain is simplified (Douglas-Peucker, tolerance in cells), and any chain whose simplified form would touch
+//      another goes back to its exact form, so the set of boundaries always stays a planar graph;
+//   3. a constrained Delaunay triangulation of the map rectangle is built with every boundary segment as a
+//      constrained edge;
+//   4. every triangle gets the label of the region it lies in.
+//
+// One mesh serves every kind of unit: a search treats a triangle as walkable or not by its label (ground, water,
+// cliff, rubble, fence, blocked), as the grid pathfinder does with LocomotorSurfaceTypeMask.
+//
+// DETERMINISM. All coordinates are integers (cell corners) and every geometric decision is an exact 64-bit integer
+// predicate: no floating point, no dependence on compiler flags, same mesh on every machine from the same grid.
+// The order of every loop is fixed by the grid, never by a hash or a pointer.
+//
+// This file and its .cpp use only the C++ standard library, so the builder can be compiled and fuzzed on its own
+// (tests/navmesh/navtest.cpp, scripts/navtest.ps1) without the engine.
+
+#pragma once
+
+#include <vector>
+
+namespace NavBuild
+{
+	typedef long long I64;
+
+	struct Vert
+	{
+		int x, y;	///< cell-corner lattice: world position = (x, y) * cell size
+	};
+
+	/// Counter-clockwise triangle. Edge i runs from v[i] to v[(i+1)%3]; n[i] is the triangle across it (-1: map edge);
+	/// c[i] is set when that edge is a boundary between regions (or the map edge).
+	struct Tri
+	{
+		int v[3];
+		int n[3];
+		unsigned char c[3];
+		unsigned char label;
+	};
+
+	enum { LABEL_NONE = 255 };
+
+	struct Stats
+	{
+		int chains;					///< boundary chains traced
+		int exactPoints;		///< lattice points on all chains before simplification
+		int keptPoints;			///< after
+		int revertedChains;	///< chains put back to exact form because their simplified form touched another
+		int labelConflicts;	///< triangles reached with two different labels (0 in a correct build)
+		int unlabelled;			///< triangles no region reached (0 in a correct build)
+		Stats() : chains(0), exactPoints(0), keptPoints(0), revertedChains(0), labelConflicts(0), unlabelled(0) {}
+	};
+
+	struct Mesh
+	{
+		int width, height;	///< in cells
+		std::vector<Vert> verts;
+		std::vector<Tri> tris;
+		Stats stats;
+	};
+
+	/// Exact predicates. orient > 0: c is to the left of a->b. inCircle > 0: d is strictly inside the circle through
+	/// the counter-clockwise triangle a, b, c. Valid for coordinates up to 2^13 in magnitude.
+	I64 orient( const Vert& a, const Vert& b, const Vert& c );
+	I64 inCircle( const Vert& a, const Vert& b, const Vert& c, const Vert& d );
+
+	/// Constrained Delaunay triangulation of the rectangle [0,w] x [0,h] on the integer lattice.
+	class CDT
+	{
+	public:
+		void init( int w, int h );
+		int addVertex( int x, int y );						///< returns the vertex index (an existing one if the point is already there)
+		void addConstraint( int a, int b );				///< must not properly cross an earlier constraint; may pass through vertices
+		int findEdge( int u, int v ) const;				///< triangle*3 + edge for the directed edge u->v, or -1
+
+		std::vector<Vert> verts;
+		std::vector<Tri> tris;
+
+	private:
+		int locate( int x, int y, int& onEdge );
+		void legalize( std::vector<int>& stack );
+		void flip( int t, int i );
+		void setTri( int t );
+		int backIndex( int nb, int t ) const;
+		void markConstrained( int u, int v );
+		void rotateTo( int t, int i );
+
+		std::vector<int> m_vtri;	///< one triangle touching each vertex
+		int m_last;
+	};
+
+	/// labels: width*height bytes, row-major (index = y*width + x). simplifyNum/simplifyDen: the tolerance in cells
+	/// (0 = keep the grid's boundaries exactly, collinear points removed).
+	void buildMesh( const unsigned char *labels, int width, int height, int simplifyNum, int simplifyDen, Mesh& out );
+
+	/// Checks everything a correct mesh must satisfy; returns the number of violations and describes the first few in
+	/// 'report'. Used by the fuzz test and, cheaply, after a build in a debug run.
+	int validate( const Mesh& mesh, std::vector<char>& report );
+}

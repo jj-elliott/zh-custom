@@ -28,6 +28,7 @@
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
 #include "GameLogic/MoveTraffic.h"	// zh-pipeline congestion-aware pathing
+#include "GameLogic/NavMesh.h"	// zh-pipeline navigation mesh
 #include "GameLogic/AIPathfind.h"
 #include "GameLogic/Pathfinder/PathfindConstants.h"
 
@@ -892,6 +893,7 @@ void Pathfinder::newMap()
 	}
 
 	m_isMapReady = true;
+	NavMesh::rebuild(this);	// zh-pipeline: navigation mesh from the classified grid (does nothing unless asked, see NavMesh.h)
 }
 
 /**
