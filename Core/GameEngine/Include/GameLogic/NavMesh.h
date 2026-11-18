@@ -25,6 +25,11 @@
 // again after the grid changed, one mesh per (surfaces, unit size) that units actually have. That is sim state.
 // Below level 2 nothing is built unless asked ("-movetune navmesh.build=1") and nothing reads it. From M3 on searches run on it and it becomes sim state: derived, like the pathfinder's grid,
 // from the map and the objects on it, so it is rebuilt after a load rather than saved, and is not in the CRC.
+//
+// Bridges: each usable bridge (pathfinder layers 2..14) is a second mesh over a window of the map, joined to the
+// ground's mesh where their ground meets (GameLogic/NavMeshQuery.h, "Atlas"). A destroyed bridge has no deck and so
+// no mesh; Pathfinder::changeBridgeState marks the meshes dirty like any other change of the grid. Wall tops
+// (layer 15) are not meshed.
 
 #pragma once
 
@@ -68,7 +73,8 @@ namespace NavMesh
 	/// pulled string, the destination. An end that is off the mesh but close to it (a unit against a wall, a
 	/// destination beside a building) is joined to the nearest point of it.
 	/// Returns null when the mesh has no answer (the unit is far from any ground of its size, the destination is not
-	/// connected to it: across a bridge, for one), and the caller then uses the grid pathfinder as before.
+	/// connected to it, the unit is on a wall top or sent to one), and the caller then uses the grid pathfinder as
+	/// before. A route over a bridge comes from the mesh: its nodes on the bridge carry the bridge's layer.
 	/// 'cost' is what the search should be charged against the frame's pathfinding budget.
 	Path *findPath( Object *obj, const LocomotorSet& locomotorSet, const Coord3D *from, const Coord3D *to, Int *cost );
 

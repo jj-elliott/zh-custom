@@ -39,6 +39,22 @@ namespace
 	NavBuild::Mesh s_mesh;
 	std::vector<unsigned char> s_labels;	// what the mesh was built from
 	std::vector<unsigned char> s_scratch;
+
+	// A bridge as the pathfinder has it: the cells of its layer over a rectangle of the map. kind: 0 = not on the
+	// bridge (a unit on this layer is on the ground there, Pathfinder::getCell falls back to the ground cell),
+	// 1 = deck, 2 = on the layer and impassable (the bridge's sides; every cell of a destroyed bridge).
+	struct LayerCells
+	{
+		Int layer;
+		Int x0, y0, w, h;
+		std::vector<unsigned char> kind;
+		bool operator==( const LayerCells& o ) const
+		{
+			return layer == o.layer && x0 == o.x0 && y0 == o.y0 && w == o.w && h == o.h && kind == o.kind;
+		}
+	};
+	std::vector<LayerCells> s_layers, s_layerScratch;	// what the meshes were built from, like s_labels
+
 	Int s_width = 0;
 	Int s_height = 0;
 	Bool s_dirty = false;
@@ -66,19 +82,22 @@ namespace
 	inline Bool wantPlainMesh() { return BUILD || DUMP || LOG || CHECK; }
 	inline Bool enabled() { return wantPlainMesh() || MoveRules::navmesh(); }
 
-	// ---- The meshes units search: one per (labels the unit may stand on, its radius in half-cells), built from
-	// s_labels on first use and again when s_labels has changed since (s_gridSerial).
+	// ---- The meshes units search: one set per (labels the unit may stand on, its radius in half-cells), built from
+	// s_labels and s_layers on first use and again when they have changed since (s_gridSerial). A set is the ground's
+	// mesh and one mesh per usable bridge ("sheets", GameLogic/NavMeshQuery.h), joined into one atlas.
 	struct SizedMesh
 	{
 		unsigned mask;
 		Int radius;
 		UnsignedInt serial;
-		NavBuild::Mesh mesh;
-		std::vector<int> component;	///< per triangle: which connected piece of passable ground, -1 for walls
+		std::vector<NavBuild::Mesh> meshes;	///< 0 = the ground, then the bridges
+		std::vector<Int> layerOf;						///< the pathfinder layer of each (LAYER_GROUND for 0)
+		NavQuery::Atlas atlas;
 	};
 	std::vector<SizedMesh *> s_sized;
 	UnsignedInt s_gridSerial = 1;
 	Int s_statMesh = 0, s_statNoStart = 0, s_statNoGoal = 0, s_statNoPath = 0, s_statBuilds = 0, s_statNodes = 0;
+	Int s_statBridge = 0, s_statWall = 0;
 
 	const Int MAX_RADIUS_HALF_CELLS = 5;
 
@@ -102,37 +121,103 @@ namespace
 			return sm;
 		sm->serial = s_gridSerial;
 		++s_statBuilds;
-		std::vector<unsigned char> shrunk;
-		NavBuild::erode(&s_labels[0], s_width, s_height, mask, radius, shrunk);
-		NavBuild::buildMesh(&shrunk[0], s_width*2, s_height*2, SIMPLIFY_NUM, SIMPLIFY_DEN, sm->mesh);
-		// Connected pieces of the passable triangles (label 0 after erode).
-		const std::vector<NavBuild::Tri>& tris = sm->mesh.tris;
-		sm->component.assign(tris.size(), -1);
-		std::vector<int> stack;
-		Int pieces = 0;
-		for (size_t t = 0; t < tris.size(); ++t)
+
+		// The ground as this size of unit sees it, then each bridge: a window of the map round the bridge, as a unit
+		// on its layer sees it (the deck and the bridge's sides where the layer has cells, the ground elsewhere), with
+		// enough ground round the bridge that everything the bridge changes for this unit is inside.
+		std::vector<NavBuild::SheetCells> cells(1);
+		NavBuild::erode(&s_labels[0], s_width, s_height, mask, radius, cells[0].cells);
+		cells[0].ox = 0;
+		cells[0].oy = 0;
+		cells[0].w = s_width * 2;
+		cells[0].h = s_height * 2;
+		sm->layerOf.assign(1, (Int)LAYER_GROUND);
+		const Int need = (radius + 1) / 2;	// cells: walls this near the window still shrink the ground inside it
+		const Int margin = need + 1;
+		std::vector<unsigned char> view, deck;
+		for (size_t i = 0; i < s_layers.size(); ++i)
 		{
-			if (tris[t].label != 0 || sm->component[t] >= 0)
+			const LayerCells& lc = s_layers[i];
+			Int x0 = lc.x0 - margin, y0 = lc.y0 - margin, x1 = lc.x0 + lc.w + margin, y1 = lc.y0 + lc.h + margin;
+			if (x0 < 0) x0 = 0;
+			if (y0 < 0) y0 = 0;
+			if (x1 > s_width) x1 = s_width;
+			if (y1 > s_height) y1 = s_height;
+			Int px0 = x0 - need, py0 = y0 - need, px1 = x1 + need, py1 = y1 + need;
+			if (px0 < 0) px0 = 0;
+			if (py0 < 0) py0 = 0;
+			if (px1 > s_width) px1 = s_width;
+			if (py1 > s_height) py1 = s_height;
+			Int pw = px1 - px0, ph = py1 - py0;
+			if (x1 <= x0 || y1 <= y0)
 				continue;
-			sm->component[t] = pieces;
-			stack.push_back((int)t);
-			while (!stack.empty())
+			view.assign(pw * ph, 0);
+			deck.assign(pw * ph, 0);
+			for (Int y = 0; y < ph; ++y)
 			{
-				int c = stack.back();
-				stack.pop_back();
-				for (int i = 0; i < 3; ++i)
+				for (Int x = 0; x < pw; ++x)
 				{
-					int nb = tris[c].n[i];
-					if (nb >= 0 && tris[nb].label == 0 && sm->component[nb] < 0)
-					{
-						sm->component[nb] = pieces;
-						stack.push_back(nb);
-					}
+					Int cx = x + px0, cy = y + py0;
+					Int lx = cx - lc.x0, ly = cy - lc.y0;
+					unsigned char kind = (lx >= 0 && ly >= 0 && lx < lc.w && ly < lc.h) ? lc.kind[ly*lc.w + lx] : (unsigned char)0;
+					view[y*pw + x] = (unsigned char)(kind == 1 ? NavMesh::NAV_CLEAR : (kind == 2 ? NavMesh::NAV_BLOCKED : s_labels[cy*s_width + cx]));
+					deck[y*pw + x] = (unsigned char)(kind == 1 ? 1 : 0);
 				}
 			}
-			++pieces;
+			int pad[4] = { x0 - px0, y0 - py0, px1 - x1, py1 - y1 };
+			unsigned mapEdges = (px0 == 0 ? 1u : 0u) | (py0 == 0 ? 2u : 0u) | (px1 == s_width ? 4u : 0u) | (py1 == s_height ? 8u : 0u);
+			NavBuild::SheetCells sc;
+			NavBuild::erodeSheet(&view[0], &deck[0], pw, ph, mask, radius, pad, mapEdges, sc.cells);
+			// No deck this unit can be on (it is too wide for the bridge, or may not use the surface): no sheet.
+			Bool usable = false;
+			for (size_t c = 0; c < sc.cells.size() && !usable; ++c)
+				usable = (sc.cells[c] == NavBuild::SHEET_DECK);
+			if (!usable)
+				continue;
+			sc.ox = 2 * x0;
+			sc.oy = 2 * y0;
+			sc.w = 2 * (x1 - x0);
+			sc.h = 2 * (y1 - y0);
+			cells.push_back(sc);
+			sm->layerOf.push_back(lc.layer);
+		}
+		unsigned exact = 0;
+		if (cells.size() > 1)
+		{
+			NavBuild::assignSheets(cells);
+			exact = NavBuild::SHEET_EXACT;
+		}
+		// The atlas keeps pointers to the meshes: all of them are in place before the first is added.
+		sm->atlas.clear();
+		sm->meshes.clear();
+		sm->meshes.resize(cells.size());
+		for (size_t k = 0; k < cells.size(); ++k)
+		{
+			NavBuild::buildMesh(&cells[k].cells[0], cells[k].w, cells[k].h, SIMPLIFY_NUM, SIMPLIFY_DEN, sm->meshes[k], exact);
+			sm->atlas.addSheet(&sm->meshes[k], cells[k].ox, cells[k].oy);
+		}
+		sm->atlas.connect();
+		if (LOG)
+		{
+			Int tris = 0;
+			for (size_t k = 0; k < sm->meshes.size(); ++k)
+				tris += (Int)sm->meshes[k].tris.size();
+			printf("NavMeshSet: frame=%u mask=%u radius=%d halfCells sheets=%d (ground + %d bridges of %d) triangles=%d (ground %d) links=%d\n",
+				TheGameLogic->getFrame(), mask, radius, (Int)sm->meshes.size(), (Int)sm->meshes.size() - 1, (Int)s_layers.size(), tris,
+				(Int)sm->meshes[0].tris.size(), (Int)sm->atlas.links.size());
 		}
 		return sm;
+	}
+
+	/// The sheet of a pathfinder layer in this set of meshes; 0 (the ground) if it has none.
+	Int sheetOfLayer( const SizedMesh *sm, Int layer )
+	{
+		for (size_t k = 1; k < sm->layerOf.size(); ++k)
+		{
+			if (sm->layerOf[k] == layer)
+				return (Int)k;
+		}
+		return 0;
 	}
 
 	unsigned char labelOf( const PathfindCell *cell )
@@ -169,6 +254,53 @@ namespace
 		}
 	}
 
+	/// The bridges, in the order the terrain has them (the same on both machines). Wall tops (LAYER_WALL) are not
+	/// read: units on them still get their paths from the grid.
+	void readLayers( Pathfinder *pathfinder, Int width, Int height, std::vector<LayerCells>& layers )
+	{
+		layers.clear();
+		if (TheTerrainLogic == nullptr || width <= 0 || height <= 0)
+			return;
+		for (Bridge *bridge = TheTerrainLogic->getFirstBridge(); bridge != nullptr; bridge = bridge->getNext())
+		{
+			PathfindLayerEnum layer = bridge->getLayer();
+			if (layer <= LAYER_GROUND || layer >= LAYER_WALL)
+				continue;
+			// The layer's cells cover the bridge's bounds and one cell more each way (PathfindLayer::allocateCells);
+			// a wider scan cannot miss one, and cells off the layer read as "not on the bridge".
+			const Region2D *bounds = bridge->getBounds();
+			LayerCells lc;
+			lc.layer = (Int)layer;
+			lc.x0 = REAL_TO_INT_FLOOR(bounds->lo.x / PATHFIND_CELL_SIZE_F) - 3;
+			lc.y0 = REAL_TO_INT_FLOOR(bounds->lo.y / PATHFIND_CELL_SIZE_F) - 3;
+			Int x1 = REAL_TO_INT_CEIL(bounds->hi.x / PATHFIND_CELL_SIZE_F) + 3;
+			Int y1 = REAL_TO_INT_CEIL(bounds->hi.y / PATHFIND_CELL_SIZE_F) + 3;
+			if (lc.x0 < 0) lc.x0 = 0;
+			if (lc.y0 < 0) lc.y0 = 0;
+			if (x1 > width) x1 = width;
+			if (y1 > height) y1 = height;
+			lc.w = x1 - lc.x0;
+			lc.h = y1 - lc.y0;
+			if (lc.w <= 0 || lc.h <= 0)
+				continue;
+			lc.kind.assign(lc.w * lc.h, 0);
+			Bool any = false;
+			for (Int y = 0; y < lc.h; ++y)
+			{
+				for (Int x = 0; x < lc.w; ++x)
+				{
+					const PathfindCell *cell = pathfinder->getCell(layer, x + lc.x0, y + lc.y0);
+					if (cell == nullptr || cell->getLayer() != layer)
+						continue;
+					lc.kind[y*lc.w + x] = (unsigned char)(cell->getType() == PathfindCell::CELL_CLEAR ? 1 : 2);
+					any = true;
+				}
+			}
+			if (any)
+				layers.push_back(lc);
+		}
+	}
+
 	Int countDifferent( const std::vector<unsigned char>& a, const std::vector<unsigned char>& b )
 	{
 		Int differ = 0;
@@ -202,6 +334,7 @@ void NavMesh::rebuild( Pathfinder *pathfinder )
 		return;
 
 	readLabels(pathfinder, s_labels, s_width, s_height);
+	readLayers(pathfinder, s_width, s_height, s_layers);
 	++s_gridSerial;
 	if (s_labels.empty() || !wantPlainMesh())
 		return;
@@ -237,7 +370,8 @@ void NavMesh::update( Pathfinder *pathfinder )
 	if (CHECK && !s_dirty && (now % LOGICFRAMES_PER_SECOND) == 0)
 	{
 		readLabels(pathfinder, s_scratch, w, h);
-		if (s_scratch != s_labels)
+		readLayers(pathfinder, w, h, s_layerScratch);
+		if (s_scratch != s_labels || !(s_layerScratch == s_layers))
 		{
 			printf("NavMeshStale: frame=%u cells=%d (the grid changed and nobody called NavMesh::markDirty)\n", now,
 				countDifferent(s_scratch, s_labels));
@@ -249,12 +383,15 @@ void NavMesh::update( Pathfinder *pathfinder )
 	s_dirty = false;
 
 	// Most footprint calls change nothing a ground unit can tell apart (a re-stamp of the same structure, a mobile
-	// object that leaves no footprint): rebuild only if a label really changed.
+	// object that leaves no footprint): rebuild only if a label really changed, on the ground or on a bridge (a
+	// bridge destroyed or repaired changes its layer's cells and nothing on the ground).
 	readLabels(pathfinder, s_scratch, w, h);
-	if (w == s_width && h == s_height && s_scratch == s_labels)
+	readLayers(pathfinder, w, h, s_layerScratch);
+	if (w == s_width && h == s_height && s_scratch == s_labels && s_layerScratch == s_layers)
 		return;
 	Int differ = (w == s_width && h == s_height) ? countDifferent(s_scratch, s_labels) : -1;
 	s_labels.swap(s_scratch);
+	s_layers.swap(s_layerScratch);
 	s_width = w;
 	s_height = h;
 	++s_gridSerial;	// the sized meshes rebuild themselves when next searched.
@@ -311,30 +448,57 @@ Path *NavMesh::findPath( Object *obj, const LocomotorSet& locomotorSet, const Co
 		if (radius < 0)
 			radius = 0;
 	}
+	// Wall tops are not meshed: a unit on one, or sent to one, is pathed by the grid.
+	PathfindLayerEnum objLayer = obj->getLayer();
+	PathfindLayerEnum toLayer = TheTerrainLogic->getLayerForDestination(to);
+	if (objLayer == LAYER_WALL || toLayer == LAYER_WALL)
+	{
+		++s_statWall;
+		return nullptr;
+	}
+
 	SizedMesh *sm = sizedMesh(mask, radius);
 	if (cost)
 		*cost = 200;
 
+	// Where the unit is: on a bridge's deck, on the ground, or at a bridge's end, where it can be either (the ground
+	// cells there are the bridge's "connect" cells, and the unit's layer changes as it drives over them).
+	Int startDeck = sheetOfLayer(sm, objLayer);
+	Bool startGround = (startDeck == 0);
+	if (startDeck == 0)
+	{
+		for (size_t k = 1; k < sm->layerOf.size(); ++k)
+		{
+			if (TheTerrainLogic->objectInteractsWithBridgeLayer(obj, sm->layerOf[k]))
+			{
+				startDeck = (Int)k;
+				break;
+			}
+		}
+	}
+	Int goalDeck = sheetOfLayer(sm, toLayer);
+	Bool goalGround = (goalDeck == 0);
+
 	// The ends, on the mesh (which is in half-cells). A unit may stand nearer a wall than its mesh allows (it was
-	// built there, it was pushed, the grid let it), and so may a destination: join each to the nearest point of
+	// built there, it was pushed, the grid let it), and so may a destination: each is joined to the nearest point of
 	// the mesh, the destination only to ground connected to where the unit is.
-	NavQuery::Pt s, g, s2, g2;
+	NavQuery::Pt s, g;
 	s.x = from->x / HALF; s.y = from->y / HALF;
 	g.x = to->x / HALF;   g.y = to->y / HALF;
 	Real reach = (Real)(radius + 4);
-	int startTri = -1, goalTri = -1;
-	if (!NavQuery::nearestPassable(sm->mesh, s, 1u, reach, nullptr, -1, s2, startTri))
+	NavQuery::AtlasPath found;
+	int result = NavQuery::findPath(sm->atlas, s, startDeck, startGround, g, goalDeck, goalGround, reach, found);
+	if (result == NavQuery::PATH_NO_START)
 	{
 		++s_statNoStart;
 		return nullptr;
 	}
-	if (!NavQuery::nearestPassable(sm->mesh, g, 1u, reach, &sm->component[0], sm->component[startTri], g2, goalTri))
+	if (result == NavQuery::PATH_NO_GOAL)
 	{
 		++s_statNoGoal;
 		return nullptr;
 	}
-	NavQuery::Path found;
-	if (!NavQuery::findPath(sm->mesh, s2, g2, 1u, found) || found.pts.size() < 2)
+	if (result != NavQuery::PATH_FOUND || found.pts.size() < 2)
 	{
 		++s_statNoPath;
 		return nullptr;
@@ -344,29 +508,52 @@ Path *NavMesh::findPath( Object *obj, const LocomotorSet& locomotorSet, const Co
 	if (cost)
 		*cost += found.expanded * 4;
 
-	// As a Path: every node is a corner, so each one's "next optimized" is simply the next.
+	// As a Path: every node is a corner, so each one's "next optimized" is simply the next. A node is on a bridge's
+	// layer if the path is on that bridge's deck on either side of it: the nodes where the string gets on and off
+	// the deck and its corners between. That is what the follower reads to put the unit on the bridge's layer
+	// (Path::computePointOnPath, Pathfinder::updateLayer), as it does with the grid's paths.
 	std::vector<Coord3D> pts;
+	std::vector<PathfindLayerEnum> layers;
 	Coord3D c;
 	c = *from;
 	pts.push_back(c);
+	layers.push_back(objLayer);
+	Bool overBridge = false;
 	for (size_t k = 0; k < found.pts.size(); ++k)
 	{
+		if (found.inserted[k] == 1)
+			continue;	// where the string passes from one sheet's ground to another's: nothing the follower needs
+		PathfindLayerEnum layer = LAYER_GROUND;
+		if (found.deck[k])
+			layer = (PathfindLayerEnum)sm->layerOf[found.sheet[k]];
+		else if (k > 0 && found.deck[k-1])
+			layer = (PathfindLayerEnum)sm->layerOf[found.sheet[k-1]];
+		if (layer != LAYER_GROUND)
+			overBridge = true;
 		c.x = found.pts[k].x * HALF;
 		c.y = found.pts[k].y * HALF;
-		c.z = TheTerrainLogic->getLayerHeight(c.x, c.y, LAYER_GROUND);
+		c.z = TheTerrainLogic->getLayerHeight(c.x, c.y, layer);
 		pts.push_back(c);
+		layers.push_back(layer);
 	}
 	c = *to;
 	pts.push_back(c);
+	layers.push_back(toLayer);
+	if (overBridge)
+		++s_statBridge;
 	Path *path = newInstance(Path);
 	Coord3D last = pts[0];
-	path->appendNode(&pts[0], LAYER_GROUND);
+	path->appendNode(&pts[0], layers[0]);
 	for (size_t k = 1; k < pts.size(); ++k)
 	{
 		Real dx = pts[k].x - last.x, dy = pts[k].y - last.y;
 		Bool isEnd = (k + 1 == pts.size());
 		if (dx*dx + dy*dy < 1.0f)
 		{
+			// A point a hair from the node before it is that node; if it is where the string gets on a bridge, the
+			// node is.
+			if (layers[k] != LAYER_GROUND && path->getLastNode()->getLayer() == LAYER_GROUND)
+				path->getLastNode()->setLayer(layers[k]);
 			if (!isEnd)
 				continue;
 			if (path->getFirstNode() != path->getLastNode())
@@ -375,7 +562,7 @@ Path *NavMesh::findPath( Object *obj, const LocomotorSet& locomotorSet, const Co
 				continue;
 			}
 		}
-		path->appendNode(&pts[k], LAYER_GROUND);
+		path->appendNode(&pts[k], layers[k]);
 		last = pts[k];
 	}
 	for (PathNode *node = path->getFirstNode(); node != nullptr; node = node->getNext())
@@ -389,6 +576,16 @@ void NavMesh::printStats()
 {
 	if (!MoveRules::navmesh())
 		return;
-	printf("NavMeshPaths: mesh=%d noStart=%d noGoal=%d noPath=%d sizes=%d builds=%d meanNodes=%.1f\n", s_statMesh, s_statNoStart,
-		s_statNoGoal, s_statNoPath, (Int)s_sized.size(), s_statBuilds, s_statMesh ? (Real)s_statNodes / (Real)s_statMesh : 0.0f);
+	// mesh: paths the mesh gave (overBridge of them cross a bridge); the others went to the grid: no ground of the
+	// unit's size near it (noStart), the destination not connected to it (noGoal), a search that failed though it
+	// is (noPath, should be 0), a unit on or sent to a wall top (wall).
+	Int sheets = 0;
+	for (size_t i = 0; i < s_sized.size(); ++i)
+	{
+		if ((Int)s_sized[i]->meshes.size() > sheets)
+			sheets = (Int)s_sized[i]->meshes.size();
+	}
+	printf("NavMeshPaths: mesh=%d overBridge=%d noStart=%d noGoal=%d noPath=%d wall=%d sizes=%d bridgeSheets=%d builds=%d meanNodes=%.1f\n",
+		s_statMesh, s_statBridge, s_statNoStart, s_statNoGoal, s_statNoPath, s_statWall, (Int)s_sized.size(), sheets > 0 ? sheets - 1 : 0,
+		s_statBuilds, s_statMesh ? (Real)s_statNodes / (Real)s_statMesh : 0.0f);
 }

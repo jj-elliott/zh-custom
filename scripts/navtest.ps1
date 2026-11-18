@@ -1,6 +1,6 @@
 # Navigation mesh builder, tested on its own (no engine, ~10 s): compiles Core\...\NavMeshBuild.cpp with
 # tests\navmesh\navtest.cpp and runs it.
-#   .\scripts\navtest.ps1                         # fuzz: 3000 random grids x 4 tolerances, full validation
+#   .\scripts\navtest.ps1                         # fuzz: 3000 random grids x 4 tolerances, full validation; then 1000 maps with bridges
 #   .\scripts\navtest.ps1 -Fuzz 20000 -Seed 7
 #   .\scripts\navtest.ps1 -Scenario river-cross [-Tol 1/1]   # that scenario's map as the built game classifies it
 #                                                 # (headless run with -movetune navmesh.dump=1) -> statistics + SVG
@@ -51,4 +51,8 @@ if ($Grid) {
   exit $code
 }
 & $exe fuzz $Fuzz $Seed
-exit $LASTEXITCODE
+$code = $LASTEXITCODE
+# Bridges (several meshes joined into one atlas): a third as many maps, each built for three unit sizes, exact and simplified.
+& $exe bridges ([math]::Max(1, [int]($Fuzz / 3))) $Seed
+if ($LASTEXITCODE -ne 0) { $code = $LASTEXITCODE }
+exit $code

@@ -29,8 +29,12 @@ if ($code -ne 0) { Write-Host "BUILD FAILED (exit $code); full log: $log" -Foreg
 Write-Host "build ok; log: $log"
 # Stage the result into the dev install (.zh-local.json gameDir) so a human test sees this build: exe, PDB and config.
 # Skipped, with a notice, when the exe there is locked (a game instance is running).
+# ZH_NO_STAGE=1 skips it: for a second worktree whose build must not replace the exe the human (or another session) is testing.
+# The test scripts (verify, soak, movesuite, movetrace, navtest) run the exe from build\, so they do not need staging.
 $localCfg = Join-Path $repo ".zh-local.json"
-if (Test-Path $localCfg) {
+if ($env:ZH_NO_STAGE) {
+  Write-Host "not staged (ZH_NO_STAGE is set)"
+} elseif (Test-Path $localCfg) {
   $local = Get-Content $localCfg -Raw | ConvertFrom-Json
   $game = $local.gameDir
   $exe = Get-ChildItem (Join-Path $repo "build") -Recurse -Filter generalszh.exe -ErrorAction SilentlyContinue |

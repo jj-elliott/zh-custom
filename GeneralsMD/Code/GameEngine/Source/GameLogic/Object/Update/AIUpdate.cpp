@@ -1970,11 +1970,10 @@ Bool AIUpdateInterface::computePath( PathfindServicesInterface *pathServices, Co
 	else
 	{
 		// zh-pipeline @feature 2026-11-17 MoveRules::NAVMESH: the path comes from the navigation mesh of this unit's
-		// size (GameLogic/NavMesh.h) when it has one: ground to ground, both ends on or beside connected ground.
-		// Bridges and wall tops are not meshed yet, so those, and anything else the mesh cannot answer, still go to
-		// the grid search below.
-		if (MoveRules::navmesh() && isDoingGroundMovement() && getObject()->getLayer() == LAYER_GROUND
-				&& destinationLayer == LAYER_GROUND)
+		// size (GameLogic/NavMesh.h) when it has one: over ground and bridges, both ends on or beside connected
+		// ground. Wall tops are not meshed, so those, and anything else the mesh cannot answer, still go to the grid
+		// search below.
+		if (MoveRules::navmesh() && isDoingGroundMovement())
 		{
 			Int searchCost = 0;
 			theNewPath = NavMesh::findPath( getObject(), m_locomotorSet, getObject()->getPosition(), destination, &searchCost );

@@ -507,7 +507,7 @@ layer checked on its own before the next one stands on it.
 | Walkability grid | Exists: the pathfinder's cells (10 world units; clear / water / cliff / rubble / obstacle / impassable, fence bit). It stays the source of truth for *what the ground is*; structures keep stamping it as they do now. |
 | Constrained Delaunay navmesh | **New, M1 done.** One mesh for every kind of unit: every boundary between cell types is a constrained edge and every triangle has a label, so a search filters by the unit's surfaces (ground, water, cliff, rubble, fence for crushers) the way the grid search does. |
 | Dynamic obstacle carving | **M2.** Every footprint change already funnels through three places (`internal_classifyObjectFootprint`, `classifyFence`, `classifyMap`; bridges through `changeBridgeState`). A whole 475x475 map rebuilds in 5 ms, so M2 starts with "rebuild when the grid changed, at most once a frame" and only goes to local retriangulation if a measured late-game base says it must. |
-| Clearance, layers | **M2.** A mesh per unit size, built from ground shrunk by that radius (Demyen's per-crossing widths were built and dropped, see below), so a wide unit's mesh simply has no gap it cannot pass. Bridges and wall tops are the engine's layers 2..15: each gets its own small mesh joined to the ground mesh by portal edges where the grid has connect cells. |
+| Clearance, layers | **M2, done except wall tops.** A mesh per unit size, built from ground shrunk by that radius (Demyen's per-crossing widths were built and dropped, see below), so a wide unit's mesh simply has no gap it cannot pass. Bridges are the engine's layers 2..14: each gets its own mesh of a window round it, joined to the ground's mesh where their ground meets ("Bridges in the mesh" below). Wall tops (layer 15) still use the grid. |
 | A* over triangles + funnel | **M3.** A* on triangle edges with the clearance test, then the funnel with the unit's radius, so the path is the taut string a unit of that width can follow. Replaces `findPath` / `findGroundPath` / `patchPath` for ground units at the new level; aircraft are untouched. First playable milestone (new paths, old follower). |
 | Path caching / throttling | **M3.** The engine already queues path requests (5000 cells a frame). A group order searches the triangle corridor once per cluster and funnels per unit. |
 | Velocity steering (seek, separation, cohesion), spatial hash | **M4.** Replaces `AISteering`, lanes, the traffic map and the retail blocked/stuck/repath machinery at the new level. Neighbours from `ThePartitionManager` (iteration order is deterministic). |
@@ -548,8 +548,8 @@ What that means for M3/M4 (the test every steering decision is held to):
 | | what | done when |
 |---|---|---|
 | **M1** | Mesh from the grid: boundary chains, simplification, CDT, labels. Standalone test tool. | **Done 2026-11-17**, see below. |
-| M2 | Rebuild on grid change (**done**); unit width (**done**: a mesh per size, below); bridge / wall layers and portals; debug overlay in game. | fuzz covers edits; mesh == grid after every footprint change in a soak run; overlay looks right to the user. |
-| M3 | Point location, A*, funnel; `MoveRules` level 2 routes ground paths through it (**done**, below; bridges still on the grid); corners as drivable arcs. | path exists <=> grid says a path exists, on every suite map; lengths <= grid paths; plays. |
+| M2 | Rebuild on grid change (**done**); unit width (**done**: a mesh per size, below); bridges (**done**, below; wall tops not); debug overlay in game. | fuzz covers edits; mesh == grid after every footprint change in a soak run; overlay looks right to the user. |
+| M3 | Point location, A*, funnel; `MoveRules` level 2 routes ground paths through it (**done**, below, bridges included); corners as drivable arcs. | path exists <=> grid says a path exists, on every suite map; lengths <= grid paths; plays. |
 | M4 | Drive model + steering + hard separation + push priorities; removes level 1's layers at level 2. | suite: no overlap, deviation only with a neighbour as cause; the user plays it against SC2 in their head. |
 | M5 | Arrival radius, group goals, attack-move. | same. |
 | M6 | Delete level 1 (`AISteering`, lanes, `MoveTraffic`); level 2 becomes the default. | verify + soak; docs. |
@@ -634,8 +634,8 @@ What this costs and what is still owed:
   grid changed; joins a start or destination that is beside the mesh to the nearest point of it (the destination
   only to connected ground); returns the pulled string as a `Path` whose every node is a corner. Searches are
   charged to the frame's path budget.
-- No answer from the mesh (not connected: a bridge is needed; a unit far from any ground of its size) -> the grid
-  search, exactly as before. Units on a bridge layer always use the grid.
+- No answer from the mesh (not connected; a unit far from any ground of its size; a unit on a wall top) -> the grid
+  search, exactly as before. (Until "Bridges in the mesh" below, that was also every route over a bridge.)
 - At level 2 the traffic map and group lanes are off (both exist to repair grid paths). Everything else is still
   level 1: `AISteering` follows the path and keeps units apart. **That is the wrong follower for these paths** (every
   unit of a group gets the same string and they are then pushed apart: pushPct doubles) and it is what M4 replaces.
@@ -649,15 +649,101 @@ Suite, 3 variants (level 1 = traffic map + lanes + steering; level 2 = mesh path
 | level 2 city-mixed | 82.8 | 8.1 (was 15.3) | 3.6 | 5.6 | 3.7 | 28.5 | all (54 of 54 in one run) |
 | level 2 desert-cross | 54.9 | 4.0 (was 12.3) | 1.6 | 2.7 | 3.0 | 19.0 | all |
 | level 2 desert-mixed | 61.3 | 2.7 (was 2.3) | 1.4 | 5.0 | 0.6 | 7.3 | all |
-| level 2 river-cross | 62.4 | 19.8 (was 33.8) | 11.9 | 6.0 | 3.9 | 21.8 | none: every route needs a bridge |
+| level 2 river-cross | 62.4 | 19.8 (was 33.8) | 11.9 | 6.0 | 3.9 | 21.8 | none: every route needs a bridge (before bridges were meshed, see below) |
 
 Reading: straight strings instead of grid paths halve the turning on their own, and units arrive sooner; the
 overlap and pushing are the old follower meeting identical paths. Do not tune that follower.
 `soak.ps1 -Level 2`: the seven recordings run to the end twice with equal final CRCs.
 
-**Next:** bridge and wall layers as meshes joined by portals (river-cross is entirely on the grid until then); an
-in-game overlay (mesh + a unit's path) so the user can look at it; a bucket grid for `locate` / `nearestPassable`;
-then M4, starting with the string's corners turned into arcs a unit can drive (the user's criterion above).
+**Bridges in the mesh** (2026-11-17/18; `NavBuild::erodeSheet` / `assignSheets`, `NavQuery::Atlas`, `NavMesh.cpp`).
+A bridge is a second level over the same piece of map, so one flat mesh cannot hold it.
+- **A sheet per bridge.** The pathfinder already says what a unit on a bridge's layer stands on: the layer's cell
+  where it has one (deck, or the bridge's sides), the ground cell everywhere else (`Pathfinder::getCell(layer, ..)`).
+  That view, over a window round the bridge, is the bridge's sheet; it is shrunk by the unit's radius like the
+  ground, so a wide unit keeps clear of the railings and a bridge too narrow for it has no deck and no sheet. The
+  ground's own mesh is sheet 0. Only near a bridge's ends do the two views differ about the *ground*: the ground
+  sheet sees a wall where the low deck begins (the grid blocks ground under a low bridge, and the meshes keep that),
+  the bridge's sheet sees the deck a unit drives onto.
+- **Every piece of ground belongs to one sheet** (`assignSheets`): to the bridge whose sheet has it (nearest deck
+  wins where two windows overlap), otherwise to the ground sheet. A unit's centre may be wherever *any* sheet allows,
+  and that whole area is covered exactly once, so sheets never overlap and a corridor never has to choose between
+  two copies of the same ground. Sheets meet along grid lines, which every mesh keeps exactly (`buildMesh`'s
+  `exactLabels`), and `Atlas::connect` joins each pair of triangle edges, one from each side, along the stretch
+  they share. The search crosses those joins like edges and the funnel pulls one string through all of it: a path
+  over a bridge is taut from bank to bank.
+- **What was built first and thrown away** (a day of it): sheets that *overlapped* (the bridge's window complete,
+  ground included, joined to the ground mesh only along the window's edge). A corridor could then leave a window and
+  come straight back on the other sheet, the strip of triangles folded over itself, and the funnel, which works in
+  the plane, pulled strings that left the mesh. Clipping portals to the outside of the window fixed validity but
+  left detours (sheets could only be changed on the window's edge). Sharing the ground out removes the overlap and
+  with it the whole class.
+- **Two things the search needed for this:** (1) no corridor passes through a triangle twice: where ground meets
+  deck or another sheet there are vertices with open ground all round, and a corridor circling one is pulled
+  straight through it; (2) at a bridge's mouth a triangle can have two neighbours across one edge (the deck, and
+  ground of another sheet under the deck), so a corridor may come in by that line and turn back across it: the
+  strip is unfolded (mirrored in the line, exact in floating point because these are grid lines) before the string
+  is pulled, and the point where it touches the line is added. If the search closes every way to a connected goal
+  (one corridor per node plus rule 1: seen once in 144,000 searches) a plain corridor's string is used.
+- **Engine side.** `NavMesh::readLayers` snapshots each bridge's layer cells with the ground labels (same
+  dirty/compare/rebuild path; `changeBridgeState` already marked it dirty). A destroyed bridge's cells are all
+  impassable: no deck, no sheet, so it disconnects; repaired, it is back at the next search. `NavMesh::findPath`
+  takes the unit's layer and `getLayerForDestination`; at a bridge's end, where a ground-layer unit already stands
+  on the bridge's connect cells, it may start on either (`objectInteractsWithBridgeLayer`). Path nodes where the
+  string gets on and off the deck, and its corners between, carry the bridge's layer: that is what the follower
+  reads (`Path::computePointOnPath` -> `Pathfinder::updateLayer`), exactly as with grid paths.
+
+Fuzz (`navtest.ps1 -Fuzz 9000`: besides the 9000 single-mesh grids, 3000 random maps with 1-3 bridges at eight
+angles, low / high / mixed clearance, each built for radius 0 / 0.5 / 1.5 cells, exact and simplified; 144,000
+start/goal pairs, half of the goals on a deck) against an exhaustive search over half-cells that knows nothing of
+sheets (ground wherever any sheet allows; on and off a deck where that bridge's own view has ground beside it):
+
+| | result |
+|---|---|
+| path exists in the atlas <=> the exhaustive search finds one | always (100,301 paths, 44,278 of them over a bridge) |
+| path leaves its sheet's ground / is on the deck where it says it is not / changes sheet off shared ground | never |
+| wide unit's path nearer a wall than its radius | never beyond the half-cell tolerance (nearest 0.943 radii, see below) |
+| length vs the exhaustive 8-direction path | mean 0.94; longer in 0.47% of searches, worst +54% |
+| searches that needed the fallback corridor | 1 |
+
+Two honest caveats in those rows. *0.943 radii*: a half-cell is ground if its centre is far enough from every wall,
+so one corner of it can be nearer by up to 0.086 cell; round a wall such a corner is a dent no string enters, but
+where two sheets' ground meets the dent can be the doorway between them. *0.47% longer*: that is the search's
+one-corridor-per-node rule (3-in-10,000 on a single mesh), which bites more often where joins give a triangle many
+neighbours; searching past the stopping bound changes nothing, so it is not the bound. Keeping more than one
+corridor per node is the fix and triples the search's cost: do it together with sharing one corridor search across
+a group order, not before.
+
+In the engine (headless, `movetrace.ps1 -Scenario river-cross -Level 2`, Winding River, 4 bridges, 32 tanks):
+
+| | before | after |
+|---|---|---|
+| paths from the mesh / over a bridge / not connected (grid fallback) | 0 / 0 / 32 | 32 / 32 / 0 |
+| all units arrive (timeout) | yes (0) | yes (0) |
+| the tanks' set of meshes (radius 1 cell) | 3558 triangles | 5 sheets, 4142 triangles (584 in the four bridge sheets), 90 joins; 307 search nodes a path |
+| every bridge down before the order (`-Tune bench.bridgesDown=0`) | | 0 from the mesh, 32 "not connected", no sheets: nobody crosses |
+| ... up again at frame 450, order repeated at 500 | | rebuilt once, 32 over a bridge, all arrive |
+| order repeated at frame 900 with 9 units on a bridge (`bench.reorder=900`) | | all re-pathed by the mesh (68 paths, 0 without a start), all arrive |
+
+Suite at level 2, 3 variants (the other three scenarios have no bridge on their routes and are unchanged to the last digit):
+
+| | meanArrive | reversals | wobble | stalled | overlap | pushPct |
+|---|---|---|---|---|---|---|
+| river-cross before (grid paths) | 62.44 | 19.82 | 11.88 | 6.02 | 3.93 | 21.83 |
+| river-cross after (mesh paths) | 62.25 | 13.46 | 6.88 | 8.71 | 2.69 | 28.83 |
+| all four, before | 65.36 | 8.66 | 4.62 | 4.84 | 2.79 | 19.16 |
+| all four, after | 65.31 | 7.06 | 3.36 | 5.51 | 2.48 | 20.92 |
+
+Same reading as before: straighter paths, a third less turning; stalled and pushPct up because 16 tanks now share
+one string across a bridge and the old follower pushes them apart. That is M4's job, not a reason to touch the mesh.
+`verify.ps1` (retail replay, level 0) passes; `soak.ps1 -Level 2` passes on the seven recordings.
+
+Still owed on bridges: wall tops (layer 15; units on them use the grid); two bridges that touch each other (the
+deck of one cannot open onto ground the other owns; no stock map does this); `locate` / `nearestPassable` are still
+linear scans, now over every sheet near the point.
+
+**Next:** an in-game overlay (mesh + a unit's path) so the user can look at it; a bucket grid for `locate` /
+`nearestPassable`; more than one corridor per node together with one corridor search per group order; then M4,
+starting with the string's corners turned into arcs a unit can drive (the user's criterion above).
 
 ### Open (level 1; superseded by the section above)
 

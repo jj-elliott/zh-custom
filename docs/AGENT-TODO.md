@@ -155,9 +155,15 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       `AIUpdateInterface::computePath`, grid fallback when the mesh has no answer, traffic map and lanes off.
       Suite: reversals 15.9 -> 8.7, arrival 68.4 -> 65.4 s, but pushPct 9 -> 19 (old follower, identical paths).
       `soak.ps1 -Level 2` passes.
-      **Open, agent, next:** bridge/wall layers + portals (river-cross is all grid fallback); in-game overlay; bucket
-      grid for `locate`/`nearestPassable`; then M4 (drive model, steering, hard separation), starting with corners
-      as drivable arcs. Do not tune `AISteering` for level 2.
+      **Bridges are in the mesh (2026-11-18):** a sheet per bridge joined to the ground mesh (`NavQuery::Atlas`,
+      `NavBuild::assignSheets`; PLAN.md "Bridges in the mesh" has the design, what was thrown away, and the numbers).
+      river-cross at level 2: 32 of 32 paths from the mesh, all over a bridge. Destroy/repair and re-pathing from on a
+      bridge are tested through MoveBench hooks (`-Tune bench.bridgesDown=F,bench.bridgesUp=F,bench.reorder=F`).
+      `navtest.ps1` now also fuzzes 1 bridge map per 3 grids against an exhaustive layered search.
+      **Open, agent, next:** in-game overlay; bucket grid for `locate`/`nearestPassable`; more than one corridor per
+      node (0.47% of bridge paths are longer than the grid's, worst +54%) together with one corridor search per group
+      order; wall tops (layer 15) are still on the grid; then M4 (drive model, steering, hard separation), starting
+      with corners as drivable arcs. Do not tune `AISteering` for level 2.
       **Open, human (optional, nothing to judge yet beyond path shape):** `.\scripts\movetest.ps1 -Name pathfinding -Level 2`.
       **Open, human:** look at a mesh picture: `scripts\navtest.ps1 -Scenario river-cross`.
       **Open, agent:** reversals in chokes (city-mixed 26, river-cross 28; open ground is at target). Start from

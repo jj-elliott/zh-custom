@@ -34,4 +34,5 @@ $units | Sort-Object reversals -Descending | Select-Object -First $Top | ForEach
   Write-Host ("id={0} vehicle={1} radius={2} reversals={3} revSteer={4} stalled={5}" -f $_.id, $_.vehicle, $_.radius, $_.reversals, $_.revSteer, $_.stalled)
 }
 Get-Content $out | Where-Object { $_ -like "MoveBench: units=*" } | Write-Host
+Get-Content $out | Where-Object { $_ -like "NavMeshPaths:*" } | Write-Host   # level 2: how many paths the mesh gave, and why not the rest
 Write-Host "OUTPUT=$out"

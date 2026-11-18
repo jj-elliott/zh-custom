@@ -780,7 +780,8 @@ namespace
 }
 
 //-------------------------------------------------------------------------------------------------
-void buildMesh( const unsigned char *labels, int width, int height, int simplifyNum, int simplifyDen, Mesh& out )
+void buildMesh( const unsigned char *labels, int width, int height, int simplifyNum, int simplifyDen, Mesh& out,
+								unsigned exactLabels )
 {
 	Grid g;
 	g.labels = labels;
@@ -883,8 +884,11 @@ void buildMesh( const unsigned char *labels, int width, int height, int simplify
 	out.stats.chains = (int)chains.size();
 	for (size_t c = 0; c < chains.size(); ++c)
 	{
-		simplifyChain(g, chains[c], simplifyNum, simplifyDen);
-		if (simplifyNum == 0)
+		// A boundary two meshes are joined along stays where the grid has it.
+		unsigned char other = chains[c].left == 0 ? chains[c].right : (chains[c].right == 0 ? chains[c].left : (unsigned char)0);
+		bool keepExact = simplifyNum == 0 || (other != 0 && other < 32 && ((exactLabels >> other) & 1u) != 0);
+		simplifyChain(g, chains[c], keepExact ? 0 : simplifyNum, keepExact ? 1 : simplifyDen);
+		if (keepExact)
 			chains[c].exact = true;
 		out.stats.exactPoints += (int)chains[c].pts.size();
 	}
@@ -1041,66 +1045,195 @@ void buildMesh( const unsigned char *labels, int width, int height, int simplify
 }
 
 //-------------------------------------------------------------------------------------------------
-void erode( const unsigned char *labels, int width, int height, unsigned passMask, int radiusHalfCells,
-						std::vector<unsigned char>& out )
+namespace
 {
-	int W = width * 2, H = height * 2;
-	int R = radiusHalfCells < 0 ? 0 : radiusHalfCells;
-	std::vector<unsigned char> wall(W * H);
-	int x, y;
-	for (y = 0; y < H; ++y)
+	// mapEdges: bit 0 left, 1 bottom, 2 right, 3 top: that side of the grid is the edge of the map, which a unit keeps
+	// its radius away from like a wall. A side without its bit is only the edge of the window being looked at.
+	void erodeImpl( const unsigned char *labels, int width, int height, unsigned passMask, int radiusHalfCells,
+									unsigned mapEdges, std::vector<unsigned char>& out )
 	{
-		for (x = 0; x < W; ++x)
+		int W = width * 2, H = height * 2;
+		int R = radiusHalfCells < 0 ? 0 : radiusHalfCells;
+		std::vector<unsigned char> wall(W * H);
+		int x, y;
+		for (y = 0; y < H; ++y)
 		{
-			unsigned char label = labels[(y/2)*width + (x/2)];
-			wall[y*W + x] = (label < 32 && ((passMask >> label) & 1u)) ? 0 : 1;
-		}
-	}
-	out = wall;
-	if (R == 0)
-		return;
-	I64 limit = (I64)(2*R) * (2*R);
-	for (y = 0; y < H; ++y)
-	{
-		for (x = 0; x < W; ++x)
-		{
-			if (x < R || y < R || x >= W - R || y >= H - R)
-				out[y*W + x] = 1;	// too near the map edge
-			if (!wall[y*W + x])
-				continue;
-			// Only a wall half-cell with open ground beside it can be the nearest wall to anything.
-			bool edge = false;
-			for (int ny = y - 1; ny <= y + 1 && !edge; ++ny)
+			for (x = 0; x < W; ++x)
 			{
-				for (int nx = x - 1; nx <= x + 1; ++nx)
+				unsigned char label = labels[(y/2)*width + (x/2)];
+				wall[y*W + x] = (label < 32 && ((passMask >> label) & 1u)) ? 0 : 1;
+			}
+		}
+		out = wall;
+		if (R == 0)
+			return;
+		I64 limit = (I64)(2*R) * (2*R);
+		for (y = 0; y < H; ++y)
+		{
+			for (x = 0; x < W; ++x)
+			{
+				if (((mapEdges & 1u) && x < R) || ((mapEdges & 2u) && y < R) || ((mapEdges & 4u) && x >= W - R)
+						|| ((mapEdges & 8u) && y >= H - R))
+					out[y*W + x] = 1;	// too near the map edge
+				if (!wall[y*W + x])
+					continue;
+				// Only a wall half-cell with open ground beside it can be the nearest wall to anything.
+				bool edge = false;
+				for (int ny = y - 1; ny <= y + 1 && !edge; ++ny)
 				{
-					if (nx >= 0 && ny >= 0 && nx < W && ny < H && !wall[ny*W + nx])
+					for (int nx = x - 1; nx <= x + 1; ++nx)
 					{
-						edge = true;
-						break;
+						if (nx >= 0 && ny >= 0 && nx < W && ny < H && !wall[ny*W + nx])
+						{
+							edge = true;
+							break;
+						}
+					}
+				}
+				if (!edge)
+					continue;
+				for (int dy = -R; dy <= R; ++dy)
+				{
+					int ty = y + dy;
+					if (ty < 0 || ty >= H)
+						continue;
+					// Distance from the centre of the target half-cell to this wall half-cell's square, in quarter-cells.
+					I64 ey = dy == 0 ? 0 : 2 * (dy < 0 ? -dy : dy) - 1;
+					for (int dx = -R; dx <= R; ++dx)
+					{
+						int tx = x + dx;
+						if (tx < 0 || tx >= W)
+							continue;
+						I64 ex = dx == 0 ? 0 : 2 * (dx < 0 ? -dx : dx) - 1;
+						if (ex*ex + ey*ey < limit)
+							out[ty*W + tx] = 1;
 					}
 				}
 			}
-			if (!edge)
-				continue;
-			for (int dy = -R; dy <= R; ++dy)
+		}
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
+void erode( const unsigned char *labels, int width, int height, unsigned passMask, int radiusHalfCells,
+						std::vector<unsigned char>& out )
+{
+	erodeImpl(labels, width, height, passMask, radiusHalfCells, 15u, out);
+}
+
+//-------------------------------------------------------------------------------------------------
+void erodeSheet( const unsigned char *labels, const unsigned char *deck, int width, int height, unsigned passMask,
+								 int radiusHalfCells, const int pad[4], unsigned mapEdges, std::vector<unsigned char>& out )
+{
+	std::vector<unsigned char> all;
+	erodeImpl(labels, width, height, passMask, radiusHalfCells, mapEdges, all);
+	int W = width * 2;
+	int x0 = pad[0] * 2, y0 = pad[1] * 2;
+	int w = (width - pad[0] - pad[2]) * 2, h = (height - pad[1] - pad[3]) * 2;
+	if (w <= 0 || h <= 0)
+	{
+		out.clear();
+		return;
+	}
+	out.resize(w * h);
+	for (int y = 0; y < h; ++y)
+	{
+		for (int x = 0; x < w; ++x)
+		{
+			unsigned char v = all[(y + y0)*W + (x + x0)];
+			if (v == 0 && deck[((y + y0)/2)*width + ((x + x0)/2)])
+				v = SHEET_DECK;
+			out[y*w + x] = v;
+		}
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
+void assignSheets( std::vector<SheetCells>& sheets )
+{
+	if (sheets.empty())
+		return;
+	const int W = sheets[0].w, H = sheets[0].h;
+	const int NOBODY = 255, FAR_AWAY = 0x3fffffff;
+	std::vector<unsigned char> owner(W * H, (unsigned char)NOBODY);
+	std::vector<int> ownerDist(W * H, FAR_AWAY);
+	std::vector<int> distToDeck, queue;
+	size_t k;
+	int x, y;
+	for (k = 1; k < sheets.size() && k < (size_t)NOBODY; ++k)
+	{
+		const SheetCells& sh = sheets[k];
+		// Steps (8 directions) from each half-cell of the window to the nearest half-cell of this bridge's deck.
+		distToDeck.assign(sh.w * sh.h, FAR_AWAY - 1);
+		queue.clear();
+		for (int i = 0; i < sh.w * sh.h; ++i)
+		{
+			if (sh.cells[i] == SHEET_DECK)
 			{
-				int ty = y + dy;
-				if (ty < 0 || ty >= H)
-					continue;
-				// Distance from the centre of the target half-cell to this wall half-cell's square, in quarter-cells.
-				I64 ey = dy == 0 ? 0 : 2 * (dy < 0 ? -dy : dy) - 1;
-				for (int dx = -R; dx <= R; ++dx)
+				distToDeck[i] = 0;
+				queue.push_back(i);
+			}
+		}
+		for (size_t q = 0; q < queue.size(); ++q)
+		{
+			int c = queue[q];
+			int cx = c % sh.w, cy = c / sh.w;
+			for (int dy = -1; dy <= 1; ++dy)
+			{
+				for (int dx = -1; dx <= 1; ++dx)
 				{
-					int tx = x + dx;
-					if (tx < 0 || tx >= W)
+					int nx = cx + dx, ny = cy + dy;
+					if (nx < 0 || ny < 0 || nx >= sh.w || ny >= sh.h || distToDeck[ny*sh.w + nx] <= distToDeck[c] + 1)
 						continue;
-					I64 ex = dx == 0 ? 0 : 2 * (dx < 0 ? -dx : dx) - 1;
-					if (ex*ex + ey*ey < limit)
-						out[ty*W + tx] = 1;
+					distToDeck[ny*sh.w + nx] = distToDeck[c] + 1;
+					queue.push_back(ny*sh.w + nx);
 				}
 			}
 		}
+		for (y = 0; y < sh.h; ++y)
+		{
+			for (x = 0; x < sh.w; ++x)
+			{
+				int gx = x + sh.ox, gy = y + sh.oy;
+				if (sh.cells[y*sh.w + x] != SHEET_GROUND || gx < 0 || gy < 0 || gx >= W || gy >= H)
+					continue;
+				if (distToDeck[y*sh.w + x] < ownerDist[gy*W + gx])	// a tie stays with the earlier bridge
+				{
+					ownerDist[gy*W + gx] = distToDeck[y*sh.w + x];
+					owner[gy*W + gx] = (unsigned char)k;
+				}
+			}
+		}
+	}
+	for (int i = 0; i < W * H; ++i)
+	{
+		if (owner[i] == NOBODY && sheets[0].cells[i] == SHEET_GROUND)
+			owner[i] = 0;
+		sheets[0].cells[i] = (unsigned char)(owner[i] == 0 ? SHEET_GROUND : (owner[i] == NOBODY ? SHEET_WALL : SHEET_OTHER));
+	}
+	for (k = 1; k < sheets.size(); ++k)
+	{
+		SheetCells& sh = sheets[k];
+		std::vector<unsigned char> grown((sh.w + 2) * (sh.h + 2));
+		for (y = -1; y <= sh.h; ++y)
+		{
+			for (x = -1; x <= sh.w; ++x)
+			{
+				int gx = x + sh.ox, gy = y + sh.oy;
+				unsigned char v = SHEET_WALL;
+				bool inWindow = (x >= 0 && y >= 0 && x < sh.w && y < sh.h);
+				if (inWindow && sh.cells[y*sh.w + x] == SHEET_DECK)
+					v = SHEET_DECK;
+				else if (gx >= 0 && gy >= 0 && gx < W && gy < H && owner[gy*W + gx] != NOBODY)
+					v = (unsigned char)((inWindow && owner[gy*W + gx] == k) ? SHEET_GROUND : SHEET_OTHER);
+				grown[(y + 1)*(sh.w + 2) + (x + 1)] = v;
+			}
+		}
+		sh.cells.swap(grown);
+		sh.ox -= 1;
+		sh.oy -= 1;
+		sh.w += 2;
+		sh.h += 2;
 	}
 }
 
