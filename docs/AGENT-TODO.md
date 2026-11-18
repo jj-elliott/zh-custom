@@ -173,7 +173,15 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       Groups take corners abreast now (`AIDrive::spreadCorners`, at most three places; PLAN.md has the table).
       Side-steps for oncoming / standing units, first version (`trySidestep`; each to its own right, half each):
       crossing overlap 5.2 -> 0.8 across the suite, at 2 planned turns a side-step. PLAN.md has the table.
-      **Open, agent, next:** the group moves over as a body (members step into their own neighbours today); crossing
+      **2026-11-18: the rails are replaced by the brief's micro tier** (`AIDrive.cpp` `steer()`, `drive.mode=1`
+      default; PLAN.md "M4 again"). The user: the SC2 brief supersedes the earlier preference/invariant notes; do
+      not use them to justify deviating from it. Overlap 0.56 with no head-on overlap, reversals 3.6, no timeouts;
+      city and river are slow. Untuned and unseen.
+      **Open, human:** play level 2 (`.\scripts\movetest.ps1 -Name pathfinding -Level 2`): groups, head-on, a choke.
+      **Open, agent, next:** waypoint radius for groups (city / bridges are slow), tune weights from what the user
+      sees, priority right of way, bucket grid for `onMesh`, then delete the rails (`drive.mode=0`, `NavDrive`
+      plan following, `spreadCorners`, `trySidestep`) once steering has been played and accepted.
+      (Old note, rails:) the group moves over as a body (members step into their own neighbours today); crossing
       traffic; bridges are single file (mesh not asked about decks by `spreadCorners` / side-step); arrival spots;
       idle units that cannot be passed (no room) still rely on the old yield-on-contact.
       **Open, human:** a group move round buildings at level 2: does it read as a group?

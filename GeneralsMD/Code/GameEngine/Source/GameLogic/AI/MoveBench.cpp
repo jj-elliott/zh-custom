@@ -771,8 +771,8 @@ int run()
 			maxArrive = arrive;
 		reversals += t.reversals;
 		wobble += t.quickReversals;
-		printf("MoveBenchUnit: id=%u vehicle=%d radius=%.1f reversals=%d revSteer=%d stalled=%u\n", (unsigned)t.id, t.vehicle ? 1 : 0,
-			t.radius, t.reversals, t.revSteer, t.stalledFrames);
+		printf("MoveBenchUnit: id=%u vehicle=%d radius=%.1f reversals=%d revSteer=%d stalled=%u lastMoving=%u\n", (unsigned)t.id, t.vehicle ? 1 : 0,
+			t.radius, t.reversals, t.revSteer, t.stalledFrames, t.lastMovingFrame);
 		revSteer += t.revSteer;
 		revStart += t.revStart;
 		revEnd += t.revEnd;

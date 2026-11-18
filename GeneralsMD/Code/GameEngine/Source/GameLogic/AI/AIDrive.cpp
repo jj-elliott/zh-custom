@@ -53,6 +53,14 @@ namespace AIDrive
 		Real shownHeading;	///< the heading the object is given: the plan's, eased (see TURN_EASE)
 		Bool allGround;			///< the path never leaves the ground layer (so the mesh can be asked about it)
 		UnsignedInt noSidestepUntil;	///< frame before which no (further) side-step is considered
+		// Steering (drive.mode 1): the route's points, which of them is being made for, the velocity being asked
+		// for (smoothed) and the speed the unit has.
+		std::vector<NavDrive::Pt> route;
+		Int nextPoint;
+		Real wantX, wantY;
+		Real speed;
+		Bool arrived;
+		Int heldAtGoal;
 		Bool abandoned;		///< this path is left to the old follower
 		Bool holding;			///< we have set OBJECT_STATUS_BRAKING
 	};
@@ -82,6 +90,22 @@ namespace
 	Int DEBUG_UNIT = 0;
 	Bool s_loaded = false;
 	Int s_spread = 0, s_spreadUndone = 0;
+	// ---- Steering, the micro tier of the SC2 brief (drive.mode 1, the default; 0 = the rails above).
+	Int MODE = 1;
+	Real W_SEPARATE = 1.4f;					// weights of the parts of the velocity a unit asks for (seek is 1)
+	Real W_COHERE = 0.08f;
+	Real W_AVOID = 1.2f;
+	Real SEP_RANGE = 1.35f;					// separation acts inside this many (sums of radii)
+	Real AVOID_FRAMES = 45.0f;			// how far ahead velocities are projected for avoidance
+	Real AVOID_CLEAR = 1.1f;				// ... and how many (sums of radii) a predicted miss must be to need nothing
+	Real WANT_SMOOTH = 0.3f;				// share of the newly asked-for velocity taken each frame
+	Real PUSH_CONTACT = 0.9f;				// units nearer than this many (sums of radii) are pushed apart
+	Real PUSH_MAX = 0.6f;						// most a unit is displaced by pushing in a frame, world units
+	Real CORNER_REACH = 8.0f;				// a route point counts as reached this near it (or once passed)
+	Real TURN_GENTLE = 0.15f;				// heading errors below this (radians) ...
+	Real TURN_GENTLE_SHARE = 0.06f;	// ... are closed by this share a frame
+	Int s_steerFrames = 0, s_wallStops = 0, s_pushes = 0, s_lookAheads = 0, s_arrivedShort = 0;
+
 	// Side-steps (trySidestep).
 	Int SIDESTEP = 1;
 	Real SIDE_LOOK = 60.0f;					// frames ahead a meeting must be to be acted on (2 s)
@@ -117,6 +141,16 @@ namespace
 		MoveTune::apply("drive.spread", SPREAD);
 		MoveTune::apply("drive.spreadSpacing", SPREAD_SPACING);
 		MoveTune::apply("drive.spreadMax", SPREAD_MAX);
+		MoveTune::apply("drive.mode", MODE);
+		MoveTune::apply("drive.wSeparate", W_SEPARATE);
+		MoveTune::apply("drive.wCohere", W_COHERE);
+		MoveTune::apply("drive.wAvoid", W_AVOID);
+		MoveTune::apply("drive.sepRange", SEP_RANGE);
+		MoveTune::apply("drive.avoidFrames", AVOID_FRAMES);
+		MoveTune::apply("drive.wantSmooth", WANT_SMOOTH);
+		MoveTune::apply("drive.pushMax", PUSH_MAX);
+		MoveTune::apply("drive.turnGentle", TURN_GENTLE);
+		MoveTune::apply("drive.turnGentleShare", TURN_GENTLE_SHARE);
 		MoveTune::apply("drive.sidestep", SIDESTEP);
 		MoveTune::apply("drive.sideLook", SIDE_LOOK);
 		MoveTune::apply("drive.sideMargin", SIDE_MARGIN);
@@ -617,6 +651,448 @@ void AIDrive::release( Object *obj, Data *data )
 		physics->scrubVelocity2D(0.0f);
 }
 
+namespace
+{
+	inline Real wrapAngle( Real a )
+	{
+		while (a > PI) a -= 2.0f * PI;
+		while (a <= -PI) a += 2.0f * PI;
+		return a;
+	}
+
+	/// Put the object where it has been moved to, facing as it has turned, and tell physics (see AIDrive.h).
+	void applyPose( Object *obj, PhysicsBehavior *physics, AIDrive::Data *data, Real x, Real y, Real heading, Real moved, Real turned )
+	{
+		Coord3D to;
+		to.x = x;
+		to.y = y;
+		to.z = TheTerrainLogic->getLayerHeight(x, y, obj->getLayer());
+		obj->setPosition(&to);
+		obj->setOrientation(heading);
+		obj->setStatus( MAKE_OBJECT_STATUS_MASK( OBJECT_STATUS_BRAKING ) );
+		data->holding = TRUE;
+		Coord3D none;
+		none.zero();
+		physics->applyMotiveForce(&none);
+		Coord3D delta;
+		const Coord3D *vel = physics->getVelocity();
+		delta.x = Cos(heading) * moved - vel->x;
+		delta.y = Sin(heading) * moved - vel->y;
+		delta.z = 0.0f;
+		physics->addVelocityTo(&delta);
+		physics->scrubVelocity2D(moved * 0.9999f);
+		physics->setTurning(turned > 0.002f ? TURN_POSITIVE : (turned < -0.002f ? TURN_NEGATIVE : TURN_NONE));
+	}
+
+	/// The micro tier as the SC2 brief has it. Every frame the unit asks for a velocity that is a blend of
+	///   seek        towards the next point of its route (the pulled string from the navigation mesh),
+	///   separation  away from units nearer than a little more than touching,
+	///   cohesion    (slight) towards the units of its own group around it,
+	///   avoidance   sideways out of the way of any unit whose velocity, projected a second and a half ahead,
+	///               brings it too close,
+	/// and then moves the way this engine's units can: it turns towards that velocity no faster than its turn rate
+	/// (a wheeled unit: in proportion to its speed), slows while it is facing away from it (tracked units and
+	/// infantry down to a pivot), and changes speed no faster than its acceleration and brakes. Those limits are the
+	/// one place this differs from SC2, whose units have none to speak of.
+	/// Units that touch are pushed apart: two moving units share it, a moving unit pushes an idle ally out of its
+	/// way. No unit's centre leaves the ground of its size (its mesh).
+	Bool steer( Object *obj, AIUpdateInterface *ai, AIDrive::Data *& data, Path *path, const NavDrive::Kinematics& kin,
+							Real desiredSpeed, PhysicsBehavior *physics )
+	{
+		const Coord3D *first = path->getFirstNode()->getPosition();
+		const Coord3D *last = path->getLastNode()->getPosition();
+		const Coord3D *pos = obj->getPosition();
+		Bool samePath = data != nullptr && data->path == path
+			&& data->pathFirst.x == first->x && data->pathFirst.y == first->y
+			&& data->pathLast.x == last->x && data->pathLast.y == last->y;
+		if (!samePath)
+		{
+			if (data == nullptr)
+			{
+				data = new AIDrive::Data;
+				data->holding = FALSE;
+				data->noSidestepUntil = 0;
+			}
+			data->path = path;
+			data->pathFirst = *first;
+			data->pathLast = *last;
+			data->route.clear();
+			NavDrive::Pt pt;
+			pt.x = pos->x; pt.y = pos->y;
+			data->route.push_back(pt);
+			data->allGround = obj->getLayer() == LAYER_GROUND;
+			Int guard = 4096;
+			for (PathNode *node = path->getFirstNode()->getNextOptimized(); node != nullptr && --guard > 0; node = node->getNextOptimized())
+			{
+				pt.x = node->getPosition()->x;
+				pt.y = node->getPosition()->y;
+				data->route.push_back(pt);
+				if (node->getLayer() != LAYER_GROUND)
+					data->allGround = FALSE;
+			}
+			data->nextPoint = 1;
+			data->wantX = 0.0f;
+			data->wantY = 0.0f;
+			Real rolling = physics->getForwardSpeed2D();
+			data->speed = rolling < 0.0f ? 0.0f : (rolling > kin.maxSpeed ? kin.maxSpeed : rolling);
+			data->arrived = FALSE;
+			data->heldAtGoal = 0;
+			data->abandoned = data->route.size() < 2;
+			data->shownHeading = obj->getOrientation();
+			++s_plans;
+		}
+		if (data->abandoned || data->arrived)
+			return FALSE;
+
+		UnsignedInt now = TheGameLogic->getFrame();
+		const std::vector<NavDrive::Pt>& route = data->route;
+		Int lastPoint = (Int)route.size() - 1;
+		Real x = pos->x, y = pos->y;
+		Real heading = obj->getOrientation();
+		Real hx = Cos(heading), hy = Sin(heading);
+		Real ourRadius = radiusOf(obj);
+		Bool onGround = data->allGround && obj->getLayer() == LAYER_GROUND;
+		++s_steerFrames;
+
+		// ---- Which point of the route it is making for: the next one not yet reached or passed; and, every few
+		// frames, the one after if it can be gone to directly (a unit pushed off its string re-pulls it).
+		while (data->nextPoint < lastPoint)
+		{
+			const NavDrive::Pt& c = route[data->nextPoint];
+			const NavDrive::Pt& b = route[data->nextPoint - 1];
+			Real dx = x - c.x, dy = y - c.y;
+			Real reach = CORNER_REACH > ourRadius ? CORNER_REACH : ourRadius;
+			if (dx*dx + dy*dy < reach*reach || dx * (c.x - b.x) + dy * (c.y - b.y) > 0.0f)
+				++data->nextPoint;
+			else
+				break;
+		}
+		if (onGround && data->nextPoint < lastPoint && ((now + (UnsignedInt)obj->getID()) & 7) == 0)
+		{
+			const NavDrive::Pt& after = route[data->nextPoint + 1];
+			if (NavMesh::segmentOnMesh(obj, ai->getLocomotorSet(), x, y, after.x, after.y))
+			{
+				++data->nextPoint;
+				++s_lookAheads;
+			}
+		}
+		const NavDrive::Pt& target = route[data->nextPoint];
+		Real toX = target.x - x, toY = target.y - y;
+		Real toDist = sqrt(toX*toX + toY*toY);
+		Real remaining = toDist;
+		for (Int i = data->nextPoint; i < lastPoint; ++i)
+			remaining += sqrt(sqr(route[i+1].x - route[i].x) + sqr(route[i+1].y - route[i].y));
+
+		// ---- Arrived?
+		if (data->nextPoint == lastPoint && toDist <= (data->speed > 1.0f ? data->speed : 1.0f))
+		{
+			applyPose(obj, physics, data, target.x, target.y, heading, toDist, 0.0f);
+			data->arrived = TRUE;
+			AIDrive::release(obj, data);
+			return TRUE;
+		}
+
+		// ---- The velocity it asks for, in shares of its top speed.
+		Real seekX = toDist > 0.001f ? toX / toDist : hx, seekY = toDist > 0.001f ? toY / toDist : hy;
+		Real sepX = 0.0f, sepY = 0.0f, avoidX = 0.0f, avoidY = 0.0f;
+		Real cohX = 0.0f, cohY = 0.0f;
+		Int cohCount = 0;
+		Real pushX = 0.0f, pushY = 0.0f;
+		Real followMost = 1.0e9f;
+		Bool goalTaken = FALSE;
+		Bool weAreInfantry = obj->isKindOf(KINDOF_INFANTRY);
+		Real myVx = hx * data->speed, myVy = hy * data->speed;
+		{
+			Real range = 2.0f * ourRadius + 2.0f * kin.maxSpeed * AVOID_FRAMES + 2.0f * PATHFIND_CELL_SIZE_F;
+			if (range > 30.0f * PATHFIND_CELL_SIZE_F)
+				range = 30.0f * PATHFIND_CELL_SIZE_F;
+			SimpleObjectIterator *iter = ThePartitionManager->iterateObjectsInRange( obj, range, FROM_CENTER_2D, nullptr, ITER_SORTED_NEAR_TO_FAR );
+			MemoryPoolObjectHolder hold(iter);
+			Int count = 0;
+			for (Object *other = iter->first(); other && count < 24; other = iter->next())
+			{
+				if (other == obj || other->isEffectivelyDead() || other->getContainedBy() != nullptr)
+					continue;
+				if (other->isKindOf(KINDOF_STRUCTURE) || other->isKindOf(KINDOF_IMMOBILE))
+					continue;
+				AIUpdateInterface *aiOther = other->getAI();
+				PhysicsBehavior *otherPhysics = other->getPhysics();
+				if (aiOther == nullptr || otherPhysics == nullptr || !aiOther->isDoingGroundMovement() || other->isAboveTerrain())
+					continue;
+				Bool otherInfantry = other->isKindOf(KINDOF_INFANTRY);
+				// A vehicle does not make way for infantry (it pushes its own aside and runs the enemy's over).
+				if (otherInfantry && !weAreInfantry)
+				{
+					if (obj->getRelationship(other) != ENEMIES)
+					{
+						const Coord3D *ip = other->getPosition();
+						Real ix = ip->x - x, iy = ip->y - y;
+						Real id = sqrt(ix*ix + iy*iy);
+						Real both = ourRadius + radiusOf(other);
+						if (id < both * PUSH_CONTACT && id > 0.01f && ix * hx + iy * hy > 0.0f)
+						{
+							Real by = both * PUSH_CONTACT - id;
+							if (by > PUSH_MAX) by = PUSH_MAX;
+							Coord3D moved = *ip;
+							// aside, not ahead: to whichever side of our line it already is
+							Real side = (ix * hy - iy * hx) >= 0.0f ? 1.0f : -1.0f;
+							moved.x += hy * side * by;
+							moved.y += -hx * side * by;
+							if (NavMesh::onMesh(other, aiOther->getLocomotorSet(), moved.x, moved.y))
+							{
+								other->setPosition(&moved);
+								++s_pushes;
+							}
+						}
+					}
+					continue;
+				}
+				if (obj->canCrushOrSquish(other))
+					continue;
+				++count;
+				const Coord3D *op = other->getPosition();
+				Real rx = op->x - x, ry = op->y - y;
+				Real dist = sqrt(rx*rx + ry*ry);
+				Real both = ourRadius + radiusOf(other);
+				const Coord3D *ov = otherPhysics->getVelocity();
+				Real otherSpeed = sqrt(ov->x * ov->x + ov->y * ov->y);
+				Bool otherIdle = otherSpeed < 0.05f && aiOther->isIdle();
+				Bool ally = obj->getRelationship(other) != ENEMIES;
+				Real awayX = dist > 0.01f ? -rx / dist : -hy, awayY = dist > 0.01f ? -ry / dist : hx;
+
+				// Separation: stronger the nearer, nothing beyond SEP_RANGE. (An idle ally is pushed instead.)
+				if (dist < both * SEP_RANGE)
+				{
+					Real w = 1.0f - dist / (both * SEP_RANGE);
+					if (otherIdle && ally)
+						w *= 0.3f;
+					sepX += awayX * w;
+					sepY += awayY * w;
+				}
+				// Cohesion: the middle of the group-mates around.
+				if (ai->getGroupKey() != 0 && aiOther->getGroupKey() == ai->getGroupKey())
+				{
+					cohX += rx;
+					cohY += ry;
+					++cohCount;
+				}
+				// Touching: pushed apart. Two moving units each take half; an idle ally is moved out of the way.
+				if (dist < both * PUSH_CONTACT)
+				{
+					Real by = both * PUSH_CONTACT - dist;
+					if (otherIdle && ally)
+					{
+						Real give = by * 0.8f;
+						if (give > PUSH_MAX) give = PUSH_MAX;
+						Coord3D moved = *op;
+						moved.x -= awayX * give;
+						moved.y -= awayY * give;
+						if (NavMesh::onMesh(other, aiOther->getLocomotorSet(), moved.x, moved.y))
+						{
+							other->setPosition(&moved);
+							++s_pushes;
+						}
+						by *= 0.2f;
+					}
+					else
+						by *= 0.5f;
+					pushX += awayX * by;
+					pushY += awayY * by;
+				}
+				// Someone standing where we are going, and we are nearly there?
+				if (otherSpeed < 0.05f && sqr(op->x - route[lastPoint].x) + sqr(op->y - route[lastPoint].y) < sqr(both * 0.8f))
+					goalTaken = TRUE;
+				// Following: no faster than a unit just ahead going our way allows.
+				Real ahead = rx * hx + ry * hy;
+				Real lateral = rx * hy - ry * hx;
+				Real along = ov->x * hx + ov->y * hy;
+				if (ahead > 0.0f && fabs(lateral) < both * FOLLOW_LANE && otherSpeed >= 0.05f && along > otherSpeed * SAME_WAY_COS)
+				{
+					Real most = along + (ahead - both * FOLLOW_GAP) / FOLLOW_HEADWAY;
+					if (most < 0.0f) most = 0.0f;
+					if (most < followMost) followMost = most;
+				}
+				// Avoidance: where will the two be nearest, going as they are?
+				Real wx = ov->x - myVx, wy = ov->y - myVy;
+				Real w2 = wx*wx + wy*wy;
+				Bool goingOurWay = otherSpeed >= 0.05f && along > otherSpeed * SAME_WAY_COS;
+				if (w2 > 0.0004f && !(otherIdle && ally) && !goingOurWay)
+				{
+					Real t = -(rx * wx + ry * wy) / w2;
+					if (t > 0.0f && t < AVOID_FRAMES)
+					{
+						Real mx = rx + wx * t, my = ry + wy * t;	// where it is then, from us
+						Real miss = sqrt(mx*mx + my*my);
+						if (miss < both * AVOID_CLEAR)
+						{
+							Real w = (1.0f - t / AVOID_FRAMES) * (1.0f - miss / (both * AVOID_CLEAR));
+							// Sideways, away from the side it will pass on; dead ahead: to the right.
+							Real side = mx * hy - my * hx;	// > 0: it passes on our right
+							Real dir = (side > 0.01f) ? -1.0f : 1.0f;
+							avoidX += hy * dir * w;
+							avoidY += -hx * dir * w;
+						}
+					}
+				}
+			}
+		}
+		Real askX = seekX + sepX * W_SEPARATE + avoidX * W_AVOID;
+		Real askY = seekY + sepY * W_SEPARATE + avoidY * W_AVOID;
+		if (cohCount > 0)
+		{
+			Real cx = cohX / (Real)cohCount, cy = cohY / (Real)cohCount;
+			Real cl = sqrt(cx*cx + cy*cy);
+			if (cl > 3.0f * ourRadius)
+			{
+				askX += cx / cl * W_COHERE;
+				askY += cy / cl * W_COHERE;
+			}
+		}
+		Real askLen = sqrt(askX*askX + askY*askY);
+		if (askLen > 1.0f)
+		{
+			askX /= askLen;
+			askY /= askLen;
+		}
+		// The speed it would like: its own, less for a leader, and no more than lets it stop at the end.
+		Real top = desiredSpeed < kin.maxSpeed ? desiredSpeed : kin.maxSpeed;
+		if (followMost < top)
+			top = followMost;
+		Real stopMost = (-kin.brake + sqrt(kin.brake * kin.brake + 8.0f * kin.brake * remaining)) * 0.5f;
+		if (stopMost < top)
+			top = stopMost;
+		if (top < 0.0f)
+			top = 0.0f;
+		data->wantX += (askX * top - data->wantX) * WANT_SMOOTH;
+		data->wantY += (askY * top - data->wantY) * WANT_SMOOTH;
+
+		// Its place is taken and it is as near as it will get: this is where it stops (the arrival radius grows with
+		// the crowd already there).
+		if (goalTaken && remaining < 3.0f * ourRadius + 2.0f * PATHFIND_CELL_SIZE_F)
+		{
+			if (++data->heldAtGoal > 20)
+			{
+				Coord3D here = *pos;
+				path->updateLastNode(&here);
+				data->pathLast = here;
+				data->arrived = TRUE;
+				++s_arrivedShort;
+				AIDrive::release(obj, data);
+				return TRUE;
+			}
+		}
+		else
+			data->heldAtGoal = 0;
+
+		// ---- Moving as this unit can.
+		Real wantSpeed = sqrt(data->wantX * data->wantX + data->wantY * data->wantY);
+		Real off = wantSpeed > 0.01f ? wrapAngle(atan2(data->wantY, data->wantX) - heading) : 0.0f;
+		Real offMag = fabs(off);
+		Bool wheels = kin.turnSpeed > 0.0f;
+		// Facing away from where it wants to go it goes slower: tracks and legs down to a pivot, wheels down to
+		// the speed they need to be able to turn at all.
+		Real facing = 1.0f;
+		if (offMag > 0.35f)
+			facing = offMag >= 1.2f ? 0.0f : 1.0f - (offMag - 0.35f) / 0.85f;
+		Real goSpeed = wantSpeed * facing;
+		if (wheels && offMag > 0.1f && wantSpeed > 0.05f && goSpeed < kin.turnSpeed * 0.6f)
+			goSpeed = kin.turnSpeed * 0.6f;
+		// A wheeled unit whose point lies inside its own turning circle can never reach it by driving: it would
+		// circle it for ever (retail has a timer for this). There it creeps and turns as tightly as it needs to, as
+		// a driver would shuffle a car round.
+		Bool tightSpot = FALSE;
+		if (wheels)
+		{
+			Real circle = kin.turnSpeed / kin.turnRate;
+			Real aheadOfUs = toX * hx + toY * hy;
+			Real beside = fabs(toX * hy - toY * hx);
+			if (aheadOfUs * aheadOfUs + (beside - circle) * (beside - circle) < circle * circle * 1.1f)
+			{
+				tightSpot = TRUE;
+				if (goSpeed > kin.turnSpeed * 0.35f)
+					goSpeed = kin.turnSpeed * 0.35f;
+			}
+		}
+		Real speed = data->speed;
+		if (goSpeed > speed)
+			speed = (speed + kin.accel < goSpeed) ? speed + kin.accel : goSpeed;
+		else
+			speed = (speed - kin.brake > goSpeed) ? speed - kin.brake : goSpeed;
+		Real turnMost = kin.turnRate;
+		if (wheels && speed < kin.turnSpeed)
+			turnMost *= speed / kin.turnSpeed;
+		if (wheels && tightSpot)
+			turnMost = kin.turnRate;
+		// A small error is closed gently (a steady stream of small changes in what is asked for must not show as
+		// the unit twitching); a real one with the eased turn.
+		Real turn = off * TURN_EASE;
+		if (offMag < TURN_GENTLE)
+			turn = off * TURN_GENTLE_SHARE;
+		if (turn > turnMost) turn = turnMost;
+		if (turn < -turnMost) turn = -turnMost;
+		Real newHeading = wrapAngle(heading + turn);
+		Real nhx = Cos(newHeading), nhy = Sin(newHeading);
+
+		Real pushLen = sqrt(pushX*pushX + pushY*pushY);
+		if (pushLen > PUSH_MAX)
+		{
+			pushX *= PUSH_MAX / pushLen;
+			pushY *= PUSH_MAX / pushLen;
+		}
+		Real nx = x + nhx * speed + pushX, ny = y + nhy * speed + pushY;
+		if (onGround && !NavMesh::onMesh(obj, ai->getLocomotorSet(), nx, ny)
+				&& NavMesh::onMesh(obj, ai->getLocomotorSet(), x, y))
+		{
+			// The step would take it off its ground: it slides along the edge instead. The step is turned, a little
+			// at a time and to whichever side keeps more of its way towards the route, until it stays on; failing
+			// that it stands this frame. (A unit already off its mesh, built there or against a wall, is let move.)
+			Real sx = nx - x, sy = ny - y;
+			static const Real TURNED[6] = { 0.5f, -0.5f, 1.0f, -1.0f, 1.5f, -1.5f };
+			Bool found = FALSE;
+			Real bestGain = -1.0e9f, bestX = x, bestY = y;
+			for (Int k = 0; k < 6; ++k)
+			{
+				Real c = Cos(TURNED[k]), sn = Sin(TURNED[k]);
+				Real tx = sx * c - sy * sn, ty = sx * sn + sy * c;
+				if (!NavMesh::onMesh(obj, ai->getLocomotorSet(), x + tx, y + ty))
+					continue;
+				Real gain = tx * seekX + ty * seekY;
+				if (!found || gain > bestGain + 0.001f)
+				{
+					found = TRUE;
+					bestGain = gain;
+					bestX = x + tx;
+					bestY = y + ty;
+				}
+				if ((k & 1) == 1 && found)
+					break;	// the smallest turn that works, on its better side
+			}
+			if (found)
+			{
+				nx = bestX;
+				ny = bestY;
+			}
+			else
+			{
+				speed = 0.0f;
+				nx = x;
+				ny = y;
+				++s_wallStops;
+			}
+		}
+		data->speed = speed;
+		data->shownHeading = newHeading;
+		applyPose(obj, physics, data, nx, ny, newHeading, speed, turn);
+		if (DEBUG_UNIT != 0 && (Int)obj->getID() == DEBUG_UNIT)
+		{
+			printf("DBGSTEER2 f=%u pt=%d/%d x=%.1f y=%.1f h=%.3f v=%.3f want=(%.2f,%.2f) sep=(%.2f,%.2f) avoid=(%.2f,%.2f) push=(%.2f,%.2f) follow=%.2f\n",
+				now, data->nextPoint, lastPoint, nx, ny, newHeading, speed, data->wantX, data->wantY, sepX, sepY, avoidX, avoidY, pushX, pushY,
+				followMost > 1.0e8f ? -1.0f : followMost);
+		}
+		return TRUE;
+	}
+}
+
 //-------------------------------------------------------------------------------------------------
 Bool AIDrive::update( Object *obj, AIUpdateInterface *ai, Data *& data, Real desiredSpeed )
 {
@@ -635,6 +1111,8 @@ Bool AIDrive::update( Object *obj, AIUpdateInterface *ai, Data *& data, Real des
 	kinematicsOf(obj, loco, kin);
 	if (kin.maxSpeed <= 0.0f || kin.turnRate <= 0.0f)
 		return FALSE;
+	if (MODE == 1)
+		return steer(obj, ai, data, path, kin, desiredSpeed, physics);
 
 	const Coord3D *first = path->getFirstNode()->getPosition();
 	const Coord3D *last = path->getLastNode()->getPosition();
@@ -735,7 +1213,7 @@ void AIDrive::printStats()
 {
 	if (!MoveRules::navmesh())
 		return;
-	printf("AIDrive: plans=%d smallerArcs=%d pivots=%d cheats=%d arcsOffMesh=%d abandoned=%d followPct=%.1f cornersSpread=%d spreadUndone=%d sidesteps=%d noSidestep=%d\n",
+	printf("AIDrive: plans=%d smallerArcs=%d pivots=%d cheats=%d arcsOffMesh=%d abandoned=%d followPct=%.1f cornersSpread=%d spreadUndone=%d sidesteps=%d noSidestep=%d | steer: frames=%d lookAheads=%d pushes=%d wallStops=%d arrivedShort=%d\n",
 		s_plans, s_smaller, s_pivots, s_cheats, s_offMesh, s_abandoned, s_frames ? 100.0f * (Real)s_followFrames / (Real)s_frames : 0.0f,
-		s_spread, s_spreadUndone, s_sidesteps, s_sidestepNone);
+		s_spread, s_spreadUndone, s_sidesteps, s_sidestepNone, s_steerFrames, s_lookAheads, s_pushes, s_wallStops, s_arrivedShort);
 }

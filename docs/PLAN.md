@@ -928,7 +928,60 @@ two planned turns per side-step. What is **not** right yet:
 - river-cross is slow at level 2 (104 s against 69 s at level 1) because both groups queue nose to tail for the
   bridges; the bridge decks are not places `spreadCorners` or the side-step ask the mesh about yet.
 
-**Next (M4, second part, continued): what units do about each other, still on rails.**
+### M4 again: the micro tier as the brief has it (2026-11-18). THIS REPLACES THE RAILS
+
+The user, on being told that corner-spreading and side-steps were stand-ins for the brief's separation, cohesion and
+avoidance: "is the core problem here that units in SC2 don't have the same headings / constraints as generals
+units which prompted the changes to the design?" and: "once we'd swapped to implementing the SC2 brief it should
+supercede those previous notes about preferences / invariants etc. a lot of those were in response to faults in
+the old system, they should not be used as justification for why we deviate from the 'known good' implementation."
+
+Answer, for the record: only partly. Tanks turn 180 degrees a second and pivot; infantry faster; only wheeled units
+are really constrained. Putting units on rails (one fixed line, traffic may only slow it) was my choice, argued
+from the earlier "no deviation without a reason" notes, and it is why groups and oncoming traffic needed a special
+rule each. **From here the brief is the plan and those notes are history. A deviation from the brief needs a
+concrete reason in this engine, stated to the user.** The one such reason so far: a unit's turn rate,
+acceleration, braking and (wheels) turning circle limit how it follows the velocity it asks for.
+
+**Built** (`AIDrive.cpp`, `steer()`, `drive.mode=1`, the default at level 2; `drive.mode=0` is the rails, kept
+for comparison until this has been played):
+- Every frame a unit asks for a velocity: **seek** the next point of its route (the pulled string; the point after
+  it if that can be gone to directly on its mesh) + **separation** from units nearer than 1.35 x touching +
+  slight **cohesion** with its group + **predictive avoidance** (velocities projected 1.5 s; sideways, away from
+  the side the other will pass on, dead ahead to the right), smoothed, and no faster than lets it stop at the end.
+- It then moves as this engine's unit can: turns towards that velocity within its turn rate (wheels: in
+  proportion to speed), slower the more it faces away (tracks and legs down to a pivot), within its acceleration
+  and brakes. Small heading errors are closed gently so a stream of small changes does not show as twitching.
+- **Pushing:** units that touch are pushed apart; two moving units share it; a moving unit pushes an idle ally (and
+  allied infantry) out of its way. **Walls:** a unit's centre stays on the mesh of its size; a step that would
+  leave it slides along the edge.
+- **Arrival:** a unit whose place is taken stops beside it once it is as near as it will get (the brief's arrival
+  radius). A wheeled unit whose point is inside its own turning circle creeps and turns tightly instead of circling
+  it for ever (found by the benchmark: a Humvee orbiting its destination).
+
+Suite, level 2, 3 variants:
+
+| | overlap (crossing) | reversals | wobble | meanArrive | stalled | timeouts |
+|---|---|---|---|---|---|---|
+| level 1 (old system) | 1.4 (0.8) | 12.7 | 6.0 | 59.8 s | 6.7 | 0 |
+| rails + corners abreast + side-steps | 4.5 (0.8) | 2.2 | 0.39 | 69.3 s | 13.2 | 0 |
+| **steering per the brief** | **0.56 (0)** | 3.6 | 0.58 | 72.2 s | 8.6 | 0 |
+| - city-mixed | 2.0 | 6.0 | 0.93 | 112.3 | 20.4 | |
+| - desert-cross (head-on) | 0 | 3.9 | 0.41 | 57.5 | 4.3 | |
+| - desert-mixed | 0.8 | 2.0 | 0.38 | 66.0 | 5.2 | |
+| - river-cross (bridges, head-on) | 0 | 5.9 | 1.2 | 99.5 | 13.1 | |
+
+Reading: units no longer overlap or pass through each other anywhere, with no rule per situation, at about the
+turning the rails needed once side-steps were added. What is weak: **the city and the river are slow** (112 s and
+99 s; level 1 took 84 and 69). Everything seeks the same corner point and squeezes past it; the brief's answer is
+the same as for arrival (a waypoint counts as reached within a radius that grows with the crowd) and has not been
+built for waypoints yet. Weights are first guesses; nothing has been tuned and **nobody has looked at it**.
+`soak.ps1 -Level 2` passes; `skirmish-01.rep` verifies at level 0.
+
+Still owed from the brief: waypoint radius for groups; right of way by priority beyond moving-over-idle; a spatial
+bucket grid for the mesh lookups (`onMesh` is a linear scan, now called every frame per unit); attack-move.
+
+**(Superseded) Next (M4, second part, continued): what units do about each other, still on rails.**
 1. (Done, above: corners abreast.)
 2. (First version done, above.) Next: a group moves over as a body; crossing traffic (at right angles) is still
    driven through; who gives way by push priority where there is no room for both.
