@@ -526,16 +526,29 @@ locomotor could not deliver, then correcting. M4 therefore has two halves:
   predictions use that same model (the user's "one model" principle). Ground units stop being force-driven:
   position and heading are integrated directly, as the engine already does for a braking unit.
 
-Open question for the user before M4 (does not block M1..M3): how far to move the units themselves toward SC2:
-keep each unit's INI turn rate and acceleration (tanks stay ponderous, steering has to plan for it), or raise turn
-rates / let vehicles pivot quickly as SC2 does (movement feels like SC2, units feel less like Generals tanks).
+**Decided by the user (2026-11-17): keep Generals turn rates and acceleration.** And the criterion that goes with
+it, in their words: "we're building a system that looks like it's working well / as intended and that any slowness
+is deliberate and not a 'bug' ... Smooth, well planned movement that is slow reads much better than movement that
+feels like it could be faster if the system was built better. The first feels like a design decision and the second
+a bug."
+
+What that means for M3/M4 (the test every steering decision is held to):
+- A slow turn is fine; a *correction* is not. A tank turns once, at its rate, onto a line it then keeps. So the path
+  a unit is given must already be one it can drive: the funnel's corners become arcs of the unit's own turning
+  circle (or a stop-pivot-go where the engine's treads do that), and the plan's timing uses the unit's own
+  acceleration. Steering never asks for a velocity the drive model cannot produce next frame.
+- Waiting must look like waiting: a unit that cannot go yet stands still facing where it will go, it does not
+  creep, wiggle or try alternatives.
+- Suite metrics follow from this: turn reversals not explained by the path's own corners, speed changes not
+  explained by a neighbour or a corner, and time spent neither moving nor arrived. Arrival time is reported but is
+  not the target.
 
 **Milestones. Each ends with its own check; nothing is wired into the sim until M3.**
 
 | | what | done when |
 |---|---|---|
 | **M1** | Mesh from the grid: boundary chains, simplification, CDT, labels. Standalone test tool. | **Done 2026-11-17**, see below. |
-| M2 | Rebuild on grid change; clearance per crossing; bridge / wall layers and portals; debug overlay in game. | fuzz covers edits; mesh == grid after every footprint change in a soak run; overlay looks right to the user. |
+| M2 | Rebuild on grid change (**done**, below); clearance per crossing; bridge / wall layers and portals; debug overlay in game. | fuzz covers edits; mesh == grid after every footprint change in a soak run; overlay looks right to the user. |
 | M3 | Point location, A* with clearance, funnel with radius; `MoveRules` level 2 routes ground paths through it. | path exists <=> grid says a path exists, on every suite map; lengths <= grid paths; plays. |
 | M4 | Drive model + steering + hard separation + push priorities; removes level 1's layers at level 2. | suite: no overlap, deviation only with a neighbour as cause; the user plays it against SC2 in their head. |
 | M5 | Arrival radius, group goals, attack-move. | same. |
@@ -561,6 +574,13 @@ engine side; `tests/navmesh/navtest.cpp` + `scripts/navtest.ps1` test it without
 
 Fuzz: 20000 random grids x 4 tolerances, 0 failures (neighbour symmetry, orientation, area, Delaunay on every
 unconstrained edge, labels, and at tolerance 0 the mesh equals the grid cell for cell).
+
+**M2, first part: the mesh follows the grid** (2026-11-17). `NavMesh::markDirty` is called where the pathfinder
+changes cell types (`internal_classifyObjectFootprint`, `classifyFence`, `classifyMap`, `changeBridgeState`);
+`NavMesh::update`, once a frame before the path queue, rebuilds the whole mesh if a label really changed. Checked on
+the seven recorded games with `-movetune navmesh.check=1,navmesh.log=1` (every second the grid is compared with what
+the mesh was built from): 14 to 53 rebuilds a game, never stale, every rebuilt mesh passes validation. At a few
+milliseconds each that is far below anything worth a partial rebuild.
 
 Known and deliberate: simplification moves boundaries by up to a cell (0.6..0.75% of cells change side), in both
 directions. From M3 the mesh is where units may be; the grid stays what structures are placed on. If a unit ends up

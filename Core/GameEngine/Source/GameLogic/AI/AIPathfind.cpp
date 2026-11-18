@@ -335,6 +335,7 @@ void Pathfinder::updateLayer(Object *obj, PathfindLayerEnum layer)
  */
 void Pathfinder::classifyFence( Object *obj, Bool insert )
 {
+	NavMesh::markDirty();	// zh-pipeline: the grid is about to change
 #if RTS_GENERALS && RETAIL_COMPATIBLE_PATHFINDING
 	m_zoneManager.markZonesDirty();
 #endif
@@ -535,6 +536,7 @@ void Pathfinder::classifyObjectFootprint( Object *obj, Bool insert )
 
 void Pathfinder::internal_classifyObjectFootprint( Object *obj, Bool insert )
 {
+	NavMesh::markDirty();	// zh-pipeline: the grid is about to change
 	const Coord3D *pos = obj->getPosition();
 
 #if !(RTS_GENERALS && RETAIL_COMPATIBLE_PATHFINDING)
@@ -901,6 +903,7 @@ void Pathfinder::newMap()
  */
 void Pathfinder::classifyMap()
 {
+	NavMesh::markDirty();	// zh-pipeline: the grid is about to change
 
 	Int i, j;
 	// for now, sample cell corners and classify cell accordingly
@@ -2163,6 +2166,7 @@ void Pathfinder::processPathfindQueue()
 	if (!m_isMapReady) {
 		return;
 	}
+	NavMesh::update(this);	// zh-pipeline: bring the navigation mesh up to date before any path is searched
 #ifdef DEBUG_QPF
 #ifdef DEBUG_LOGGING
 	Int startTimeMS = ::GetTickCount();
@@ -5985,6 +5989,7 @@ Bool Pathfinder::isGroundPathPassable( Bool isCrusher, const Coord3D& startWorld
 void Pathfinder::changeBridgeState( PathfindLayerEnum layer, Bool repaired)
 {
 	if (m_layers[layer].isUnused()) return;
+	NavMesh::markDirty();	// zh-pipeline: the grid is about to change
 	if (m_layers[layer].setDestroyed(!repaired)) {
 		m_zoneManager.markZonesDirty();
 	}

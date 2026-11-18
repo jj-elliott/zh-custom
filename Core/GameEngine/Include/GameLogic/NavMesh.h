@@ -21,8 +21,8 @@
 // The mesh is built from the pathfinder's ground cells by NavBuild (GameLogic/NavMeshBuild.h, which has the method
 // and the determinism argument). This is the engine side: which cell gets which label, and when the mesh is rebuilt.
 //
-// M1 state: built once at map load and only on request ("-movetune navmesh.build=1"); nothing reads it yet, so it
-// is not sim state. From M3 on searches run on it and it becomes sim state: derived, like the pathfinder's grid,
+// State: built at map load and kept up to date, only on request ("-movetune navmesh.build=1"); nothing reads it
+// yet, so it is not sim state. From M3 on searches run on it and it becomes sim state: derived, like the pathfinder's grid,
 // from the map and the objects on it, so it is rebuilt after a load rather than saved, and is not in the CRC.
 
 #pragma once
@@ -47,6 +47,14 @@ namespace NavMesh
 
 	/// Called by Pathfinder::newMap() once the grid is classified.
 	void rebuild( Pathfinder *pathfinder );
+
+	/// Called by the pathfinder wherever it changes cell types (structure and fence footprints, a full
+	/// reclassification, a bridge destroyed or repaired). Cheap: the work happens in update().
+	void markDirty();
+
+	/// Called by the pathfinder once a logic frame before it searches: rebuilds the mesh if it was marked dirty and
+	/// a label really changed. A whole map takes a few milliseconds, so there is no partial rebuild.
+	void update( Pathfinder *pathfinder );
 
 	const NavBuild::Mesh& mesh();
 }

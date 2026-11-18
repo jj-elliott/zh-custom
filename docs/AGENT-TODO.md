@@ -144,10 +144,13 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       A* over triangles + funnel, velocity steering (PLAN.md "Direction change: the StarCraft 2 model", milestones
       M1..M6). Level 1 work (lanes, AISteering reasons, the open items below) is frozen; do not tune it, and do not
       report parity with retail as progress. M1 (mesh from the grid, `NavMeshBuild`, `scripts/navtest.ps1`) is done.
-      **Open, agent, next:** M2: rebuild on grid change (hook the three footprint choke points), clearance per
-      crossing, bridge/wall layers + portals, in-game debug overlay. Then M3 (search + funnel, `MoveRules` level 2).
-      **Open, human:** before M4, decide how far units move toward SC2 kinematics (keep INI turn rates, or let
-      vehicles pivot fast). Look at a mesh picture: `scripts\navtest.ps1 -Scenario river-cross`.
+      M2 first part done: the mesh rebuilds when the grid changes (`NavMesh::markDirty` / `update`), proven on the
+      seven recordings with `navmesh.check=1`.
+      **Decided by the user:** keep Generals turn rates; slowness must read as deliberate (one planned turn, no
+      corrections, waiting looks like waiting). PLAN.md has the criterion; it is the test for M3/M4.
+      **Open, agent, next:** rest of M2: clearance per crossing, bridge/wall layers + portals, in-game debug overlay.
+      Then M3 (search + funnel with turning arcs, `MoveRules` level 2).
+      **Open, human:** look at a mesh picture: `scripts\navtest.ps1 -Scenario river-cross`.
       **Open, agent:** reversals in chokes (city-mixed 26, river-cross 28; open ground is at target). Start from
       `movetrace.ps1 -Scenario river-cross`; add a narrow-choke scenario.
       **Open, agent:** tune from feedback (constants at the top of `AISteering.cpp`, `MoveTraffic.cpp`); once it settles, record
