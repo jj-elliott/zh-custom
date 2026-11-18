@@ -22,7 +22,7 @@
 
 using namespace NavDrive;
 
-static long long s_segTests = 0, s_segWrong = 0, s_segGraze = 0;
+static long long s_segTests = 0, s_segWrong = 0, s_segGraze = 0, s_gridWrong = 0;
 static unsigned int s_seed = 1;
 static unsigned int rnd()
 {
@@ -114,6 +114,20 @@ static bool meshPath( std::vector<Pt>& pts, float& heading )
 		int a = clear[rnd() % clear.size()], b = clear[rnd() % clear.size()];
 		NavQuery::Pt s = { (a % (2*W)) + 0.5f, (a / (2*W)) + 0.5f }, g = { (b % (2*W)) + 0.5f, (b / (2*W)) + 0.5f };
 		bool walked = NavQuery::segmentClear(mesh, s, g, 1u, 0.25f);
+		{
+			// ... and the bucket grid must give the plain scan's answers.
+			static NavQuery::TriGrid grid;
+			if (k == 0)
+				grid.build(mesh, 8);
+			if (NavQuery::segmentClear(mesh, grid, s, g, 1u, 0.25f) != walked)
+				++s_gridWrong;
+			NavQuery::Pt probe = { s.x + (g.x - s.x) * 0.37f + 0.3f, s.y + (g.y - s.y) * 0.37f - 0.2f }, q1, q2;
+			int t1 = -1, t2 = -1;
+			bool f1 = NavQuery::nearestPassable(mesh, probe, 1u, 1.5f, 0, -1, q1, t1);
+			bool f2 = NavQuery::nearestPassable(mesh, grid, probe, 1u, 1.5f, q2, t2);
+			if (f1 != f2 || (f1 && ((q1.x-q2.x)*(q1.x-q2.x) + (q1.y-q2.y)*(q1.y-q2.y) > 1.0e-4f)))
+				++s_gridWrong;
+		}
 		float len = (float)sqrt((g.x-s.x)*(g.x-s.x) + (g.y-s.y)*(g.y-s.y));
 		int steps = (int)(len / 0.1f) + 1;
 		bool sampled = true;
@@ -433,7 +447,8 @@ static int fuzz( int count, unsigned int seed )
 			t.runs ? (double)t.pivots / t.runs : 0.0, t.runs ? (double)t.cheats / t.runs : 0.0);
 	}
 	printf("straight-line test on the mesh: %lld lines, %lld wrong, %lld differ only by grazing a wall\n", s_segTests, s_segWrong, s_segGraze);
-	if (s_segWrong)
+	printf("bucket grid against the plain scan: %lld differ\n", s_gridWrong);
+	if (s_segWrong || s_gridWrong)
 		++failures;
 	return failures ? 1 : 0;
 }

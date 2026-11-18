@@ -102,6 +102,7 @@ namespace
 	Real PUSH_CONTACT = 0.9f;				// units nearer than this many (sums of radii) are pushed apart
 	Real PUSH_MAX = 0.6f;						// most a unit is displaced by pushing in a frame, world units
 	Real CORNER_REACH = 8.0f;				// a route point counts as reached this near it (or once passed)
+	Int LOOK_EVERY = 2;							// every this many frames: can the point after the next be gone to directly?
 	Real TURN_GENTLE = 0.15f;				// heading errors below this (radians) ...
 	Real TURN_GENTLE_SHARE = 0.06f;	// ... are closed by this share a frame
 	Int s_steerFrames = 0, s_wallStops = 0, s_pushes = 0, s_lookAheads = 0, s_arrivedShort = 0;
@@ -149,6 +150,9 @@ namespace
 		MoveTune::apply("drive.avoidFrames", AVOID_FRAMES);
 		MoveTune::apply("drive.wantSmooth", WANT_SMOOTH);
 		MoveTune::apply("drive.pushMax", PUSH_MAX);
+		MoveTune::apply("drive.lookEvery", LOOK_EVERY);
+		if (LOOK_EVERY < 1) LOOK_EVERY = 1;
+		MoveTune::apply("drive.cornerReach", CORNER_REACH);
 		MoveTune::apply("drive.turnGentle", TURN_GENTLE);
 		MoveTune::apply("drive.turnGentleShare", TURN_GENTLE_SHARE);
 		MoveTune::apply("drive.sidestep", SIDESTEP);
@@ -730,6 +734,11 @@ namespace
 				if (node->getLayer() != LAYER_GROUND)
 					data->allGround = FALSE;
 			}
+			// A group's members do not all make for the same corner point: each one's is moved out from the wall by
+			// where it stands across the group, as far as the ground has room (spreadCorners). What they seek is then
+			// a band round the corner, not a point everyone has to squeeze past.
+			if (data->allGround)
+				spreadCorners(obj, ai, data->route);
 			data->nextPoint = 1;
 			data->wantX = 0.0f;
 			data->wantY = 0.0f;
@@ -767,7 +776,7 @@ namespace
 			else
 				break;
 		}
-		if (onGround && data->nextPoint < lastPoint && ((now + (UnsignedInt)obj->getID()) & 7) == 0)
+		if (onGround && data->nextPoint < lastPoint && ((now + (UnsignedInt)obj->getID()) % (UnsignedInt)LOOK_EVERY) == 0)
 		{
 			const NavDrive::Pt& after = route[data->nextPoint + 1];
 			if (NavMesh::segmentOnMesh(obj, ai->getLocomotorSet(), x, y, after.x, after.y))
@@ -858,13 +867,20 @@ namespace
 				Real otherSpeed = sqrt(ov->x * ov->x + ov->y * ov->y);
 				Bool otherIdle = otherSpeed < 0.05f && aiOther->isIdle();
 				Bool ally = obj->getRelationship(other) != ENEMIES;
+				// Who can be pushed: an idle ally, whoever is doing the pushing (the brief: moving units displace idle
+				// ones). Tried: infantry not shoving parked vehicles. They then cannot get to their places among them
+				// and never arrive (desert-mixed timed out).
+				Bool pushable = otherIdle && ally;
+				// ... and only one that is in the way: ahead of us, on our line. One we merely brush past stays put.
+				if (pushable && !(rx * hx + ry * hy > 0.0f && fabs(rx * hy - ry * hx) < both * 0.8f))
+					pushable = FALSE;
 				Real awayX = dist > 0.01f ? -rx / dist : -hy, awayY = dist > 0.01f ? -ry / dist : hx;
 
 				// Separation: stronger the nearer, nothing beyond SEP_RANGE. (An idle ally is pushed instead.)
 				if (dist < both * SEP_RANGE)
 				{
 					Real w = 1.0f - dist / (both * SEP_RANGE);
-					if (otherIdle && ally)
+					if (pushable)
 						w *= 0.3f;
 					sepX += awayX * w;
 					sepY += awayY * w;
@@ -880,7 +896,7 @@ namespace
 				if (dist < both * PUSH_CONTACT)
 				{
 					Real by = both * PUSH_CONTACT - dist;
-					if (otherIdle && ally)
+					if (pushable)
 					{
 						Real give = by * 0.8f;
 						if (give > PUSH_MAX) give = PUSH_MAX;
@@ -893,6 +909,17 @@ namespace
 							++s_pushes;
 						}
 						by *= 0.2f;
+					}
+					else if (otherIdle)
+					{
+						// it will not move for us: all of it is ours to give
+					}
+					else if (ally)
+					{
+						// Right of way: of two moving allies the one with the lower push rank (an order from the
+						// player outranks a move the unit thought of itself) gives more of the ground.
+						Int mine = ai->getPushRank(), its = aiOther->getPushRank();
+						by *= mine > its ? 0.25f : (mine < its ? 0.75f : 0.5f);
 					}
 					else
 						by *= 0.5f;
@@ -916,7 +943,7 @@ namespace
 				Real wx = ov->x - myVx, wy = ov->y - myVy;
 				Real w2 = wx*wx + wy*wy;
 				Bool goingOurWay = otherSpeed >= 0.05f && along > otherSpeed * SAME_WAY_COS;
-				if (w2 > 0.0004f && !(otherIdle && ally) && !goingOurWay)
+				if (w2 > 0.0004f && !pushable && !goingOurWay)
 				{
 					Real t = -(rx * wx + ry * wy) / w2;
 					if (t > 0.0f && t < AVOID_FRAMES)
@@ -926,6 +953,12 @@ namespace
 						if (miss < both * AVOID_CLEAR)
 						{
 							Real w = (1.0f - t / AVOID_FRAMES) * (1.0f - miss / (both * AVOID_CLEAR));
+							if (ally)
+							{
+								Int mine = ai->getPushRank(), its = aiOther->getPushRank();
+								if (mine > its) w *= 0.5f;	// it is for the other to get out of our way, mostly
+								else if (mine < its) w *= 1.4f;
+							}
 							// Sideways, away from the side it will pass on; dead ahead: to the right.
 							Real side = mx * hy - my * hx;	// > 0: it passes on our right
 							Real dir = (side > 0.01f) ? -1.0f : 1.0f;

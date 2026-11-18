@@ -261,12 +261,11 @@ bool nearestPassable( const Mesh& mesh, Pt p, unsigned mask, float maxDist, cons
 }
 
 //-------------------------------------------------------------------------------------------------
-bool segmentClear( const Mesh& mesh, Pt a, Pt b, unsigned mask, float snap )
+namespace
 {
-	Pt s, e;
-	int t = -1, te = -1;
-	if (!nearestPassable(mesh, a, mask, snap, 0, -1, s, t) || !nearestPassable(mesh, b, mask, snap, 0, -1, e, te))
-		return false;
+/// From a point s in triangle t to a point e in triangle te: does the straight line stay on passable ground?
+bool walkClear( const Mesh& mesh, Pt s, int t, Pt e, int te, unsigned mask )
+{
 	float len = dist(s, e);
 	float tol = 1.0e-3f * (len > 1.0f ? len : 1.0f);
 	int guard = (int)mesh.tris.size() + 8;
@@ -297,6 +296,151 @@ bool segmentClear( const Mesh& mesh, Pt a, Pt b, unsigned mask, float snap )
 		t = tr.n[out];
 	}
 	return false;
+}
+
+/// The nearest point of one triangle to p (p itself if inside), and how far.
+float nearestOnTri( const Mesh& mesh, const Tri& tr, const Pt& p, Pt& out )
+{
+	Pt a = pointOf(mesh, tr.v[0]), b = pointOf(mesh, tr.v[1]), c = pointOf(mesh, tr.v[2]);
+	if (cross(a, b, p) >= 0.0f && cross(b, c, p) >= 0.0f && cross(c, a, p) >= 0.0f)
+	{
+		out = p;
+		return 0.0f;
+	}
+	Pt q[3];
+	q[0] = closestOnSegment(p, a, b);
+	q[1] = closestOnSegment(p, b, c);
+	q[2] = closestOnSegment(p, c, a);
+	float best = 1.0e30f;
+	for (int i = 0; i < 3; ++i)
+	{
+		float d = dist(p, q[i]);
+		if (d < best)
+		{
+			best = d;
+			// a hair inside, as nearestPassable does
+			Pt mid;
+			mid.x = (a.x + b.x + c.x) / 3.0f;
+			mid.y = (a.y + b.y + c.y) / 3.0f;
+			float toMid = dist(q[i], mid);
+			float nudge = toMid > 0.0f ? 0.01f / toMid : 0.0f;
+			if (nudge > 1.0f)
+				nudge = 1.0f;
+			out.x = q[i].x + (mid.x - q[i].x) * nudge;
+			out.y = q[i].y + (mid.y - q[i].y) * nudge;
+		}
+	}
+	return best;
+}
+}	// namespace
+
+//-------------------------------------------------------------------------------------------------
+bool segmentClear( const Mesh& mesh, Pt a, Pt b, unsigned mask, float snap )
+{
+	Pt s, e;
+	int t = -1, te = -1;
+	if (!nearestPassable(mesh, a, mask, snap, 0, -1, s, t) || !nearestPassable(mesh, b, mask, snap, 0, -1, e, te))
+		return false;
+	return walkClear(mesh, s, t, e, te, mask);
+}
+
+//-------------------------------------------------------------------------------------------------
+void TriGrid::build( const Mesh& mesh, int cellSize )
+{
+	cell = cellSize > 0 ? cellSize : 8;
+	w = mesh.width / cell + 1;
+	h = mesh.height / cell + 1;
+	std::vector<int> count(w * h + 1, 0);
+	// two passes: count, then fill (triangles end up in each bucket in index order)
+	for (int pass = 0; pass < 2; ++pass)
+	{
+		for (size_t t = 0; t < mesh.tris.size(); ++t)
+		{
+			const Tri& tr = mesh.tris[t];
+			int x0 = mesh.verts[tr.v[0]].x, x1 = x0, y0 = mesh.verts[tr.v[0]].y, y1 = y0;
+			for (int k = 1; k < 3; ++k)
+			{
+				int vx = mesh.verts[tr.v[k]].x, vy = mesh.verts[tr.v[k]].y;
+				if (vx < x0) x0 = vx;
+				if (vx > x1) x1 = vx;
+				if (vy < y0) y0 = vy;
+				if (vy > y1) y1 = vy;
+			}
+			int bx0 = x0 / cell, bx1 = x1 / cell, by0 = y0 / cell, by1 = y1 / cell;
+			if (bx1 >= w) bx1 = w - 1;
+			if (by1 >= h) by1 = h - 1;
+			for (int by = by0; by <= by1; ++by)
+			{
+				for (int bx = bx0; bx <= bx1; ++bx)
+				{
+					if (pass == 0)
+						++count[by * w + bx];
+					else
+						tris[start[by * w + bx] + count[by * w + bx]++] = (int)t;
+				}
+			}
+		}
+		if (pass == 0)
+		{
+			start.assign(w * h + 1, 0);
+			for (int b = 0; b < w * h; ++b)
+				start[b+1] = start[b] + count[b];
+			tris.assign(start[w * h], 0);
+			count.assign(w * h + 1, 0);
+		}
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
+bool nearestPassable( const Mesh& mesh, const TriGrid& grid, Pt p, unsigned mask, float maxDist, Pt& out, int& tri )
+{
+	if (grid.w <= 0 || grid.h <= 0)
+		return nearestPassable(mesh, p, mask, maxDist, 0, -1, out, tri);
+	int bx0 = (int)floor((p.x - maxDist) / (float)grid.cell), bx1 = (int)floor((p.x + maxDist) / (float)grid.cell);
+	int by0 = (int)floor((p.y - maxDist) / (float)grid.cell), by1 = (int)floor((p.y + maxDist) / (float)grid.cell);
+	if (bx0 < 0) bx0 = 0;
+	if (by0 < 0) by0 = 0;
+	if (bx1 >= grid.w) bx1 = grid.w - 1;
+	if (by1 >= grid.h) by1 = grid.h - 1;
+	float best = maxDist;
+	int bestTri = -1;
+	bool found = false;
+	for (int by = by0; by <= by1; ++by)
+	{
+		for (int bx = bx0; bx <= bx1; ++bx)
+		{
+			int b = by * grid.w + bx;
+			for (int k = grid.start[b]; k < grid.start[b+1]; ++k)
+			{
+				int t = grid.tris[k];
+				const Tri& tr = mesh.tris[t];
+				if (!passable(mask, tr.label))
+					continue;
+				Pt q;
+				float d = nearestOnTri(mesh, tr, p, q);
+				// the same triangle may be met in several buckets: the lowest index wins a tie, as in the plain scan
+				if (d < best || (found && d == best && t < bestTri) || (!found && d <= best && d == 0.0f))
+				{
+					best = d;
+					bestTri = t;
+					out = q;
+					found = true;
+				}
+			}
+		}
+	}
+	tri = bestTri;
+	return found;
+}
+
+//-------------------------------------------------------------------------------------------------
+bool segmentClear( const Mesh& mesh, const TriGrid& grid, Pt a, Pt b, unsigned mask, float snap )
+{
+	Pt s, e;
+	int t = -1, te = -1;
+	if (!nearestPassable(mesh, grid, a, mask, snap, s, t) || !nearestPassable(mesh, grid, b, mask, snap, e, te))
+		return false;
+	return walkClear(mesh, s, t, e, te, mask);
 }
 
 //-------------------------------------------------------------------------------------------------

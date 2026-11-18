@@ -981,6 +981,47 @@ built for waypoints yet. Weights are first guesses; nothing has been tuned and *
 Still owed from the brief: waypoint radius for groups; right of way by priority beyond moving-over-idle; a spatial
 bucket grid for the mesh lookups (`onMesh` is a linear scan, now called every frame per unit); attack-move.
 
+**Second pass on the micro tier (2026-11-18, later):**
+- **Spatial partitioning** (`NavQuery::TriGrid`): a bucket grid over each size's ground mesh; `NavMesh::onMesh` and
+  `segmentOnMesh`, asked every frame per unit, look only in the buckets near the point. drivetest checks it gives
+  the full scan's answers (0 differ).
+- **Corners:** a unit looks every other frame whether the point after its next can be gone to directly, and a
+  group's members seek corners moved out from the wall by where each stands across the group (`spreadCorners`,
+  kept from the rails: here it only sets what is sought; steering does the rest).
+- **Priority:** of two moving allies in contact the one with the lower push rank (a player's order outranks a
+  unit's own move) gives more ground and does more of the avoiding. An idle ally is pushed only if it is in the
+  way (ahead, on the line), not when merely brushed past.
+- Tried and undone: infantry not shoving parked vehicles (they then never reach their places among them:
+  desert-mixed timed out).
+
+Suite, level 2, 3 variants, now: overlap 0.54 (head-on 0), reversals 3.9, wobble 0.6, mean arrival 71.6 s,
+stalled 6.7 (level 1: 1.4 / 12.7 / 6.0 / 59.8 s / 6.7). Part of the arrival gap is the measure: a unit that has
+arrived and is then nudged by a later arrival counts as still moving (tanks in city-mixed "arrive" with the
+infantry). Not changed yet, so that numbers stay comparable.
+
+**The brief, item by item: where it stands.**
+
+| brief | state |
+|---|---|
+| Walkability grid; CDT navmesh; dynamic carving; clearance and layers | done (grid -> per-size meshes, rebuilt on change, bridges as sheets). Wall tops still on the grid. |
+| A* over triangles; funnel | done, fuzzed against exhaustive search. 0.03-0.5% of paths longer than the grid's. |
+| Path caching and throttling | throttling done (searches charged to the frame budget). **No corridor cache for a group order**: each member searches. |
+| Velocity steering: seek, separation, cohesion | done, untuned. |
+| Spatial partitioning | done for the mesh; unit neighbours come from the engine's partition manager. |
+| Predictive avoidance | done (1.5 s). |
+| Priority and pushing | moving displaces idle; push rank decides right of way. No melee/ranged distinction (the game has none to speak of). |
+| Dynamic arrival radius | done for the destination (stop beside a taken place). |
+| Attack-move transition | **not verified.** Attack-move orders path per unit through the same code, so they get mesh paths and steering, and the engine's own target acquisition interrupts them; nobody has run or watched one at level 2. |
+
+**Still owed before this can be called finished:**
+1. Paths that use a bridge are steered without the mesh (no wall clamp, no look-ahead, no spread): river-cross is
+   slow (100 s; level 1 69 s). `onMesh` / `segmentOnMesh` need to ask the atlas, not only the ground sheet.
+2. The city is slow (111 s; level 1 84 s); cause not yet isolated beyond the measuring artifact above.
+3. A corridor cache for group orders.
+4. An attack-move scenario in the suite.
+5. Weights tuned from what the user sees; then the rails (`drive.mode=0`, `NavDrive` plan following,
+   `trySidestep`) deleted, and level 1 after that (M6).
+
 **(Superseded) Next (M4, second part, continued): what units do about each other, still on rails.**
 1. (Done, above: corners abreast.)
 2. (First version done, above.) Next: a group moves over as a body; crossing traffic (at right angles) is still

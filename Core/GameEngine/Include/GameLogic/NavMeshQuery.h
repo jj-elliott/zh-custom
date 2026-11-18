@@ -69,6 +69,22 @@ namespace NavQuery
 	/// mesh (it is joined to the nearest point of it first). Walks the triangles the segment crosses.
 	bool segmentClear( const NavBuild::Mesh& mesh, Pt a, Pt b, unsigned mask, float snap );
 
+	/// A grid of buckets over a mesh, each listing the triangles that touch it: the brief's "spatial partitioning",
+	/// for the questions asked every frame for every unit (is this point on my ground? can I go straight there?),
+	/// which are otherwise a scan of every triangle.
+	struct TriGrid
+	{
+		int cell, w, h;
+		std::vector<int> start;	///< bucket b's triangles are tris[start[b] .. start[b+1])
+		std::vector<int> tris;
+		TriGrid() : cell(8), w(0), h(0) {}
+		void build( const NavBuild::Mesh& mesh, int cellSize );
+	};
+	/// nearestPassable, looking only in the buckets within maxDist of p. Same answer.
+	bool nearestPassable( const NavBuild::Mesh& mesh, const TriGrid& grid, Pt p, unsigned mask, float maxDist, Pt& out, int& tri );
+	/// segmentClear, with the two ends found through the grid. Same answer.
+	bool segmentClear( const NavBuild::Mesh& mesh, const TriGrid& grid, Pt a, Pt b, unsigned mask, float snap );
+
 	/// False if either end is not on passable ground or no way exists.
 	bool findPath( const NavBuild::Mesh& mesh, Pt start, Pt goal, unsigned mask, Path& out );
 

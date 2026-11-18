@@ -93,6 +93,7 @@ namespace
 		std::vector<NavBuild::Mesh> meshes;	///< 0 = the ground, then the bridges
 		std::vector<Int> layerOf;						///< the pathfinder layer of each (LAYER_GROUND for 0)
 		NavQuery::Atlas atlas;
+		NavQuery::TriGrid groundGrid;				///< buckets over the ground's mesh, for the every-frame questions
 	};
 	std::vector<SizedMesh *> s_sized;
 	UnsignedInt s_gridSerial = 1;
@@ -197,6 +198,7 @@ namespace
 			sm->atlas.addSheet(&sm->meshes[k], cells[k].ox, cells[k].oy);
 		}
 		sm->atlas.connect();
+		sm->groundGrid.build(sm->meshes[0], 8);
 		if (LOG)
 		{
 			Int tris = 0;
@@ -504,7 +506,7 @@ Bool NavMesh::onMesh( Object *obj, const LocomotorSet& locomotorSet, Real x, Rea
 	int tri = -1;
 	// "On" allows a quarter of a half-cell: a line that runs along the mesh's edge is on it.
 	// (The ground sheet only: bridge decks are not asked about here.)
-	return !sm->meshes.empty() && NavQuery::nearestPassable(sm->meshes[0], p, 1u << NavBuild::SHEET_GROUND, 0.25f, nullptr, -1, out, tri);
+	return !sm->meshes.empty() && NavQuery::nearestPassable(sm->meshes[0], sm->groundGrid, p, 1u << NavBuild::SHEET_GROUND, 0.25f, out, tri);
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -519,7 +521,7 @@ Bool NavMesh::segmentOnMesh( Object *obj, const LocomotorSet& locomotorSet, Real
 	NavQuery::Pt a, b;
 	a.x = x0 / HALF; a.y = y0 / HALF;
 	b.x = x1 / HALF; b.y = y1 / HALF;
-	return !sm->meshes.empty() && NavQuery::segmentClear(sm->meshes[0], a, b, 1u << NavBuild::SHEET_GROUND, 2.0f);
+	return !sm->meshes.empty() && NavQuery::segmentClear(sm->meshes[0], sm->groundGrid, a, b, 1u << NavBuild::SHEET_GROUND, 2.0f);
 }
 
 //-------------------------------------------------------------------------------------------------

@@ -178,7 +178,10 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       not use them to justify deviating from it. Overlap 0.56 with no head-on overlap, reversals 3.6, no timeouts;
       city and river are slow. Untuned and unseen.
       **Open, human:** play level 2 (`.\scripts\movetest.ps1 -Name pathfinding -Level 2`): groups, head-on, a choke.
-      **Open, agent, next:** waypoint radius for groups (city / bridges are slow), tune weights from what the user
+      Second pass done: bucket grid for mesh lookups, corner look-ahead + spread corner targets, push-rank right of
+      way. PLAN.md "The brief, item by item" is the checklist; "Still owed" is the list (bridge paths steered
+      without the mesh, city slow, corridor cache, attack-move scenario, tuning, deleting the rails).
+      (Earlier note:) waypoint radius for groups (city / bridges are slow), tune weights from what the user
       sees, priority right of way, bucket grid for `onMesh`, then delete the rails (`drive.mode=0`, `NavDrive`
       plan following, `spreadCorners`, `trySidestep`) once steering has been played and accepted.
       (Old note, rails:) the group moves over as a body (members step into their own neighbours today); crossing
