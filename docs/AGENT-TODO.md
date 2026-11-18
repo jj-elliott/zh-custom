@@ -165,8 +165,11 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       **Open, agent, next (M4 second part, PLAN.md lists it):** group offsets (parallel strings), side-step replans
       for oncoming traffic with push priority, pushing idle units, arrival spots. Bucket grid for `locate` /
       `nearestPassable` / `onMesh` (linear scans today). Reversing for wheeled units.
-      **Open, human:** look at level 2 on the test save (`.\scripts\movetest.ps1 -Name pathfinding -Level 2`): does a
-      single unit's motion read as intended (arcs, braking, treads/wheels animating)? Group behaviour is not done.
+      User's first look: Humvee wheels did not animate, turning wanted easing, Humvee felt slow. Fixed/changed
+      (PLAN.md "First look by the user"): physics kept driven and told the speed; heading eased (`drive.turnEase`);
+      wheeled units corner wide and fast where there is room.
+      **Open, human:** look again (`.\scripts\movetest.ps1 -Name pathfinding -Level 2`): do wheels and treads animate
+      now, does the eased turning read as weight, is the Humvee's pace right? Group behaviour is not done.
       **Open, human (optional, nothing to judge yet beyond path shape):** `.\scripts\movetest.ps1 -Name pathfinding -Level 2`.
       **Open, human:** look at a mesh picture: `scripts\navtest.ps1 -Scenario river-cross`.
       **Open, agent:** reversals in chokes (city-mixed 26, river-cross 28; open ground is at target). Start from

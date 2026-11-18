@@ -50,6 +50,7 @@ namespace AIDrive
 		// What the plan was made for: a different path (or the same one changed) means a new plan.
 		const Path *path;
 		Coord3D pathFirst, pathLast;
+		Real shownHeading;	///< the heading the object is given: the plan's, eased (see TURN_EASE)
 		Bool abandoned;		///< this path is left to the old follower
 		Bool holding;			///< we have set OBJECT_STATUS_BRAKING
 	};
@@ -65,6 +66,11 @@ namespace
 	Real SAME_WAY_COS = 0.3f;				// "going our way": the cosine between its heading and ours is above this
 	Real OFF_PLAN = 3.0f;						// world units the object may be from where the plan has it before the plan is dropped
 	Real ARC_SAMPLE = 4.0f;					// world units between the points of an arc that are checked against the mesh
+	// The plan's heading changes at the full turn rate the moment an arc begins and stops the moment it ends, which
+	// is exact and looks weightless. The object's heading closes this share of its difference from the plan's each
+	// frame instead: it leans into a turn over a few frames and settles out of it, and trails the plan's heading by
+	// about (turn rate / this) in a steady turn. The line the unit travels is not changed, only how its body faces.
+	Real TURN_EASE = 0.5f;
 	Int DEBUG_UNIT = 0;
 	Bool s_loaded = false;
 
@@ -81,6 +87,7 @@ namespace
 		MoveTune::apply("drive.followLane", FOLLOW_LANE);
 		MoveTune::apply("drive.followGap", FOLLOW_GAP);
 		MoveTune::apply("drive.offPlan", OFF_PLAN);
+		MoveTune::apply("drive.turnEase", TURN_EASE);
 		MoveTune::apply("debug.unit", DEBUG_UNIT);
 	}
 
@@ -112,7 +119,7 @@ namespace
 			kin.turnSpeed = loco->getMinTurnSpeed();
 			if (kin.turnSpeed < kin.maxSpeed * 0.25f)
 				kin.turnSpeed = kin.maxSpeed * 0.25f;
-			kin.cornerSpeed = 0.0f;
+			// Above that speed its turning circle grows with speed: it corners wide and fast where there is room.
 		}
 	}
 
@@ -184,6 +191,7 @@ namespace
 		if (speed > kin.maxSpeed)
 			speed = kin.maxSpeed;
 		NavDrive::start(data->plan, pos->x, pos->y, obj->getOrientation(), speed, data->state);
+		data->shownHeading = obj->getOrientation();
 		++s_plans;
 		s_smaller += data->plan.smallerArcs;
 		s_pivots += data->plan.pivots;
@@ -331,17 +339,35 @@ Bool AIDrive::update( Object *obj, AIUpdateInterface *ai, Data *& data, Real des
 	to.y = st.y;
 	to.z = TheTerrainLogic->getLayerHeight(st.x, st.y, obj->getLayer());
 	obj->setPosition(&to);
-	obj->setOrientation(st.heading);
+	// The body's heading follows the plan's with a little lag (TURN_EASE), never past it.
+	Real behind = st.heading - data->shownHeading;
+	while (behind > PI) behind -= 2.0f * PI;
+	while (behind <= -PI) behind += 2.0f * PI;
+	Real turnNow = behind * TURN_EASE;
+	if (TURN_EASE >= 1.0f || fabs(behind) < 0.002f || st.done)
+		turnNow = behind;
+	data->shownHeading += turnNow;
+	while (data->shownHeading > PI) data->shownHeading -= 2.0f * PI;
+	while (data->shownHeading <= -PI) data->shownHeading += 2.0f * PI;
+	obj->setOrientation(data->shownHeading);
 	// Physics does not move a unit with this status (the engine's own rule for a braking unit), and it is told the
 	// velocity the unit has so that whatever reads it sees the truth.
 	obj->setStatus( MAKE_OBJECT_STATUS_MASK( OBJECT_STATUS_BRAKING ) );
 	data->holding = TRUE;
+	// Physics is kept awake and "driven" the way the locomotor keeps it (a motive force, here of nothing), because
+	// the wheels, treads and dust are drawn from its speed and from whether it is driven; then its velocity is made
+	// the unit's, and its cached speed thrown away (scrubVelocity2D is the call that does that).
+	Coord3D none;
+	none.zero();
+	physics->applyMotiveForce(&none);
 	Coord3D delta;
 	const Coord3D *vel = physics->getVelocity();
 	delta.x = Cos(st.heading) * st.moved - vel->x;
 	delta.y = Sin(st.heading) * st.moved - vel->y;
 	delta.z = 0.0f;
 	physics->addVelocityTo(&delta);
+	physics->scrubVelocity2D(st.moved * 0.9999f);
+	physics->setTurning(turnNow > 0.002f ? TURN_POSITIVE : (turnNow < -0.002f ? TURN_NEGATIVE : TURN_NONE));
 
 	if (DEBUG_UNIT != 0 && (Int)obj->getID() == DEBUG_UNIT)
 	{

@@ -41,8 +41,8 @@ struct Unit
 // From the game (MoveBench "bench.loco=1"): distance per logic frame, radians per frame.
 static const Unit UNITS[4] = {
 	{ "Crusader (treads)", { 1.000f, 0.1047f, 1.1111f, 1.1111f, 0.0f,   1.000f } },
-	{ "Humvee (wheels)",   { 2.000f, 0.1047f, 1.1111f, 1.1111f, 0.667f, 0.0f   } },
-	{ "Technical (wheels)",{ 3.000f, 0.1047f, 0.1111f, 0.0556f, 0.750f, 0.0f   } },
+	{ "Humvee (wheels)",   { 2.000f, 0.1047f, 1.1111f, 1.1111f, 0.667f, 2.000f } },
+	{ "Technical (wheels)",{ 3.000f, 0.1047f, 0.1111f, 0.0556f, 0.750f, 3.000f } },
 	{ "Ranger (legs)",     { 0.667f, 0.2909f, 0.1111f, 0.1111f, 0.0f,   0.667f } },
 };
 
@@ -184,7 +184,7 @@ static bool drive( const Unit& unit, const std::vector<Pt>& pts, float heading, 
 		}
 	}
 	bool wheels = unit.kin.turnSpeed > 0.0f;
-	float fullRadius = wheels ? unit.kin.turnSpeed / unit.kin.turnRate : unit.kin.cornerSpeed / unit.kin.turnRate;
+	float fullRadius = (unit.kin.cornerSpeed > unit.kin.turnSpeed ? unit.kin.cornerSpeed : unit.kin.turnSpeed) / unit.kin.turnRate;
 	float pathLength = 0.0f;
 	for (size_t i = 0; i + 1 < pts.size(); ++i)
 		pathLength += (float)sqrt((pts[i+1].x-pts[i].x)*(pts[i+1].x-pts[i].x) + (pts[i+1].y-pts[i].y)*(pts[i+1].y-pts[i].y));

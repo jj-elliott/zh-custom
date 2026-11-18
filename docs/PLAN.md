@@ -747,6 +747,21 @@ Reading it honestly:
   follows nose to tail, so the tail arrives late (city 83 -> 98 s; river 62 -> 103 s, where everything queues for
   the crossing). Neither is a tuning matter; both are the next piece.
 
+**First look by the user (2026-11-17, single units on the test save), and what changed:**
+- "Wheel animations were not working for the Humvee." Wheels, treads and dust are drawn from physics' cached
+  speed and its "driven" state, and physics was asleep: `AIDrive` now gives it a motive force of nothing each frame
+  (as the locomotor does), sets its velocity, drops the cached speed and sets the turning flag. Not checkable
+  headless: **needs the user's eyes again.**
+- "The turning could use a bit more easing ... like the vehicles have momentum." The plan's heading starts and
+  stops turning at the full rate in one frame. The object's heading now closes half of its difference from the
+  plan's each frame (`drive.turnEase`, 0.5): it leans into a turn over a few frames and settles out, trailing by
+  about 12 degrees in a steady turn. The line travelled is unchanged; it cannot overshoot, so it adds no reversals
+  (suite still 0.37). If more weight is wanted the honest next step is speed (slower into corners), not more lag.
+- "The Humvee seemed to be moving slower than vanilla." Not on a straight (new course `desert-solo`: 25.6 s at
+  level 2, 25.7 s retail), but every bend, however slight, was taken on its tight circle at a third of its speed.
+  A wheeled unit's circle grows with speed above `turnSpeed`, so corners are now planned wide and fast where the
+  mesh has room and come down to the tight circle only where it has not.
+
 **Next (M4, second part): what units do about each other, still on rails.**
 1. One destination, many units: each unit keeps its offset from the group (SC2 does this when the group is compact),
    so strings are parallel on open ground instead of identical; where they converge (a choke) units merge by

@@ -1,0 +1,6 @@
+# One Humvee across open desert: nothing in its way, so this is the unit's own speed and cornering, level against level.
+map Maps\Tournament Desert\Tournament Desert.map
+group
+from Player_1_Start
+to Player_2_Start
+spawn AmericaVehicleHumvee 1

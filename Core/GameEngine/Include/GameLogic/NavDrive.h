@@ -63,7 +63,8 @@ namespace NavDrive
 		float brake;
 		float turnSpeed;	///< wheels: > 0, the speed at and below which the turning circle has its fixed radius
 											///< turnSpeed / turnRate, and the most a corner may be taken at. 0: turns on the spot.
-		float cornerSpeed;	///< units that turn on the spot: speed to take corners at (their arc radius is this / turnRate)
+		float cornerSpeed;	///< speed to take corners at where there is room: the arc's radius is this / turnRate
+											///< (for wheels never less than their fixed circle)
 	};
 
 	enum PrimType { LINE = 0, ARC = 1, PIVOT = 2 };

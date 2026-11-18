@@ -137,8 +137,15 @@ void build( const std::vector<Pt>& pts, float heading, const Kinematics& kin, Pl
 	if (pts.size() < 2 || kin.turnRate <= 0.0f)
 		return;
 
+	// The radius a corner is taken at: the turning circle at the unit's cornering speed. A wheeled unit's circle
+	// cannot be smaller than turnSpeed / turnRate (below that speed its turn is in proportion to its speed), but
+	// above it the circle grows with speed, so a wheeled unit takes a corner wide and fast where there is room and
+	// only slows to its tight circle where there is not.
 	bool wheels = kin.turnSpeed > 0.0f;
-	float fullRadius = wheels ? kin.turnSpeed / kin.turnRate : kin.cornerSpeed / kin.turnRate;
+	float tightRadius = wheels ? kin.turnSpeed / kin.turnRate : 0.0f;
+	float fullRadius = kin.cornerSpeed / kin.turnRate;
+	if (fullRadius < tightRadius)
+		fullRadius = tightRadius;
 
 	// ---- The posts. Points closer together than a hair are one point.
 	std::vector<Pt> p;
@@ -207,8 +214,8 @@ void build( const std::vector<Pt>& pts, float heading, const Kinematics& kin, Pl
 			q.side = cr >= 0.0f ? 1.0f : -1.0f;
 			q.inward.x = -h0y * q.side;	// the left normal of the heading for a left turn, the right one for a right
 			q.inward.y = h0x * q.side;
-			q.rho = fullRadius;
-			q.full = fullRadius;
+			q.rho = tightRadius;	// from a standing start: the tight circle
+			q.full = tightRadius;
 			q.startCircle = true;
 			place(q);
 		}
@@ -313,8 +320,18 @@ void build( const std::vector<Pt>& pts, float heading, const Kinematics& kin, Pl
 			if (!bad[i] || posts[i].rho <= 0.0f)
 				continue;
 			Post& q = posts[i];
-			++q.shrinks;
-			q.rho = (q.shrinks >= 3) ? 0.0f : q.rho * 0.5f;
+			if (tightRadius > 0.0f && q.rho > tightRadius * 1.001f)
+			{
+				// A wheeled unit's wide, fast arc comes down to its tight circle before anything less real is tried.
+				q.rho *= 0.5f;
+				if (q.rho < tightRadius)
+					q.rho = tightRadius;
+			}
+			else
+			{
+				++q.shrinks;
+				q.rho = (q.shrinks >= 3) ? 0.0f : q.rho * 0.5f;
+			}
 			float keep = q.side;
 			place(q);
 			if (q.rho <= 0.0f)
@@ -376,19 +393,14 @@ void build( const std::vector<Pt>& pts, float heading, const Kinematics& kin, Pl
 			arc.a0 = aIn;
 			arc.sweep = a.side > 0.0f ? sw : -sw;
 			arc.length = sw * a.rho;
-			if (wheels)
-				arc.vmax = kin.turnSpeed * (a.rho / a.full);
-			else
-				arc.vmax = kin.turnRate * a.rho;
+			arc.vmax = kin.turnRate * a.rho;
 			if (arc.vmax > kin.maxSpeed)
 				arc.vmax = kin.maxSpeed;
 			arc.x0 = arc.y0 = arc.x1 = arc.y1 = arc.h0 = arc.turn = 0.0f;
 			if (a.rho < a.full)
-			{
 				++out.smallerArcs;
-				if (wheels)
-					++out.cheats;
-			}
+			if (wheels && a.rho < tightRadius * 0.999f)
+				++out.cheats;
 			if (sw > 1.0e-4f)
 				out.prims.push_back(arc);
 		}
