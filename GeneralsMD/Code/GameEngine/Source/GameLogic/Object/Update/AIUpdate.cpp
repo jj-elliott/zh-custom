@@ -56,6 +56,7 @@
 #include "GameLogic/AIPathfind.h"
 #include "GameLogic/MoveRules.h"	// zh-pipeline Phase 7
 #include "GameLogic/MoveTraffic.h"	// zh-pipeline Phase 7
+#include "GameLogic/NavMesh.h"
 #include "GameLogic/AISteering.h"	// zh-pipeline Phase 7
 #include "GameLogic/Locomotor.h"
 #include "GameLogic/Module/AIUpdate.h"
@@ -1936,7 +1937,7 @@ Bool AIUpdateInterface::computePath( PathfindServicesInterface *pathServices, Co
 	// claim routes nor avoid claimed ones. How much traffic costs a vehicle scales with its top speed (1 world unit a
 	// frame, a main battle tank, = 1): a nimble unit loses little by a detour and is the one that takes it; a slow
 	// one keeps the direct line.
-	if (MoveRules::unified() && isDoingGroundMovement() && m_curLocomotor != nullptr
+	if (MoveRules::unified() && !MoveRules::navmesh() && isDoingGroundMovement() && m_curLocomotor != nullptr
 			&& !getObject()->isKindOf(KINDOF_AIRCRAFT) && !getObject()->isKindOf(KINDOF_INFANTRY))
 	{
 		Real topSpeed = m_curLocomotor->getMaxSpeedForCondition(getObject()->getBodyModule()->getDamageState());
@@ -1968,8 +1969,21 @@ Bool AIUpdateInterface::computePath( PathfindServicesInterface *pathServices, Co
 	}
 	else
 	{
+		// zh-pipeline @feature 2026-11-17 MoveRules::NAVMESH: the path comes from the navigation mesh of this unit's
+		// size (GameLogic/NavMesh.h) when it has one: ground to ground, both ends on or beside connected ground.
+		// Bridges and wall tops are not meshed yet, so those, and anything else the mesh cannot answer, still go to
+		// the grid search below.
+		if (MoveRules::navmesh() && isDoingGroundMovement() && getObject()->getLayer() == LAYER_GROUND
+				&& destinationLayer == LAYER_GROUND)
+		{
+			Int searchCost = 0;
+			theNewPath = NavMesh::findPath( getObject(), m_locomotorSet, getObject()->getPosition(), destination, &searchCost );
+			TheAI->pathfinder()->chargePathBudget(searchCost);
+		}
 		// compute a ground-based path
-		if (m_isBlockedAndStuck) {
+		if (theNewPath != nullptr) {
+			// from the mesh.
+		} else if (m_isBlockedAndStuck) {
 			theNewPath = pathServices->patchPath( getObject(), m_locomotorSet,
 				getPath(), m_isBlockedAndStuck);
 		}	else {

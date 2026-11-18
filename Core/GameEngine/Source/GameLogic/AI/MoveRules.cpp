@@ -35,8 +35,8 @@ namespace MoveRules
 	{
 		if( level < RETAIL )
 			level = RETAIL;
-		if( level > LATEST )
-			level = LATEST;
+		if( level > HIGHEST )
+			level = HIGHEST;
 		s_level = level;
 	}
 

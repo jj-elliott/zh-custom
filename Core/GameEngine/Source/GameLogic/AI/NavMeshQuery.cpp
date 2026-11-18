@@ -215,6 +215,52 @@ int locate( const Mesh& mesh, Pt p, unsigned mask )
 }
 
 //-------------------------------------------------------------------------------------------------
+bool nearestPassable( const Mesh& mesh, Pt p, unsigned mask, float maxDist, const int *component, int wantComponent,
+											Pt& out, int& tri )
+{
+	float best = maxDist;
+	bool found = false;
+	for (size_t t = 0; t < mesh.tris.size(); ++t)
+	{
+		const Tri& tr = mesh.tris[t];
+		if (!passable(mask, tr.label) || (component != 0 && component[t] != wantComponent))
+			continue;
+		Pt a = pointOf(mesh, tr.v[0]), b = pointOf(mesh, tr.v[1]), c = pointOf(mesh, tr.v[2]);
+		if (cross(a, b, p) >= 0.0f && cross(b, c, p) >= 0.0f && cross(c, a, p) >= 0.0f)
+		{
+			out = p;
+			tri = (int)t;
+			return true;
+		}
+		Pt q[3];
+		q[0] = closestOnSegment(p, a, b);
+		q[1] = closestOnSegment(p, b, c);
+		q[2] = closestOnSegment(p, c, a);
+		for (int i = 0; i < 3; ++i)
+		{
+			float d = dist(p, q[i]);
+			if (d < best)
+			{
+				best = d;
+				// A hair inside the triangle, so that what is found here is on the mesh for every later test.
+				Pt mid;
+				mid.x = (a.x + b.x + c.x) / 3.0f;
+				mid.y = (a.y + b.y + c.y) / 3.0f;
+				float toMid = dist(q[i], mid);
+				float nudge = toMid > 0.0f ? 0.01f / toMid : 0.0f;
+				if (nudge > 1.0f)
+					nudge = 1.0f;
+				out.x = q[i].x + (mid.x - q[i].x) * nudge;
+				out.y = q[i].y + (mid.y - q[i].y) * nudge;
+				tri = (int)t;
+				found = true;
+			}
+		}
+	}
+	return found;
+}
+
+//-------------------------------------------------------------------------------------------------
 bool findPath( const Mesh& mesh, Pt start, Pt goal, unsigned mask, Path& out )
 {
 	out.pts.clear();

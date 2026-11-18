@@ -549,7 +549,7 @@ What that means for M3/M4 (the test every steering decision is held to):
 |---|---|---|
 | **M1** | Mesh from the grid: boundary chains, simplification, CDT, labels. Standalone test tool. | **Done 2026-11-17**, see below. |
 | M2 | Rebuild on grid change (**done**); unit width (**done**: a mesh per size, below); bridge / wall layers and portals; debug overlay in game. | fuzz covers edits; mesh == grid after every footprint change in a soak run; overlay looks right to the user. |
-| M3 | Point location, A*, funnel (**done standalone**, below); `MoveRules` level 2 routes ground paths through it; corners as drivable arcs. | path exists <=> grid says a path exists, on every suite map; lengths <= grid paths; plays. |
+| M3 | Point location, A*, funnel; `MoveRules` level 2 routes ground paths through it (**done**, below; bridges still on the grid); corners as drivable arcs. | path exists <=> grid says a path exists, on every suite map; lengths <= grid paths; plays. |
 | M4 | Drive model + steering + hard separation + push priorities; removes level 1's layers at level 2. | suite: no overlap, deviation only with a neighbour as cause; the user plays it against SC2 in their head. |
 | M5 | Arrival radius, group goals, attack-move. | same. |
 | M6 | Delete level 1 (`AISteering`, lanes, `MoveTraffic`); level 2 becomes the default. | verify + soak; docs. |
@@ -628,10 +628,36 @@ What this costs and what is still owed:
 - The 0.03% longer-than-grid paths: acceptable, but they are the kind of thing that reads as a bug when seen. If one
   shows up in play, the fix is to keep more than one corridor per node.
 
-**Next (the rest of M2/M3, in the engine):** the per-(mask, size) mesh cache with lazy rebuild; bridge and wall
-layers as meshes joined by portals; an in-game overlay (mesh + a unit's path); `MoveRules` level 2 routing ground
-paths through `NavQuery::findPath`; then the string's corners turned into arcs a unit can drive (the user's
-criterion above).
+**Wired in: `MoveRules::NAVMESH`, `-moverules 2`** (2026-11-17; the default is still level 1).
+- `NavMesh::findPath` (called from `AIUpdateInterface::computePath`): picks the mesh for the unit's surfaces and
+  size (radius in half-cells, rounded down; infantry are points), built on first use and rebuilt lazily after the
+  grid changed; joins a start or destination that is beside the mesh to the nearest point of it (the destination
+  only to connected ground); returns the pulled string as a `Path` whose every node is a corner. Searches are
+  charged to the frame's path budget.
+- No answer from the mesh (not connected: a bridge is needed; a unit far from any ground of its size) -> the grid
+  search, exactly as before. Units on a bridge layer always use the grid.
+- At level 2 the traffic map and group lanes are off (both exist to repair grid paths). Everything else is still
+  level 1: `AISteering` follows the path and keeps units apart. **That is the wrong follower for these paths** (every
+  unit of a group gets the same string and they are then pushed apart: pushPct doubles) and it is what M4 replaces.
+
+Suite, 3 variants (level 1 = traffic map + lanes + steering; level 2 = mesh paths + steering):
+
+| | meanArrive | reversals | wobble | stalled | overlap | pushPct | paths from the mesh |
+|---|---|---|---|---|---|---|---|
+| level 1, all | 68.4 s | 15.9 | 7.5 | 8.3 | 1.7 | 9.1 | |
+| level 2, all | 65.4 s | 8.7 | 4.6 | 4.8 | 2.8 | 19.2 | |
+| level 2 city-mixed | 82.8 | 8.1 (was 15.3) | 3.6 | 5.6 | 3.7 | 28.5 | all (54 of 54 in one run) |
+| level 2 desert-cross | 54.9 | 4.0 (was 12.3) | 1.6 | 2.7 | 3.0 | 19.0 | all |
+| level 2 desert-mixed | 61.3 | 2.7 (was 2.3) | 1.4 | 5.0 | 0.6 | 7.3 | all |
+| level 2 river-cross | 62.4 | 19.8 (was 33.8) | 11.9 | 6.0 | 3.9 | 21.8 | none: every route needs a bridge |
+
+Reading: straight strings instead of grid paths halve the turning on their own, and units arrive sooner; the
+overlap and pushing are the old follower meeting identical paths. Do not tune that follower.
+`soak.ps1 -Level 2`: the seven recordings run to the end twice with equal final CRCs.
+
+**Next:** bridge and wall layers as meshes joined by portals (river-cross is entirely on the grid until then); an
+in-game overlay (mesh + a unit's path) so the user can look at it; a bucket grid for `locate` / `nearestPassable`;
+then M4, starting with the string's corners turned into arcs a unit can drive (the user's criterion above).
 
 ### Open (level 1; superseded by the section above)
 

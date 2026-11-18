@@ -151,9 +151,14 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       Search done standalone (`NavMeshQuery`, `NavBuild::erode`): a mesh per unit size from ground shrunk by its
       radius, A* + funnel, fuzzed against a grid search (`scripts\navtest.ps1`). A radius-aware funnel on one mesh
       was built and dropped (PLAN.md says why; do not rebuild it).
-      **Open, agent, next:** in the engine: per-(mask, size) mesh cache with lazy rebuild; bridge/wall layers +
-      portals; in-game overlay; `MoveRules` level 2 routing ground paths through `NavQuery::findPath`; corners as
-      drivable arcs. `locate` needs a bucket grid first.
+      Wired in as `-moverules 2` (`MoveRules::NAVMESH`, not the default): `NavMesh::findPath` from
+      `AIUpdateInterface::computePath`, grid fallback when the mesh has no answer, traffic map and lanes off.
+      Suite: reversals 15.9 -> 8.7, arrival 68.4 -> 65.4 s, but pushPct 9 -> 19 (old follower, identical paths).
+      `soak.ps1 -Level 2` passes.
+      **Open, agent, next:** bridge/wall layers + portals (river-cross is all grid fallback); in-game overlay; bucket
+      grid for `locate`/`nearestPassable`; then M4 (drive model, steering, hard separation), starting with corners
+      as drivable arcs. Do not tune `AISteering` for level 2.
+      **Open, human (optional, nothing to judge yet beyond path shape):** `.\scripts\movetest.ps1 -Name pathfinding -Level 2`.
       **Open, human:** look at a mesh picture: `scripts\navtest.ps1 -Scenario river-cross`.
       **Open, agent:** reversals in chokes (city-mixed 26, river-cross 28; open ground is at target). Start from
       `movetrace.ps1 -Scenario river-cross`; add a narrow-choke scenario.

@@ -1896,7 +1896,7 @@ void AIGroup::friend_moveLanesToPos( const Coord3D *pos, CommandSourceType cmdSo
 	MoveTune::apply("lanes.margin", laneMarginCells);
 	MoveTune::apply("lanes.link", linkCells);
 	MoveTune::apply("lanes.debug", debug);
-	if (!enabled)
+	if (!enabled || MoveRules::navmesh())	// level 2: each unit gets its own path from the navigation mesh.
 		return;
 
 	std::vector<LaneMember> all;

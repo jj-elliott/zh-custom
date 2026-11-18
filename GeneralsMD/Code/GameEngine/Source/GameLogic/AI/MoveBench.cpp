@@ -38,6 +38,7 @@
 #include "GameLogic/Module/AIUpdate.h"
 #include "GameLogic/Module/PhysicsUpdate.h"
 #include "GameLogic/MoveRules.h"
+#include "GameLogic/NavMesh.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/TerrainLogic.h"
 #include "GameLogic/Weapon.h"	// NO_MAX_SHOTS_LIMIT
@@ -728,6 +729,7 @@ int run()
 	}
 	if (counted == 0)
 		counted = 1;
+	NavMesh::printStats();
 	printf("MoveBench: units=%d meanArrive=%.2f maxArrive=%.2f goalDist=%.1f overlap=%.2f reversals=%.2f stalled=%.2f detour=%.3f timeout=%d frames=%u level=%d ovMM=%.2f ovMS=%.2f ovSS=%.2f ovCross=%.2f revSteer=%.2f revStart=%.2f revEnd=%.2f wobble=%.2f steerPct=%.1f pushPct=%.1f\n",
 		counted, sumArrive / counted, maxArrive, sumShort / counted,
 		(Real)overlapPairFrames / (Real)LOGICFRAMES_PER_SECOND,

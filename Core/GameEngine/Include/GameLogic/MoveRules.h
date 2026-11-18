@@ -47,14 +47,18 @@ namespace MoveRules
 	{
 		RETAIL = 0,		///< unchanged behaviour: reproduces replays recorded before Phase 7
 		UNIFIED = 1,	///< congestion-aware pathfinding + local avoidance + minimal contact rules
+		NAVMESH = 2,	///< under construction (PLAN.md "The StarCraft 2 model"): ground paths come from the navigation
+									///< mesh (GameLogic/NavMesh.h); the traffic map and group lanes are off; the rest is level 1
 
-		LATEST = UNIFIED
+		LATEST = UNIFIED,	///< the default
+		HIGHEST = NAVMESH	///< the most "-moverules" accepts
 	};
 
 	Int getLevel();
-	void setLevel( Int level );	///< clamped to [RETAIL, LATEST]; call before a game starts, never during one
+	void setLevel( Int level );	///< clamped to [RETAIL, HIGHEST]; call before a game starts, never during one
 
 	inline Bool unified() { return getLevel() >= UNIFIED; }
+	inline Bool navmesh() { return getLevel() >= NAVMESH; }
 
 	// ---- Movement benchmark plumbing (GameLogic/MoveBench.h lives in the Zero Hour tree; this is the shared part). ----
 	/// Called by the logic for every move / attack-move order given to a group, if set. (group, destination, attackMove)

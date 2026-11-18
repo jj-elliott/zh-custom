@@ -188,6 +188,9 @@ public:
 	Bool worldToCell( const Coord3D *pos, ICoord2D *cell );	///< Given a world position, return grid cell coordinate
 
 	const ICoord2D *getExtent() const {return &m_extent.hi;}
+	/// zh-pipeline: a search done outside the grid (GameLogic/NavMesh.h) counts against this frame's pathfinding
+	/// budget like the cells of a grid search, so a group order is still spread over several frames.
+	void chargePathBudget( Int cells ) { m_cumulativeCellsAllocated += cells; }
 
 	void setIgnoreObstacleID( ObjectID objID );					///< if non-zero, the pathfinder will ignore the given obstacle
 

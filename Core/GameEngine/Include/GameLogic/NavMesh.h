@@ -21,15 +21,20 @@
 // The mesh is built from the pathfinder's ground cells by NavBuild (GameLogic/NavMeshBuild.h, which has the method
 // and the determinism argument). This is the engine side: which cell gets which label, and when the mesh is rebuilt.
 //
-// State: built at map load and kept up to date, only on request ("-movetune navmesh.build=1"); nothing reads it
-// yet, so it is not sim state. From M3 on searches run on it and it becomes sim state: derived, like the pathfinder's grid,
+// State: at MoveRules::NAVMESH (level 2) the label grid is kept up to date and findPath() builds, on first use and
+// again after the grid changed, one mesh per (surfaces, unit size) that units actually have. That is sim state.
+// Below level 2 nothing is built unless asked ("-movetune navmesh.build=1") and nothing reads it. From M3 on searches run on it and it becomes sim state: derived, like the pathfinder's grid,
 // from the map and the objects on it, so it is rebuilt after a load rather than saved, and is not in the CRC.
 
 #pragma once
 
 #include "GameLogic/NavMeshBuild.h"
 
+class LocomotorSet;
+class Object;
+class Path;
 class Pathfinder;
+struct Coord3D;
 
 namespace NavMesh
 {
@@ -57,4 +62,16 @@ namespace NavMesh
 	void update( Pathfinder *pathfinder );
 
 	const NavBuild::Mesh& mesh();
+
+	/// MoveRules::NAVMESH: a ground path for this unit from the mesh of its size (ground shrunk by its radius, for
+	/// the surfaces it may use), as a Path the existing follower can drive: the unit's position, the corners of the
+	/// pulled string, the destination. An end that is off the mesh but close to it (a unit against a wall, a
+	/// destination beside a building) is joined to the nearest point of it.
+	/// Returns null when the mesh has no answer (the unit is far from any ground of its size, the destination is not
+	/// connected to it: across a bridge, for one), and the caller then uses the grid pathfinder as before.
+	/// 'cost' is what the search should be charged against the frame's pathfinding budget.
+	Path *findPath( Object *obj, const LocomotorSet& locomotorSet, const Coord3D *from, const Coord3D *to, Int *cost );
+
+	/// One line for the benchmark: how many paths came from the mesh and why the others did not.
+	void printStats();
 }

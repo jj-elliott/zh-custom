@@ -59,6 +59,12 @@ namespace NavQuery
 	/// The triangle holding p, preferring one that is passable for mask when p is on a boundary. -1: off the map.
 	int locate( const NavBuild::Mesh& mesh, Pt p, unsigned mask );
 
+	/// The point of passable ground nearest p, no further than maxDist (p itself if it is on passable ground), and
+	/// its triangle. With 'component' (one entry per triangle), only triangles whose entry equals wantComponent
+	/// count: "the nearest point I can actually get to". False if there is none.
+	bool nearestPassable( const NavBuild::Mesh& mesh, Pt p, unsigned mask, float maxDist, const int *component,
+												int wantComponent, Pt& out, int& tri );
+
 	/// False if either end is not on passable ground or no way exists.
 	bool findPath( const NavBuild::Mesh& mesh, Pt start, Pt goal, unsigned mask, Path& out );
 }
