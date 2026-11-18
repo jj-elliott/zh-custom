@@ -266,7 +266,7 @@ void build( const std::vector<Pt>& pts, float heading, const Kinematics& kin, Pl
 				// close to: that corner no longer shapes the line. (A big bend the other way is not this: it is two
 				// corners too close together, a hairpin, and those keep their corners and lose their circles.)
 				bool slight = turn < 0.004f || turn > TWO_PI_F - 0.35f;
-				bool near = false;
+				bool closeBy = false;
 				if (slight)
 				{
 					const Pt& a = posts[i-1].c;
@@ -278,9 +278,9 @@ void build( const std::vector<Pt>& pts, float heading, const Kinematics& kin, Pl
 					Pt on;
 					on.x = a.x + (b.x-a.x)*t;
 					on.y = a.y + (b.y-a.y)*t;
-					near = dist(q.at, on) <= fullRadius + 0.5f;
+					closeBy = dist(q.at, on) <= fullRadius + 0.5f;
 				}
-				if (slight && near)
+				if (slight && closeBy)
 					drop = (int)i;
 				else if (turn > PI_F + 0.3f)
 				{
