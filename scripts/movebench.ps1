@@ -81,7 +81,7 @@ function Invoke-Bench([string]$tune, [string]$label) {
     $runs += $one
   }
   $avg = [ordered]@{ run = $label }
-  foreach ($k in "score", "meanArrive", "maxArrive", "goalDist", "overlap", "reversals", "stalled", "detour", "timeout") {
+  foreach ($k in "score", "meanArrive", "maxArrive", "goalDist", "overlap", "reversals", "stalled", "detour", "timeout", "ovMM", "ovMS", "ovCross", "revSteer", "revEnd", "wobble") {
     $avg[$k] = [math]::Round(($runs | Measure-Object -Property $k -Average).Average, 2)
   }
   $scores = $runs | ForEach-Object { $_.score }

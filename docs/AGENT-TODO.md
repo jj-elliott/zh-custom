@@ -130,7 +130,11 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       mean in PLAN.md). Finding: constants are at a flat optimum, steering causes over half the turn jitter.
       Scripted scenarios (`tests/courses/*.scenario`) + `scripts/movesuite.ps1` need no person: this is the agent's loop.
       Baseline and targets in PLAN.md: unified is 20% faster and never stalls but overlaps 8x and jitters 4x retail.
-      **Open, agent:** iterate on steering/contact handling against the suite until overlap < 10 and reversals < 12.
+      2026-11-17 first unattended iteration: separation between moving allies, no avoidance of fellow travellers,
+      steering choice with memory (stick / hold / ratchet). Overlap 45 -> 1.4, reversals 29 -> 18, arrival unchanged; see PLAN.md.
+      **Open, human:** play the build: does separation look right (vehicles slide sideways to make room)?
+      **Open, agent:** reversals in chokes (city-mixed 26, river-cross 28; open ground is at target). Start from
+      `movetrace.ps1 -Scenario river-cross`; add a narrow-choke scenario.
       **Open, agent:** tune from feedback (constants at the top of `AISteering.cpp`, `MoveTraffic.cpp`); once it settles, record
       new baselines with `verify.ps1 -Import`; both installs need the same exe before any two-player game.
 

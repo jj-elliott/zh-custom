@@ -333,6 +333,53 @@ below 30. Pointers from the table: steering is the only thing holding overlap do
 making units queue harder just moves time into jams unless something lets a queue drain; with no contact rules between
 moving allies (`isSteeredPair`) nothing stops two units that failed to avoid each other from driving through one another.
 
+### First unattended iteration against the suite (2026-11-17)
+
+Method: break each bad number down until it names a cause, fix the cause, re-run. Two diagnostics were added for it:
+the suite's breakdown columns (`ovMM` / `ovMS` = overlap with both / one of the pair moving, `ovCross` = pairs from
+different groups, `revSteer` = reversals while steering was active, `revEnd` = near the goal, `wobble` = reversals within
+half a second of the previous one) and `scripts/movetrace.ps1` (per-unit reversals; `-Unit <id>` traces one unit's
+steering decisions and heading frame by frame).
+
+What the breakdowns said, and what was done:
+
+1. **Overlap was not a head-on problem.** 44 of 45 pair-seconds were between units of the *same* group, both moving:
+   not on a collision course, simply on the same line, which avoidance cannot see. **Separation** (`sep.*`): an allied
+   vehicle under way that is within 90% of the combined radius of another eases itself away, half the penetration
+   each, 25% of it a frame, 0.5 units a frame at most, never onto ground it could not drive on. Overlap 45 -> 1, arrival
+   unchanged, stalled time down. This is the only place a moving unit's position is set directly.
+2. **Fellow travellers are not obstacles** (`steer.sameDirCos`, `steer.sameDirPace`): a unit heading our way at no
+   less than 70% of our speed is left to separation and queueing. A single group crossing open desert turned 14 times
+   a unit dodging its own neighbours, 2 times without.
+3. **The steering choice had no memory.** Traces showed three flickers, each fixed on its own evidence: two candidates
+   within 0.05 of each other taken on alternate frames (`steer.stick`: last frame's candidate is 0.6 cheaper); the need
+   for a turn dropping out every few frames (`steer.holdFrames`: a turn is held 8 frames after it was last asked for);
+   the least sufficient turn hunting 60 > 15 > 30 > 60 degrees within a manoeuvre (`steer.ratchet`: while a manoeuvre
+   lasts the turn only grows). Easing 0.25 -> 0.12. A manoeuvre is now out, hold, back.
+
+**Suite after, 5 variants per scenario (retail from the 3-variant run):**
+
+| configuration | score | meanArrive | overlap | reversals | wobble | stalled |
+|---|---|---|---|---|---|---|
+| unified, before (2026-11-16) | 241 | 65.2 s | 45.4 | 28.9 | - | 15.0 |
+| unified, now | 141 | 65.5 s | 1.4 | 18.2 | 7.4 | 9.2 |
+| unified, now, avoidance off | 139 | 66.5 s | 3.9 | 8.9 | 2.6 | 9.7 |
+| retail | 323 | 81.2 s | 5.8 | 7.8 | 3.2 | 331 |
+
+Per scenario, reversals now: desert-mixed 7, desert-cross 12, city-mixed 26, river-cross 28. **Open ground is at the
+target; chokes are not.** Overlap target met (below retail). Not yet met: reversals < 12 overall.
+
+Things learnt that change how the numbers are read:
+- The reversal count has a floor that is not ours: a Humvee on a long diagonal weaves under retail rules too (33
+  reversals for one unit, steering never active). `wobble` separates that from quick flip-flops.
+- With separation in place avoidance is worth little on these courses (overlap 1.4 vs 3.9) and costs half the
+  reversals. It is kept because it is what makes opposing groups pass instead of meeting, which the suite measures
+  only as `ovCross`; whether it earns its keep is a play-test question.
+- Gentler or smaller separation (`sep.max`, `sep.gain`) trades overlap back for nothing.
+
+Not looked at by a person yet: separation slides a vehicle sideways without turning it. The numbers cannot say
+whether that reads as "units making room" or as "tanks skating".
+
 ### Open
 
 - Play-test UNIFIED (test saves: `scripts/movetest.ps1`). Expected trouble spots: traffic penalty too weak or too strong

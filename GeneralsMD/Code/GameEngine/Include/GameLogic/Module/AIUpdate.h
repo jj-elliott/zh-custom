@@ -531,6 +531,7 @@ public:
 	Bool shouldAskToYield(Object *other) const;		///< should idle ally "other" step aside for us
 	Bool isStoppedToAttack(Object *other) const;	///< "other" is standing still shooting: an obstacle, not traffic
 	Bool canSteer() const;												///< is this unit's movement the kind AISteering handles
+	const AISteering::State& getSteerState() const { return m_steer; }	///< for MoveBench's diagnostics
 	Bool isSteeredPair(Object *other) const;			///< we and ally "other" are both under way and steered: no contact rules between us
 	void setFinalPosition(const Coord3D *pos) { m_finalPosition = *pos; m_doFinalPosition = false;}
 

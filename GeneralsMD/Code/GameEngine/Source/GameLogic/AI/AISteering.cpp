@@ -54,7 +54,7 @@ namespace
 	UnsignedInt COMMIT_FRAMES = LOGICFRAMES_PER_SECOND;			// how long a chosen side stays chosen.
 	Real COST_CHANGE_SIDE = 4.0f;	// switching side while committed: only to dodge something imminent.
 	Real BONUS_SAME_SIDE = 0.8f;
-	Real EASE = 0.25f;						// share of the wanted turn applied per frame; the rest is last frame's.
+	Real EASE = 0.12f;						// share of the wanted turn applied per frame; the rest is last frame's (was 0.25).
 	UnsignedInt ESCAPE_AFTER = LOGICFRAMES_PER_SECOND;			// held at a standstill this long = jammed (was 2 s).
 	// Queueing applies to a unit we are really into, not merely beside: within 85% of the bare combined radius and
 	// inside 45 degrees of dead ahead. (It used the padded avoidance radius and the whole front half-plane, so units
@@ -71,6 +71,39 @@ namespace
 	// A man nudged out of a vehicle's track is put this much beyond its edge, so that walking back toward his own
 	// path does not put him straight back in it (third play-test: infantry jittering along a hull).
 	Real NUDGE_OVERSHOOT = 3.0f;
+
+	// Separation: two allied vehicles under way that are inside each other are eased apart, each moving itself half
+	// the way. The suite showed that nearly all overlap (44 of 45 pair-seconds) is between units of one group
+	// travelling together, which avoidance cannot see: they are not on a collision course, they are on the same line.
+	Real SEP_SHARE = 0.9f;		// of the bare combined radius: closer than this is "inside".
+	Real SEP_GAIN = 0.25f;		// share of our half of the penetration removed per frame.
+	Real SEP_MAX = 0.5f;			// world units a frame at most.
+
+	// Fellow travellers are not obstacles. A unit heading our way (within SAME_DIR_COS of our path direction) at no
+	// less than SAME_DIR_PACE of our speed is left to separation and queueing: dodging the neighbours in one's own
+	// group produced most of the turn reversals (single group across open desert: 14 a unit with, 2 without) and
+	// prevented nothing that separation does not.
+	Real SAME_DIR_COS = 0.5f;		// above 1 = off (everything is avoided, as before).
+	Real SAME_DIR_PACE = 0.7f;
+
+	// Hysteresis. A manoeuvre that is under way judges its neighbours HOLD_CLEARANCE times larger, so "straight on"
+	// only wins again once it is properly clear, and the turn is let go more slowly than it is taken (EASE_OUT).
+	// Without these a unit turned away, saw the way clear, turned back into the threat and turned away again.
+	Real HOLD_CLEARANCE = 1.0f;
+	Real EASE_OUT = 0.12f;
+	// The candidate chosen last frame is this much cheaper than the others. Traced on a Humvee tailing a Crusader:
+	// "straight at half speed" and "15 degrees left at half speed" were within 0.05 of each other and it took them
+	// alternately, every frame, for seconds (99 turn reversals for that one unit).
+	Real STICK = 0.6f;
+	// A turn is held this many frames after the last frame that asked for it. Traced: the need for a turn comes and
+	// goes every few frames (a neighbour crosses one of the yes/no tests above), "2 2 2 . 2 2 2 . 2", and each gap
+	// started the unit back toward its path.
+	UnsignedInt HOLD_FRAMES = 8;
+	// While a manoeuvre lasts the turn only grows. Traced on an Overlord: the least turn that clears the obstacle
+	// shrinks as the unit swings away and grows again as it swings back, 60 > 15 > 30 > 45 > 60 > 30 degrees within
+	// two seconds, each change a visible wobble. With the ratchet a manoeuvre is: out, hold, back.
+	UnsignedInt RATCHET = 1;
+	UnsignedInt DEBUG_UNIT = 0;
 
 	// "-movetune" overrides, read once (GameLogic/MoveRules.h). Names are what a tuning sweep refers to.
 	void loadTuning()
@@ -98,6 +131,17 @@ namespace
 		MoveTune::apply("nudge.margin", NUDGE_MARGIN);
 		MoveTune::apply("nudge.perFrame", NUDGE_PER_FRAME);
 		MoveTune::apply("nudge.overshoot", NUDGE_OVERSHOOT);
+		MoveTune::apply("sep.share", SEP_SHARE);
+		MoveTune::apply("sep.gain", SEP_GAIN);
+		MoveTune::apply("sep.max", SEP_MAX);
+		MoveTune::apply("steer.sameDirCos", SAME_DIR_COS);
+		MoveTune::apply("steer.sameDirPace", SAME_DIR_PACE);
+		MoveTune::apply("steer.holdClearance", HOLD_CLEARANCE);
+		MoveTune::apply("steer.easeOut", EASE_OUT);
+		MoveTune::apply("steer.stick", STICK);
+		MoveTune::apply("steer.holdFrames", HOLD_FRAMES);
+		MoveTune::apply("steer.ratchet", RATCHET);
+		MoveTune::apply("debug.unit", DEBUG_UNIT);
 	}
 
 	// Candidate directions: the path direction rotated by these angles. cos/sin as constants, so no runtime trig.
@@ -241,7 +285,8 @@ static void nudgeAside( Object *vehicle, Object *man, AIUpdateInterface *aiMan )
 // bestSpeedFactor hold the choice. followCap is lowered to the most we may do behind a moving unit we already
 // touch. dirX/dirY is the direction the path follower wants.
 static Bool choose( Object *obj, AIUpdateInterface *ai, Real dirX, Real dirY, Real speed, const State& state,
-										UnsignedInt now, Int& bestTurn, Real& bestSpeedFactor, Real& followCap )
+										UnsignedInt now, Int& bestTurn, Real& bestSpeedFactor, Real& followCap,
+										Real& pushX, Real& pushY, Int& bestSpeedStep )
 {
 	const Coord3D *pos = obj->getPosition();
 	Bool committed = state.side != 0 && (now - state.sideFrame) <= COMMIT_FRAMES;
@@ -254,6 +299,8 @@ static Bool choose( Object *obj, AIUpdateInterface *ai, Real dirX, Real dirY, Re
 
 	bestTurn = 0;
 	bestSpeedFactor = 1.0f;
+	bestSpeedStep = 0;
+	Bool haveLast = state.lastTurn > 0 && (now - state.lastChoiceFrame) <= 2;
 
 	//
 	// Collect the units that matter.
@@ -296,8 +343,34 @@ static Bool choose( Object *obj, AIUpdateInterface *ai, Real dirX, Real dirY, Re
 		n.vy = vel->y;
 		n.standing = (n.vx*n.vx + n.vy*n.vy) < STANDING_SPEED*STANDING_SPEED;
 		n.radius = (ourRadius + steerRadius(other)) * CLEARANCE;
+		Real bareRadius = n.radius / CLEARANCE;
 
 		Real ahead = n.x*dirX + n.y*dirY;
+
+		// Separation from an allied vehicle under way that we are inside.
+		if (!weAreInfantry && SEP_GAIN > 0.0f && aiOther->isMoving() && obj->getRelationship(other) == ALLIES)
+		{
+			Real target = bareRadius * SEP_SHARE;
+			Real distSqr = n.x*n.x + n.y*n.y;
+			if (distSqr < target*target)
+			{
+				Real dist = WWMath::Sqrtf(distSqr);
+				Real awayX, awayY;
+				if (dist > 0.01f)
+				{
+					awayX = -n.x / dist;
+					awayY = -n.y / dist;
+				}
+				else
+				{
+					awayX = (obj->getID() < other->getID()) ? 1.0f : -1.0f;	// exactly stacked: any fixed rule will do.
+					awayY = 0.0f;
+				}
+				Real share = 0.5f * (target - dist) * SEP_GAIN;
+				pushX += awayX * share;
+				pushY += awayY * share;
+			}
+		}
 
 		// Queueing: a unit under way that we already touch and that is in front of us sets our pace. A unit with
 		// nowhere to go doesn't (slowing never gets us past it; the contact rules deal with it).
@@ -314,6 +387,15 @@ static Bool choose( Object *obj, AIUpdateInterface *ai, Real dirX, Real dirY, Re
 		// would have its front units dodging the ones catching up.
 		if (!n.standing && ahead < 0.0f)
 			continue;
+		if (alreadySteering)
+			n.radius *= HOLD_CLEARANCE;
+		if (!n.standing)
+		{
+			Real pace = n.vx*dirX + n.vy*dirY;
+			Real otherSpeedSqr = n.vx*n.vx + n.vy*n.vy;
+			if (pace > 0.0f && pace*pace >= SAME_DIR_COS*SAME_DIR_COS*otherSpeedSqr && pace >= SAME_DIR_PACE*speed)
+				continue;
+		}
 		++count;
 	}
 	if (count == 0)
@@ -324,11 +406,23 @@ static Bool choose( Object *obj, AIUpdateInterface *ai, Real dirX, Real dirY, Re
 	//
 	Real straightCost = 0.0f;
 	Int i;
+	Int dbgWorst = -1;
 	for (i = 0; i < count; ++i)
 	{
 		Real cost = collisionCost(timeToCollision(neighbours[i], dirX*speed, dirY*speed));
 		if (cost > straightCost)
+		{
 			straightCost = cost;
+			dbgWorst = i;
+		}
+	}
+	if (DEBUG_UNIT != 0 && (UnsignedInt)obj->getID() == DEBUG_UNIT && dbgWorst >= 0)
+	{
+		const Neighbour& n = neighbours[dbgWorst];
+		Real fwd = n.x*dirX + n.y*dirY, lat = -n.x*dirY + n.y*dirX;
+		Real vf = n.vx*dirX + n.vy*dirY, vl = -n.vx*dirY + n.vy*dirX;
+		printf("DBGSTEER f=%u cost=%.2f n=%d fwd=%.1f lat=%.1f vf=%.2f vl=%.2f r=%.1f stand=%d speed=%.2f steering=%d\n",
+			now, straightCost, count, fwd, lat, vf, vl, n.radius, n.standing ? 1 : 0, speed, alreadySteering ? 1 : 0);
 	}
 	if (straightCost <= 0.0f)
 		return FALSE;
@@ -364,6 +458,8 @@ static Bool choose( Object *obj, AIUpdateInterface *ai, Real dirX, Real dirY, Re
 			if (s == 2) cost += COST_STOP;
 			if (committed && turn.side != 0)
 				cost += (turn.side == state.side) ? -BONUS_SAME_SIDE : COST_CHANGE_SIDE;
+			if (haveLast && t == state.lastTurn && s == state.lastSpeedStep)
+				cost -= STICK;
 			if (cost >= bestCost)
 				continue;	// cannot win even with no collision at all.
 
@@ -393,6 +489,7 @@ static Bool choose( Object *obj, AIUpdateInterface *ai, Real dirX, Real dirY, Re
 			bestCost = cost;
 			bestTurn = t;
 			bestSpeedFactor = factor;
+			bestSpeedStep = s;
 		}
 	}
 
@@ -424,18 +521,60 @@ Bool steer( Object *obj, AIUpdateInterface *ai, Coord3D& goalPos, Real& speed, S
 	Int bestTurn = 0;
 	Real bestSpeedFactor = 1.0f;
 	Real followCap = NO_CAP;
-	Bool chose = choose(obj, ai, dirX, dirY, speed, state, now, bestTurn, bestSpeedFactor, followCap);
+	Real pushX = 0.0f, pushY = 0.0f;
+	Int bestSpeedStep = 0;
+	Bool chose = choose(obj, ai, dirX, dirY, speed, state, now, bestTurn, bestSpeedFactor, followCap, pushX, pushY, bestSpeedStep);
+	// The turn we want: this frame's choice, or the one being held (HOLD_FRAMES), or with RATCHET the larger of the
+	// two when they are on the same side.
+	Int wantTurn = chose ? bestTurn : 0;
+	Bool holding = state.lastTurn > 0 && (now - state.lastChoiceFrame) <= HOLD_FRAMES;
+	if (holding)
+	{
+		if (wantTurn == 0)
+			wantTurn = state.lastTurn;
+		else if (RATCHET && TURNS[wantTurn].side == TURNS[state.lastTurn].side && wantTurn < state.lastTurn)
+			wantTurn = state.lastTurn;
+	}
+	if (chose && bestTurn > 0)
+		state.lastChoiceFrame = now;
+	if (chose || holding)
+	{
+		state.lastTurn = wantTurn;
+		state.lastSpeedStep = chose ? bestSpeedStep : 0;
+	}
+	else
+	{
+		state.lastTurn = 0;
+	}
+
+	if (pushX != 0.0f || pushY != 0.0f)
+	{
+		Real pushLen = WWMath::Sqrtf(pushX*pushX + pushY*pushY);
+		if (pushLen > SEP_MAX)
+		{
+			pushX *= SEP_MAX / pushLen;
+			pushY *= SEP_MAX / pushLen;
+		}
+		Coord3D to = *pos;
+		to.x += pushX;
+		to.y += pushY;
+		if (TheAI->pathfinder()->validMovementPosition(FALSE, obj->getLayer(), ai->getLocomotorSet(), &to))
+		{
+			to.z = TheTerrainLogic->getLayerHeight(to.x, to.y, obj->getLayer());
+			obj->setPosition(&to);
+		}
+	}
 
 	// Remember the side for COMMIT_FRAMES, and ease the applied turn toward the wanted one instead of jumping to
 	// it, both on the way in and on the way back to the path direction.
 	Real wantCos = 1.0f;
 	Real wantSin = 0.0f;
-	if (chose)
+	if (wantTurn > 0)
 	{
-		const Turn& chosen = TURNS[bestTurn];
+		const Turn& chosen = TURNS[wantTurn];
 		wantCos = chosen.cosA;
 		wantSin = chosen.sinA;
-		if (chosen.side != 0)
+		if (chose && bestTurn > 0)
 		{
 			state.side = chosen.side;
 			state.sideFrame = now;
@@ -446,8 +585,11 @@ Bool steer( Object *obj, AIUpdateInterface *ai, Coord3D& goalPos, Real& speed, S
 		state.side = 0;
 	}
 
-	state.offCos += (wantCos - state.offCos) * EASE;
-	state.offSin += (wantSin - state.offSin) * EASE;
+	// Easing back toward the path direction (the wanted turn is smaller than the applied one, same side or none).
+	Bool letGo = WWMath::Fabs(wantSin) < WWMath::Fabs(state.offSin) && wantSin*state.offSin >= 0.0f;
+	Real ease = letGo ? EASE_OUT : EASE;
+	state.offCos += (wantCos - state.offCos) * ease;
+	state.offSin += (wantSin - state.offSin) * ease;
 	Real len = WWMath::Sqrtf(state.offCos*state.offCos + state.offSin*state.offSin);
 	if (len > 0.0001f)
 	{
@@ -474,6 +616,10 @@ Bool steer( Object *obj, AIUpdateInterface *ai, Coord3D& goalPos, Real& speed, S
 	}
 	if (chose && bestSpeedFactor < 1.0f)
 		speed *= bestSpeedFactor;
+	if (state.offSin != 0.0f || (chose && bestSpeedFactor < 1.0f))
+		state.activeFrame = now;
+	if (DEBUG_UNIT != 0 && (UnsignedInt)obj->getID() == DEBUG_UNIT)
+		printf("DBGOUT f=%u chose=%d turn=%d factor=%.1f offSin=%.3f cap=%.2f pos=%.0f,%.0f id=%u\n", now, chose ? 1 : 0, bestTurn, bestSpeedFactor, state.offSin, followCap > 1000.0f ? -1.0f : followCap, pos->x, pos->y, (UnsignedInt)obj->getID());
 
 	// Queueing, and the escape from a queue that has stopped moving.
 	Bool held = FALSE;

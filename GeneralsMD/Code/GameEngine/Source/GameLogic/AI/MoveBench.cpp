@@ -67,6 +67,9 @@ namespace
 		Real lastHeading;
 		Int lastTurnSign;
 		Int reversals;
+		Int quickReversals;			// reversals within half a second of the previous one: wobble, as against an S-bend.
+		UnsignedInt lastReversalFrame;
+		Int revSteer, revStart, revEnd;	// of those: while steering / in the first 5 s / within 200 of the goal.
 		UnsignedInt stalledFrames;
 		Bool vehicle;
 		Real radius;
@@ -436,6 +439,8 @@ int run()
 	// up to three cells. One run of a chaotic system says little; a tuning is judged on the average over variants.
 	Int seed = 1;
 	MoveTune::apply("bench.seed", seed);
+	UnsignedInt debugUnit = 0;	// "-movetune debug.unit=<object id>": trace that unit (scripts/movetrace.ps1).
+	MoveTune::apply("debug.unit", debugUnit);
 	InitRandom((UnsignedInt)seed);
 	Real shiftX = (Real)(((seed * 37) % 7) - 3) * PATHFIND_CELL_SIZE_F;
 	Real shiftY = (Real)(((seed * 53) % 7) - 3) * PATHFIND_CELL_SIZE_F;
@@ -524,6 +529,9 @@ int run()
 			t.lastHeading = obj->getOrientation();
 			t.lastTurnSign = 0;
 			t.reversals = 0;
+			t.revSteer = t.revStart = t.revEnd = 0;
+			t.quickReversals = 0;
+			t.lastReversalFrame = 0;
 			t.stalledFrames = 0;
 			t.vehicle = !obj->isKindOf(KINDOF_INFANTRY);
 			t.radius = unitRadius(obj);
@@ -540,6 +548,7 @@ int run()
 	UnsignedInt startFrame = TheGameLogic->getFrame();
 	UnsignedInt lastOffset = orders[orders.size()-1].offset;
 	UnsignedInt overlapPairFrames = 0;
+	UnsignedInt ovMM = 0, ovMS = 0, ovSS = 0, ovCross = 0;	// breakdown: both moving / one / neither; pairs with different orders.
 	Bool timedOut = false;
 	for (;;)
 	{
@@ -616,11 +625,26 @@ int run()
 			if (turn > PI) turn -= 2.0f*PI;
 			if (turn < -PI) turn += 2.0f*PI;
 			t.lastHeading = heading;
+			if (debugUnit != 0 && (UnsignedInt)t.id == debugUnit)
+				printf("DBGPOS f=%u x=%.1f y=%.1f heading=%.3f turn=%.4f moved=%.2f moving=%d\n", now, pos->x, pos->y, heading, turn, moved, moving ? 1 : 0);
 			if (moving && WWMath::Fabs(turn) > TURN_EPSILON)
 			{
 				Int sign = (turn > 0.0f) ? 1 : -1;
 				if (t.lastTurnSign != 0 && sign != t.lastTurnSign)
+				{
 					++t.reversals;
+					if (t.lastReversalFrame != 0 && now - t.lastReversalFrame <= LOGICFRAMES_PER_SECOND/2)
+						++t.quickReversals;
+					t.lastReversalFrame = now;
+					Real gx = pos->x - t.dest.x;
+					Real gy = pos->y - t.dest.y;
+					if (now - ai->getSteerState().activeFrame <= LOGICFRAMES_PER_SECOND/2)
+						++t.revSteer;
+					else if (now - t.orderFrame < 5*LOGICFRAMES_PER_SECOND)
+						++t.revStart;
+					else if (gx*gx + gy*gy < 200.0f*200.0f)
+						++t.revEnd;
+				}
 				t.lastTurnSign = sign;
 			}
 		}
@@ -642,7 +666,13 @@ int run()
 				Real dy = a->getPosition()->y - b->getPosition()->y;
 				Real reach = OVERLAP_SHARE * (units[u].radius + units[v].radius);
 				if (dx*dx + dy*dy < reach*reach)
+				{
 					++overlapPairFrames;
+					Int movers = ((a->getAI() && a->getAI()->isMoving()) ? 1 : 0) + ((b->getAI() && b->getAI()->isMoving()) ? 1 : 0);
+					if (movers == 2) ++ovMM; else if (movers == 1) ++ovMS; else ++ovSS;
+					if (units[u].dest.x != units[v].dest.x || units[u].dest.y != units[v].dest.y)
+						++ovCross;
+				}
 			}
 		}
 
@@ -657,7 +687,7 @@ int run()
 
 	// Report.
 	Real sumArrive = 0.0f, maxArrive = 0.0f, sumDetour = 0.0f, sumShort = 0.0f;
-	Int reversals = 0, counted = 0, detourCounted = 0;
+	Int reversals = 0, counted = 0, detourCounted = 0, revSteer = 0, revStart = 0, revEnd = 0, wobble = 0;
 	UnsignedInt stalled = 0;
 	for (size_t u = 0; u < units.size(); ++u)
 	{
@@ -670,6 +700,12 @@ int run()
 		if (arrive > maxArrive)
 			maxArrive = arrive;
 		reversals += t.reversals;
+		wobble += t.quickReversals;
+		printf("MoveBenchUnit: id=%u vehicle=%d radius=%.1f reversals=%d revSteer=%d stalled=%u\n", (unsigned)t.id, t.vehicle ? 1 : 0,
+			t.radius, t.reversals, t.revSteer, t.stalledFrames);
+		revSteer += t.revSteer;
+		revStart += t.revStart;
+		revEnd += t.revEnd;
 		stalled += t.stalledFrames;
 		Real gx = t.lastPos.x - t.dest.x;
 		Real gy = t.lastPos.y - t.dest.y;
@@ -685,13 +721,16 @@ int run()
 	}
 	if (counted == 0)
 		counted = 1;
-	printf("MoveBench: units=%d meanArrive=%.2f maxArrive=%.2f goalDist=%.1f overlap=%.2f reversals=%.2f stalled=%.2f detour=%.3f timeout=%d frames=%u level=%d\n",
+	printf("MoveBench: units=%d meanArrive=%.2f maxArrive=%.2f goalDist=%.1f overlap=%.2f reversals=%.2f stalled=%.2f detour=%.3f timeout=%d frames=%u level=%d ovMM=%.2f ovMS=%.2f ovSS=%.2f ovCross=%.2f revSteer=%.2f revStart=%.2f revEnd=%.2f wobble=%.2f\n",
 		counted, sumArrive / counted, maxArrive, sumShort / counted,
 		(Real)overlapPairFrames / (Real)LOGICFRAMES_PER_SECOND,
 		(Real)reversals / counted,
 		(Real)stalled / (Real)LOGICFRAMES_PER_SECOND,
 		detourCounted ? sumDetour / detourCounted : 1.0f,
-		timedOut ? 1 : 0, TheGameLogic->getFrame() - startFrame, MoveRules::getLevel());
+		timedOut ? 1 : 0, TheGameLogic->getFrame() - startFrame, MoveRules::getLevel(),
+		(Real)ovMM / (Real)LOGICFRAMES_PER_SECOND, (Real)ovMS / (Real)LOGICFRAMES_PER_SECOND,
+		(Real)ovSS / (Real)LOGICFRAMES_PER_SECOND, (Real)ovCross / (Real)LOGICFRAMES_PER_SECOND,
+		(Real)revSteer / counted, (Real)revStart / counted, (Real)revEnd / counted, (Real)wobble / counted);
 	fflush(stdout);
 	return timedOut ? 1 : 0;
 }

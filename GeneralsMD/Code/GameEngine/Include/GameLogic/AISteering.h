@@ -32,10 +32,16 @@
 //            in our direction. This is what makes a gap pass units at the rate they fit, without overlap.
 //   escape   if following has held us at a standstill for 2 s, the queue is a jam; the caller then lets this one
 //            unit ignore collisions for 2 s. The only place units are allowed through each other.
+//   separate an allied vehicle under way that we are inside (closer than 90% of the combined radius) is not a
+//            collision course, so "avoid" cannot see it: we ease our own position away from it, a little a frame.
+//            Units heading our way at about our speed are left to this and to "queue", and are not avoided.
+// The choice has memory (last candidate cheaper, a turn held a few frames after it was last needed, and within one
+// manoeuvre the turn only grows), so a manoeuvre is out, hold, back.
 //
 // SIM CODE. Deterministic by construction: inputs are positions, headings and physics velocities already in the
 // lockstep state; candidate directions are constant rotation pairs (no runtime trig); the neighbour scan takes a
-// maximum, independent of iteration order; no RNG; State is per unit, transient, and identical on both machines.
+// maximum, independent of iteration order (the separation push is a sum, taken in the partition manager's
+// near-to-far order, which is itself a function of lockstep state); no RNG; State is per unit, transient, and identical on both machines.
 
 #pragma once
 
@@ -54,8 +60,12 @@ namespace AISteering
 		UnsignedInt sideFrame;		///< frame of that choice; we stay committed to the side for a while.
 		Real offCos, offSin;			///< the turn currently applied, as a rotation of the path direction; eased frame to frame.
 		UnsignedInt heldFrames;		///< consecutive frames queueing has kept us at a standstill.
+		Int lastTurn;							///< the candidate chosen last frame (index of the turn, -1 none) and its speed step:
+		Int lastSpeedStep;				///< staying with it is cheaper than changing, so the choice does not flicker.
+		UnsignedInt lastChoiceFrame;
+		UnsignedInt activeFrame;	///< last frame the aim point was bent or the speed cut. Read by MoveBench only.
 
-		State() : side(0), sideFrame(0), offCos(1.0f), offSin(0.0f), heldFrames(0) { }
+		State() : side(0), sideFrame(0), offCos(1.0f), offSin(0.0f), heldFrames(0), lastTurn(0), lastSpeedStep(0), lastChoiceFrame(0), activeFrame(0) { }
 	};
 
 	/**
