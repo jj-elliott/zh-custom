@@ -160,7 +160,12 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       river-cross at level 2: 32 of 32 paths from the mesh, all over a bridge. Destroy/repair and re-pathing from on a
       bridge are tested through MoveBench hooks (`-Tune bench.bridgesDown=F,bench.bridgesUp=F,bench.reorder=F`).
       `navtest.ps1` now also fuzzes 1 bridge map per 3 grids against an exhaustive layered search.
-      **Open, agent, next:** in-game overlay; bucket grid for `locate`/`nearestPassable`; more than one corridor per
+      **In-game overlay built (2026-11-18), nobody has seen it yet:** `W3DNavMeshOverlay`, on with
+      `-moverules 2 -movetune navmesh.overlay=1` (PLAN.md "In-game overlay" says what each colour is).
+      **Open, human:** look at it and say what is wrong or unreadable:
+      `.\scripts\movetest.ps1 -Name pathfinding -Level 2 -ExtraArgs "-movetune navmesh.overlay=1"`, select units,
+      order a move; for a bridge, a skirmish on Winding River with the same two switches.
+      **Open, agent, next:** bucket grid for `locate`/`nearestPassable`; more than one corridor per
       node (0.47% of bridge paths are longer than the grid's, worst +54%) together with one corridor search per group
       order; wall tops (layer 15) are still on the grid; then M4 (drive model, steering, hard separation), starting
       with corners as drivable arcs. Do not tune `AISteering` for level 2.

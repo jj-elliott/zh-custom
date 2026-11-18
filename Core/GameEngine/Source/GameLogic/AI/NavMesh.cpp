@@ -209,6 +209,46 @@ namespace
 		return sm;
 	}
 
+	/// Which set of meshes a unit searches: the labels it may stand on and its size. False: none (it flies, or has
+	/// no surface the meshes know).
+	Bool sizeClassOf( const Object *obj, const LocomotorSet& locomotorSet, unsigned& mask, Int& radius )
+	{
+		// Which labels this unit may stand on.
+		LocomotorSurfaceTypeMask surfaces = locomotorSet.getValidSurfaces();
+		if (surfaces & LOCOMOTORSURFACE_AIR)
+			return false;
+		mask = 0;
+		if (surfaces & LOCOMOTORSURFACE_GROUND)
+		{
+			mask |= 1u << NavMesh::NAV_CLEAR;
+			if (obj->getCrusherLevel() > 0)
+				mask |= 1u << NavMesh::NAV_FENCE;
+		}
+		if (surfaces & LOCOMOTORSURFACE_WATER) mask |= 1u << NavMesh::NAV_WATER;
+		if (surfaces & LOCOMOTORSURFACE_CLIFF) mask |= 1u << NavMesh::NAV_CLIFF;
+		if (surfaces & LOCOMOTORSURFACE_RUBBLE) mask |= 1u << NavMesh::NAV_RUBBLE;
+		if (mask == 0)
+			return false;
+
+		// Its size, in half-cells, rounded down so that rounding never closes a gap the unit fits through. Infantry
+		// are points: they pass through each other and through one-cell gaps, as on the grid.
+		const Real HALF = PATHFIND_CELL_SIZE_F * 0.5f;
+		radius = 0;
+		if (!obj->isKindOf(KINDOF_INFANTRY))
+		{
+			const GeometryInfo& geom = obj->getGeometryInfo();
+			Real r = geom.getMajorRadius();
+			if (geom.getGeomType() == GEOMETRY_BOX)
+				r = (geom.getMajorRadius() + geom.getMinorRadius()) * 0.5f;
+			radius = REAL_TO_INT_FLOOR(r / HALF);
+			if (radius > MAX_RADIUS_HALF_CELLS)
+				radius = MAX_RADIUS_HALF_CELLS;
+			if (radius < 0)
+				radius = 0;
+		}
+		return true;
+	}
+
 	/// The sheet of a pathfinder layer in this set of meshes; 0 (the ground) if it has none.
 	Int sheetOfLayer( const SizedMesh *sm, Int layer )
 	{
@@ -415,39 +455,12 @@ Path *NavMesh::findPath( Object *obj, const LocomotorSet& locomotorSet, const Co
 	if (s_labels.empty() || obj == nullptr)
 		return nullptr;
 
-	// Which labels this unit may stand on.
-	LocomotorSurfaceTypeMask surfaces = locomotorSet.getValidSurfaces();
-	if (surfaces & LOCOMOTORSURFACE_AIR)
-		return nullptr;
+	const Real HALF = PATHFIND_CELL_SIZE_F * 0.5f;
 	unsigned mask = 0;
-	if (surfaces & LOCOMOTORSURFACE_GROUND)
-	{
-		mask |= 1u << NAV_CLEAR;
-		if (obj->getCrusherLevel() > 0)
-			mask |= 1u << NAV_FENCE;
-	}
-	if (surfaces & LOCOMOTORSURFACE_WATER) mask |= 1u << NAV_WATER;
-	if (surfaces & LOCOMOTORSURFACE_CLIFF) mask |= 1u << NAV_CLIFF;
-	if (surfaces & LOCOMOTORSURFACE_RUBBLE) mask |= 1u << NAV_RUBBLE;
-	if (mask == 0)
+	Int radius = 0;
+	if (!sizeClassOf(obj, locomotorSet, mask, radius))
 		return nullptr;
 
-	// Its size, in half-cells, rounded down so that rounding never closes a gap the unit fits through. Infantry
-	// are points: they pass through each other and through one-cell gaps, as on the grid.
-	const Real HALF = PATHFIND_CELL_SIZE_F * 0.5f;
-	Int radius = 0;
-	if (!obj->isKindOf(KINDOF_INFANTRY))
-	{
-		const GeometryInfo& geom = obj->getGeometryInfo();
-		Real r = geom.getMajorRadius();
-		if (geom.getGeomType() == GEOMETRY_BOX)
-			r = (geom.getMajorRadius() + geom.getMinorRadius()) * 0.5f;
-		radius = REAL_TO_INT_FLOOR(r / HALF);
-		if (radius > MAX_RADIUS_HALF_CELLS)
-			radius = MAX_RADIUS_HALF_CELLS;
-		if (radius < 0)
-			radius = 0;
-	}
 	// Wall tops are not meshed: a unit on one, or sent to one, is pathed by the grid.
 	PathfindLayerEnum objLayer = obj->getLayer();
 	PathfindLayerEnum toLayer = TheTerrainLogic->getLayerForDestination(to);
@@ -569,6 +582,63 @@ Path *NavMesh::findPath( Object *obj, const LocomotorSet& locomotorSet, const Co
 		node->setNextOptimized(node->getNext());
 	path->markOptimized();
 	return path;
+}
+
+//-------------------------------------------------------------------------------------------------
+Int NavMesh::debugOverlay()
+{
+	// Read once: "-movetune" is parsed before any map loads, and a renderer asks this every frame.
+	static Int s_overlay = -1;
+	if (s_overlay < 0)
+	{
+		s_overlay = 0;
+		MoveTune::apply("navmesh.overlay", s_overlay);
+		if (s_overlay < 0)
+			s_overlay = 0;
+	}
+	return s_overlay;
+}
+
+//-------------------------------------------------------------------------------------------------
+Bool NavMesh::debugSheets( const Object *obj, const LocomotorSet *locomotorSet, std::vector<DebugSheet>& out, Int *radiusHalfCells,
+													 Bool *upToDate )
+{
+	out.clear();
+	const SizedMesh *sm = nullptr;
+	if (obj != nullptr && locomotorSet != nullptr)
+	{
+		unsigned mask = 0;
+		Int radius = 0;
+		if (!sizeClassOf(obj, *locomotorSet, mask, radius))
+			return false;
+		for (size_t i = 0; i < s_sized.size(); ++i)
+		{
+			if (s_sized[i]->mask == mask && s_sized[i]->radius == radius)
+				sm = s_sized[i];
+		}
+	}
+	else if (!s_sized.empty())
+	{
+		sm = s_sized[0];
+	}
+	// Only what the sim has already built: a set appears with its size's first path request (and is rebuilt by the
+	// next one after the grid changed), never because somebody looked.
+	if (sm == nullptr || sm->meshes.empty())
+		return false;
+	for (size_t k = 0; k < sm->meshes.size(); ++k)
+	{
+		DebugSheet ds;
+		ds.mesh = &sm->meshes[k];
+		ds.ox = sm->atlas.sheets[k].ox;
+		ds.oy = sm->atlas.sheets[k].oy;
+		ds.layer = sm->layerOf[k];
+		out.push_back(ds);
+	}
+	if (radiusHalfCells)
+		*radiusHalfCells = sm->radius;
+	if (upToDate)
+		*upToDate = (sm->serial == s_gridSerial);
+	return true;
 }
 
 //-------------------------------------------------------------------------------------------------

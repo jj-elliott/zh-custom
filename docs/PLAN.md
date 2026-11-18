@@ -548,7 +548,7 @@ What that means for M3/M4 (the test every steering decision is held to):
 | | what | done when |
 |---|---|---|
 | **M1** | Mesh from the grid: boundary chains, simplification, CDT, labels. Standalone test tool. | **Done 2026-11-17**, see below. |
-| M2 | Rebuild on grid change (**done**); unit width (**done**: a mesh per size, below); bridges (**done**, below; wall tops not); debug overlay in game. | fuzz covers edits; mesh == grid after every footprint change in a soak run; overlay looks right to the user. |
+| M2 | Rebuild on grid change (**done**); unit width (**done**: a mesh per size, below); bridges (**done**, below; wall tops not); debug overlay in game (**built, not yet looked at**, below). | fuzz covers edits; mesh == grid after every footprint change in a soak run; overlay looks right to the user. |
 | M3 | Point location, A*, funnel; `MoveRules` level 2 routes ground paths through it (**done**, below, bridges included); corners as drivable arcs. | path exists <=> grid says a path exists, on every suite map; lengths <= grid paths; plays. |
 | M4 | Drive model + steering + hard separation + push priorities; removes level 1's layers at level 2. | suite: no overlap, deviation only with a neighbour as cause; the user plays it against SC2 in their head. |
 | M5 | Arrival radius, group goals, attack-move. | same. |
@@ -741,9 +741,34 @@ Still owed on bridges: wall tops (layer 15; units on them use the grid); two bri
 deck of one cannot open onto ground the other owns; no stock map does this); `locate` / `nearestPassable` are still
 linear scans, now over every sheet near the point.
 
-**Next:** an in-game overlay (mesh + a unit's path) so the user can look at it; a bucket grid for `locate` /
-`nearestPassable`; more than one corridor per node together with one corridor search per group order; then M4,
-starting with the string's corners turned into arcs a unit can drive (the user's criterion above).
+**In-game overlay** (2026-11-18; `W3DDevice/GameClient/W3DNavMeshOverlay`, `NavMesh::debugOverlay` /
+`debugSheets`). Start the game with `-moverules 2 -movetune navmesh.overlay=1`:
+
+    .\scripts\movetest.ps1 -Name pathfinding -Level 2 -ExtraArgs "-movetune navmesh.overlay=1"
+
+(or the same two switches on any launch; `navmesh.overlay=2` leaves the walls out). Select ground units and give
+them a move order. Drawn within 900 world units of where the camera looks, translucent, on top of the scene:
+green = where the selected unit's centre may be (the mesh of *its* size: ground shrunk by its radius, so the green
+stops a radius short of every wall, and a tank's green is narrower than a soldier's); blue = a bridge's deck;
+red = everything that mesh has as wall; dark lines = wall boundaries, pale lines = the other triangle edges;
+yellow = each selected unit's current path, node to node, cyan where a node is on a bridge's layer. The first
+selected ground unit picks the mesh; with nothing selected it is whichever set was built first.
+- A set of meshes exists only once a unit of that kind has asked for a path, and is brought up to date by that
+  kind's next request: the overlay shows exactly what the sim has (ground turns yellowish when the grid has changed
+  since) and never builds anything. That is deliberate: looking must not change the game.
+- It is a render object in the 3D scene modelled on `W3DDebugIcons` (the engine's own pathfinding debug draw, which
+  exists only in debug builds): dynamic vertex buffers through `DX8Wrapper`, nothing from game logic. It is created
+  only when the switch is given, so a normal launch has no new object in the scene.
+- The switch is read on the client and by nothing in the sim: with it on, a headless river-cross run prints the
+  same line to the digit. `verify.ps1` and `soak.ps1 -Level 2` pass with it off.
+- **Not verified:** nobody has seen it. It builds and links; the drawing code follows `W3DDebugIcons` call for
+  call, but colours, line widths and whether flat triangles over rough ground read well are guesses until the user
+  looks. Big triangles are drawn as planes through their corners' ground heights, so on a hillside the fill can sit
+  above or below the surface (it is drawn without depth test, so it stays visible).
+
+**Next:** the user looks at the overlay; a bucket grid for `locate` / `nearestPassable`; more than one corridor per
+node together with one corridor search per group order; then M4, starting with the string's corners turned into
+arcs a unit can drive (the user's criterion above).
 
 ### Open (level 1; superseded by the section above)
 
