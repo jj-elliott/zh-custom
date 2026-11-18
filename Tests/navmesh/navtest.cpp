@@ -1,6 +1,7 @@
 // zh-pipeline: standalone test of the navigation mesh builder (Core/GameEngine/.../NavMeshBuild.cpp), no engine.
 // Built and run by scripts/navtest.ps1.
 //   navtest fuzz <count> [seed]              random label grids, every tolerance, full validation
+//   navtest bridges <count> [seed]           random maps with bridges: the atlas search against an exhaustive one
 //   navtest svg <grid.txt> <out.svg> <num> <den>   build one grid (as dumped by the engine), draw it, print statistics
 // Grid file: "width height" then height lines of width characters, '0'..'9' = label, first line = y 0.
 
@@ -367,6 +368,570 @@ static int fuzz( int count, unsigned int seed )
 	return failures ? 1 : 0;
 }
 
+//-------------------------------------------------------------------------------------------------
+// Bridges: random maps with one to three bridges, each a second level over its footprint (NavMeshQuery.h, Atlas).
+// The atlas search against an exhaustive search over half-cells that knows nothing of sheets or of which sheet has
+// which ground: a unit's centre may be on any half-cell of ground that some sheet allows, or on a bridge's deck,
+// and it gets on and off a deck where the bridge's own sheet has ground beside it.
+struct BridgeTotals
+{
+	long long worlds, pairs, found, refFound, phantom, missed, offGround, tooClose, wrongDeck, badSwitch, longer, viaBridge;
+	long long expanded, links, sheets, tris, invalidMesh, fallbacks;
+	double ratioSum, worstRatio, worstClearance;
+};
+static BridgeTotals s_bridge[6];	// radius 0 / 0.5 / 1.5 cells; exact, then simplified
+// A half-cell is ground if its centre is far enough from every wall, so a corner of it can be nearer: by 0.086 of a
+// cell at most for the radii tried (1.5 cells: 0.943 radii). Round a wall such a corner is a dent in the ground that
+// no pulled string enters, which is why the single-mesh fuzz allows nothing. Where two sheets' ground meets, the
+// dent can be the doorway between them, and a string through it runs along that half-cell's edge.
+static const float SHEET_SLACK = 0.09f;
+static int s_verbose = 0;	// "bridgeworld": print every pair that fails or is missed
+
+struct FuzzBridge
+{
+	std::vector<unsigned char> view;	// whole map: what a unit on this bridge may stand on (0) or not (1)
+	std::vector<unsigned char> deck;	// whole map: 1 = the bridge itself
+	int x0, y0, x1, y1;								// cells the bridge touches: [x0, x1) x [y0, y1)
+};
+
+static void randomBridgeWorld( std::vector<unsigned char>& ground, int& w, int& h, std::vector<FuzzBridge>& bridges )
+{
+	w = 16 + rnd() % 33;
+	h = 16 + rnd() % 33;
+	ground.assign(w*h, 0);
+	int kind = rnd() % 3;
+	if (kind == 0)
+	{
+		int density = 1 + rnd() % 12;
+		for (int i = 0; i < w*h; ++i)
+		{
+			if ((int)(rnd() % 100) < density)
+				ground[i] = 1;
+		}
+	}
+	else if (kind == 1)
+	{
+		int shapes = 1 + rnd() % 8;
+		for (int s = 0; s < shapes; ++s)
+		{
+			int cx = rnd() % w, cy = rnd() % h, r = 1 + rnd() % 6;
+			bool disc = (rnd() & 1) != 0;
+			for (int y = cy - r; y <= cy + r; ++y)
+			{
+				for (int x = cx - r; x <= cx + r; ++x)
+				{
+					if (x < 0 || y < 0 || x >= w || y >= h || (disc && (x-cx)*(x-cx) + (y-cy)*(y-cy) > r*r))
+						continue;
+					ground[y*w + x] = 1;
+				}
+			}
+		}
+	}
+	else
+	{
+		// a river: a band of wall right across the map, so that the bridges are the only way over
+		bool vertical = (rnd() & 1) != 0;
+		int width = 3 + rnd() % 8;
+		int room = (vertical ? w : h) - width - 7;
+		int at = 4 + rnd() % (room < 1 ? 1 : room);
+		int wobble = rnd() % 3;
+		for (int y = 0; y < h; ++y)
+		{
+			for (int x = 0; x < w; ++x)
+			{
+				int along = vertical ? y : x, across = vertical ? x : y;
+				int shift = wobble ? ((along / 5) % (wobble + 1)) : 0;
+				if (across >= at + shift && across < at + shift + width)
+					ground[y*w + x] = 1;
+			}
+		}
+	}
+
+	static const int DIRS[8][2] = { {1,0}, {0,1}, {1,1}, {1,-1}, {2,1}, {1,2}, {2,-1}, {1,-2} };
+	int count = 1 + rnd() % 3;
+	bridges.clear();
+	std::vector<unsigned char> block(w*h, 0), open(w*h, 0), taken(w*h, 0);
+	for (int b = 0; b < count; ++b)
+	{
+		FuzzBridge br;
+		int d = rnd() % 8;
+		float len = (float)sqrt((double)(DIRS[d][0]*DIRS[d][0] + DIRS[d][1]*DIRS[d][1]));
+		float ux = DIRS[d][0] / len, uy = DIRS[d][1] / len;
+		float cx = 3.0f + (float)(rnd() % (w - 6)) + 0.5f * (rnd() & 1), cy = 3.0f + (float)(rnd() % (h - 6)) + 0.5f * (rnd() & 1);
+		float hl = 4.0f + (float)(rnd() % 21) * 0.5f, hw = 1.5f + (float)(rnd() % 6) * 0.5f;
+		int clearance = rnd() % 3;	// 0 low: no ground under it; 1 high; 2 low near its ends
+		bool openMouths = (rnd() & 1) != 0;
+		br.view.assign(w*h, 0);
+		br.deck.assign(w*h, 0);
+		br.x0 = w; br.y0 = h; br.x1 = 0; br.y1 = 0;
+		std::vector<unsigned char> myBlock(w*h, 0), myOpen(w*h, 0);
+		bool clash = false;
+		for (int y = 0; y < h; ++y)
+		{
+			for (int x = 0; x < w; ++x)
+			{
+				int inside = 0;
+				for (int c = 0; c < 4; ++c)
+				{
+					float px = (float)(x + (c & 1)) - cx, py = (float)(y + (c >> 1)) - cy;
+					float along = px*ux + py*uy, lat = -px*uy + py*ux;
+					if (fabs(along) <= hl && fabs(lat) <= hw)
+						++inside;
+				}
+				float px = (float)x + 0.5f - cx, py = (float)y + 0.5f - cy;
+				float along = (float)fabs(px*ux + py*uy), lat = (float)fabs(-px*uy + py*ux);
+				bool mouth = lat < hw - 1.0f && along > hl - 1.0f && along < hl + 1.0f;
+				int what = 0;	// 1 deck, 2 side
+				if (inside == 4 || mouth)
+					what = 1;
+				else if (inside > 0)
+					what = 2;
+				if (!what)
+				{
+					if (openMouths && lat < hw + 2.0f && along >= hl + 1.0f && along < hl + 4.0f)
+						myOpen[y*w + x] = 1;
+					continue;
+				}
+				// Bridges do not touch one another: three cells of other things between any two.
+				for (int ny = y - 3; ny <= y + 3 && !clash; ++ny)
+				{
+					for (int nx = x - 3; nx <= x + 3; ++nx)
+					{
+						if (nx >= 0 && ny >= 0 && nx < w && ny < h && taken[ny*w + nx])
+						{
+							clash = true;
+							break;
+						}
+					}
+				}
+				br.deck[y*w + x] = (unsigned char)(what == 1 ? 1 : 0);
+				br.view[y*w + x] = (unsigned char)what;
+				if (x < br.x0) br.x0 = x;
+				if (y < br.y0) br.y0 = y;
+				if (x + 1 > br.x1) br.x1 = x + 1;
+				if (y + 1 > br.y1) br.y1 = y + 1;
+				if (inside > 0 && !mouth && (clearance == 0 || (clearance == 2 && along > hl - 4.0f)))
+					myBlock[y*w + x] = 1;
+			}
+		}
+		if (clash || br.x1 <= br.x0)
+			continue;
+		for (int i = 0; i < w*h; ++i)
+		{
+			if (br.view[i]) taken[i] = 1;
+			if (myBlock[i]) block[i] = 1;
+			if (myOpen[i]) open[i] = 1;
+		}
+		bridges.push_back(br);
+	}
+	int i;
+	for (i = 0; i < w*h; ++i)
+	{
+		if (open[i] && !taken[i]) ground[i] = 0;
+		if (block[i]) ground[i] = 1;
+	}
+	for (size_t b = 0; b < bridges.size(); ++b)
+	{
+		FuzzBridge& br = bridges[b];
+		for (i = 0; i < w*h; ++i)
+			br.view[i] = (unsigned char)(br.view[i] == 1 ? 0 : (br.view[i] == 2 ? 1 : ground[i]));
+	}
+}
+
+struct FuzzSheet
+{
+	std::vector<unsigned char> seen;	// half-cells as this sheet's unit sees them, before the ground is shared out
+	int ox, oy, w, h;									// of 'seen', half-cells
+	Mesh mesh;
+	int mox, moy;											// the mesh's origin
+	const std::vector<unsigned char> *view;	// whole map, cells: the walls this sheet's unit keeps its radius from
+	unsigned char at( int gx, int gy ) const
+	{
+		int x = gx - ox, y = gy - oy;
+		return (x < 0 || y < 0 || x >= w || y >= h) ? (unsigned char)SHEET_WALL : seen[y*w + x];
+	}
+};
+
+static void bridgeFuzzWorld( BridgeTotals& tot, const std::vector<unsigned char>& ground, int w, int h,
+														 const std::vector<FuzzBridge>& bridges, int radius, int num, int den, float slackCells, bool *failed )
+{
+	std::vector<FuzzSheet> sheets(bridges.size() + 1);
+	std::vector<SheetCells> cells(bridges.size() + 1);
+	std::vector<char> report;
+	erode(&ground[0], w, h, 1u, radius, cells[0].cells);
+	cells[0].ox = cells[0].oy = 0;
+	cells[0].w = 2*w;
+	cells[0].h = 2*h;
+	sheets[0].view = &ground;
+	int need = (radius + 1) / 2;	// cells of surroundings that can shrink the window's ground
+	int margin = need + 1;				// cells of ground kept round the bridge
+	size_t b;
+	for (b = 0; b < bridges.size(); ++b)
+	{
+		const FuzzBridge& br = bridges[b];
+		int x0 = br.x0 - margin, y0 = br.y0 - margin, x1 = br.x1 + margin, y1 = br.y1 + margin;
+		if (x0 < 0) x0 = 0;
+		if (y0 < 0) y0 = 0;
+		if (x1 > w) x1 = w;
+		if (y1 > h) y1 = h;
+		int px0 = x0 - need, py0 = y0 - need, px1 = x1 + need, py1 = y1 + need;
+		if (px0 < 0) px0 = 0;
+		if (py0 < 0) py0 = 0;
+		if (px1 > w) px1 = w;
+		if (py1 > h) py1 = h;
+		int pw = px1 - px0, ph = py1 - py0;
+		std::vector<unsigned char> labels(pw*ph), deck(pw*ph);
+		for (int y = 0; y < ph; ++y)
+		{
+			for (int x = 0; x < pw; ++x)
+			{
+				labels[y*pw + x] = br.view[(y + py0)*w + (x + px0)];
+				deck[y*pw + x] = br.deck[(y + py0)*w + (x + px0)];
+			}
+		}
+		int pad[4] = { x0 - px0, y0 - py0, px1 - x1, py1 - y1 };
+		unsigned mapEdges = (px0 == 0 ? 1u : 0u) | (py0 == 0 ? 2u : 0u) | (px1 == w ? 4u : 0u) | (py1 == h ? 8u : 0u);
+		erodeSheet(&labels[0], &deck[0], pw, ph, 1u, radius, pad, mapEdges, cells[b+1].cells);
+		cells[b+1].ox = 2*x0;
+		cells[b+1].oy = 2*y0;
+		cells[b+1].w = 2*(x1 - x0);
+		cells[b+1].h = 2*(y1 - y0);
+		sheets[b+1].view = &br.view;
+	}
+	size_t s;
+	for (s = 0; s < sheets.size(); ++s)
+	{
+		sheets[s].seen = cells[s].cells;
+		sheets[s].ox = cells[s].ox;
+		sheets[s].oy = cells[s].oy;
+		sheets[s].w = cells[s].w;
+		sheets[s].h = cells[s].h;
+	}
+	assignSheets(cells);
+	NavQuery::Atlas atlas;
+	for (s = 0; s < sheets.size(); ++s)
+	{
+		buildMesh(&cells[s].cells[0], cells[s].w, cells[s].h, num, den, sheets[s].mesh, SHEET_EXACT);
+		sheets[s].mox = cells[s].ox;
+		sheets[s].moy = cells[s].oy;
+		if (validate(sheets[s].mesh, report))
+		{
+			++tot.invalidMesh;
+			*failed = true;
+			return;
+		}
+		atlas.addSheet(&sheets[s].mesh, cells[s].ox, cells[s].oy);
+		tot.tris += (long long)sheets[s].mesh.tris.size();
+	}
+	atlas.connect();
+	++tot.worlds;
+	tot.links += (long long)atlas.links.size();
+	tot.sheets += (long long)sheets.size();
+
+	// The exhaustive search's nodes: the ground (one layer: wherever any sheet has ground), then each bridge's deck.
+	const int W = 2*w, H = 2*h;
+	std::vector<unsigned char> anyGround(W*H, 0);
+	std::vector<int> standable;
+	for (int i = 0; i < W*H; ++i)
+	{
+		for (s = 0; s < sheets.size(); ++s)
+		{
+			if (sheets[s].at(i % W, i / W) == SHEET_GROUND)
+				anyGround[i] = 1;
+		}
+		if (anyGround[i])
+			standable.push_back(i);
+	}
+	for (s = 1; s < sheets.size(); ++s)
+	{
+		for (int i = 0; i < W*H; ++i)
+		{
+			if (sheets[s].at(i % W, i / W) == SHEET_DECK)
+				standable.push_back((int)s*W*H + i);
+		}
+	}
+	if (standable.size() < 2)
+		return;
+	std::vector<float> distTo(sheets.size() * W * H);
+	typedef std::pair<float, int> Item;
+	for (int n = 0; n < 8; ++n)
+	{
+		int from = standable[rnd() % standable.size()];
+		// Half of the goals on a deck, so that bridges get crossed.
+		int to = standable[rnd() % standable.size()];
+		if ((rnd() & 1) && standable.back() >= W*H)
+		{
+			for (int tries = 0; tries < 20 && to < W*H; ++tries)
+				to = standable[rnd() % standable.size()];
+		}
+		if (from == to)
+			continue;
+		int fs = from / (W*H), ts = to / (W*H);	// 0 = on the ground, else on that bridge's deck
+		int fgx = (from % (W*H)) % W, fgy = (from % (W*H)) / W;
+		int tgx = (to % (W*H)) % W, tgy = (to % (W*H)) / W;
+
+		// Exhaustive: 8 directions (a diagonal step needs both half-cells beside it), on the ground, on a deck, and
+		// between a deck and the ground its own sheet has beside it.
+		std::fill(distTo.begin(), distTo.end(), -1.0f);
+		std::priority_queue<Item, std::vector<Item>, std::greater<Item> > open;
+		distTo[from] = 0.0f;
+		open.push(Item(0.0f, from));
+		while (!open.empty())
+		{
+			Item it = open.top();
+			open.pop();
+			if (it.first > distTo[it.second])
+				continue;
+			int layer = it.second / (W*H);
+			int x = (it.second % (W*H)) % W, y = (it.second % (W*H)) / W;
+			for (int dy = -1; dy <= 1; ++dy)
+			{
+				for (int dx = -1; dx <= 1; ++dx)
+				{
+					if (!dx && !dy)
+						continue;
+					int nx = x + dx, ny = y + dy;
+					if (nx < 0 || ny < 0 || nx >= W || ny >= H)
+						continue;
+					float d = it.first + ((dx && dy) ? 1.41421356f : 1.0f);
+					// Each of: stay on this layer; from the ground up onto each deck; from a deck down to the ground.
+					for (size_t target = 0; target < sheets.size(); ++target)
+					{
+						bool ok;
+						if (layer == 0 && target == 0)
+						{
+							ok = anyGround[ny*W + nx] != 0;
+							if (ok && dx && dy)
+								ok = anyGround[y*W + nx] && anyGround[ny*W + x];
+						}
+						else
+						{
+							// Everything here happens on one bridge's sheet, as that sheet sees it.
+							size_t bs = layer ? (size_t)layer : target;
+							if (layer != 0 && target != 0 && target != (size_t)layer)
+								continue;
+							const FuzzSheet& sh = sheets[bs];
+							unsigned char here = sh.at(x, y), there = sh.at(nx, ny);
+							unsigned char wantHere = (unsigned char)(layer ? SHEET_DECK : SHEET_GROUND);
+							unsigned char wantThere = (unsigned char)(target ? SHEET_DECK : SHEET_GROUND);
+							ok = (here == wantHere && there == wantThere);
+							if (ok && dx && dy)
+								ok = sh.at(nx, y) != SHEET_WALL && sh.at(x, ny) != SHEET_WALL;
+						}
+						if (!ok)
+							continue;
+						int node = (int)target*W*H + ny*W + nx;
+						if (distTo[node] < 0.0f || d < distTo[node])
+						{
+							distTo[node] = d;
+							open.push(Item(d, node));
+						}
+					}
+				}
+			}
+		}
+		float refDist = distTo[to];
+
+		NavQuery::Pt sp = { fgx + 0.5f, fgy + 0.5f }, gp = { tgx + 0.5f, tgy + 0.5f };
+		NavQuery::AtlasPath path;
+		int result = NavQuery::findPath(atlas, sp, fs, fs == 0, gp, ts, ts == 0, 0.05f, path);
+		bool found = (result == NavQuery::PATH_FOUND);
+		++tot.pairs;
+		tot.expanded += path.expanded;
+		tot.fallbacks += path.fallback;
+		if (refDist >= 0.0f)
+			++tot.refFound;
+		if (found != (refDist >= 0.0f))
+		{
+			if (found) ++tot.phantom; else ++tot.missed;
+			*failed = true;
+			if (s_verbose)
+				printf("%s: (%.1f,%.1f) %s %d -> (%.1f,%.1f) %s %d: result %d, exhaustive %.1f\n", found ? "PHANTOM" : "MISSED", sp.x, sp.y,
+					fs ? "deck" : "ground", fs, gp.x, gp.y, ts ? "deck" : "ground", ts, result, refDist);
+			continue;
+		}
+		if (!found)
+			continue;
+		++tot.found;
+		bool off = false, close = false, wrongDeck = false, badSwitch = false, usedBridge = false;
+		float radiusCells = 0.5f * radius;
+		for (size_t k = 0; k + 1 < path.pts.size(); ++k)
+		{
+			const FuzzSheet& sh = sheets[path.sheet[k]];
+			NavQuery::Pt a = { path.pts[k].x - sh.mox, path.pts[k].y - sh.moy }, c = { path.pts[k+1].x - sh.mox, path.pts[k+1].y - sh.moy };
+			if (path.deck[k])
+				usedBridge = true;
+			if (k > 0 && path.sheet[k] != path.sheet[k-1])
+			{
+				// The same spot must be ground on the sheet left and on the sheet entered.
+				const FuzzSheet& was = sheets[path.sheet[k-1]];
+				NavQuery::Pt q = { path.pts[k].x - was.mox, path.pts[k].y - was.moy };
+				int t1 = NavQuery::locate(was.mesh, q, 1u), t2 = NavQuery::locate(sh.mesh, a, 1u);
+				if (t1 < 0 || t2 < 0 || was.mesh.tris[t1].label != SHEET_GROUND || sh.mesh.tris[t2].label != SHEET_GROUND)
+					badSwitch = true;
+			}
+			float len = (float)sqrt((c.x-a.x)*(c.x-a.x) + (c.y-a.y)*(c.y-a.y));
+			int steps = (int)(len / 0.05f) + 1;
+			for (int i = 0; i <= steps; ++i)
+			{
+				NavQuery::Pt p = { a.x + (c.x - a.x) * i / steps, a.y + (c.y - a.y) * i / steps };
+				int t = NavQuery::locate(sh.mesh, p, 5u);
+				if (t < 0 || (sh.mesh.tris[t].label != SHEET_GROUND && sh.mesh.tris[t].label != SHEET_DECK))
+				{
+					off = true;
+					break;
+				}
+				// On the bridge exactly where the path says so (not judged within a step of where it changes).
+				if (i > 0 && i < steps && len > 0.2f)
+				{
+					int want = path.deck[k] ? SHEET_DECK : SHEET_GROUND;
+					int tw = NavQuery::locate(sh.mesh, p, 1u << want);
+					if (tw < 0 || sh.mesh.tris[tw].label != want)
+						wrongDeck = true;
+				}
+				if (radiusCells > 0.0f)
+				{
+					// On a deck: clear of that bridge's walls. On the ground: clear of the walls as the ground sheet has
+					// them, or as a bridge has them whose window the point is in (a unit's centre may be wherever any sheet
+					// says it may; on the line between two sheets' ground the path is on both).
+					float gx = p.x + sh.mox, gy = p.y + sh.moy;
+					double cl = clearanceAt(*sh.view, w, h, gx / 2.0f, gy / 2.0f, radiusCells + 1.0f) / radiusCells;
+					for (size_t o = 0; o < sheets.size() && !path.deck[k]; ++o)
+					{
+						const FuzzSheet& other = sheets[o];
+						if (gx < other.ox || gy < other.oy || gx > other.ox + other.w || gy > other.oy + other.h)
+							continue;
+						double c2 = clearanceAt(*other.view, w, h, gx / 2.0f, gy / 2.0f, radiusCells + 1.0f) / radiusCells;
+						if (c2 > cl)
+							cl = c2;
+					}
+					if (cl < tot.worstClearance)
+						tot.worstClearance = cl;
+					if (cl * radiusCells < radiusCells - slackCells - 0.001)
+						close = true;
+				}
+			}
+			if (off)
+				break;
+		}
+		if (off) { ++tot.offGround; *failed = true; }
+		if (close) { ++tot.tooClose; *failed = true; }
+		if (wrongDeck) { ++tot.wrongDeck; *failed = true; }
+		if (badSwitch) { ++tot.badSwitch; *failed = true; }
+		if (usedBridge) ++tot.viaBridge;
+		bool longer = refDist > 0.0f && path.length > refDist * 1.0005f + 0.001f;
+		if (refDist > 0.0f)
+		{
+			double ratio = path.length / refDist;
+			tot.ratioSum += ratio;
+			if (ratio > tot.worstRatio)
+				tot.worstRatio = ratio;
+			if (longer)
+				++tot.longer;
+		}
+		if (s_verbose && (off || close || wrongDeck || badSwitch || (s_verbose > 1 && longer)))
+		{
+			printf("%s%s%s%s%s: (%.1f,%.1f) %s %d -> (%.1f,%.1f) %s %d: length %.2f, exhaustive %.2f\n", off ? "OFF " : "", close ? "CLOSE " : "",
+				wrongDeck ? "DECK " : "", badSwitch ? "SWITCH " : "", longer ? "LONGER " : "", sp.x, sp.y, fs ? "deck" : "ground", fs,
+				gp.x, gp.y, ts ? "deck" : "ground", ts, path.length, refDist);
+			for (size_t k = 0; k < path.pts.size(); ++k)
+				printf("    (%.3f, %.3f) sheet %d deck %d inserted %d\n", path.pts[k].x, path.pts[k].y, path.sheet[k], path.deck[k], path.inserted[k]);
+		}
+	}
+}
+
+// One world of the bridge fuzz, in detail: navtest bridgeworld <world seed> <radius half-cells> <0 exact | 1 simplified> [2 = also longer paths]
+static int bridgeWorld( unsigned int seed, int radius, int simplified, int verbose )
+{
+	s_seed = seed;
+	std::vector<unsigned char> ground;
+	std::vector<FuzzBridge> bridges;
+	int w, h;
+	randomBridgeWorld(ground, w, h, bridges);
+	// The same pairs as the fuzz picks: it runs the six builds one after another on one random stream.
+	static const int RADIUS[3] = { 0, 1, 3 };
+	bool failed = false;
+	for (int k = 0; k < 6; ++k)
+	{
+		BridgeTotals tot;
+		memset(&tot, 0, sizeof(tot));
+		tot.worstClearance = 99.0;
+		bool mine = (RADIUS[k % 3] == radius && (k >= 3) == (simplified != 0));
+		s_verbose = mine ? verbose : 0;
+		if (mine)
+		{
+			printf("world %dx%d cells, %d bridges; ground then each bridge's view ('#' wall, '=' deck), y up, one char a cell\n", w, h, (int)bridges.size());
+			for (size_t b = 0; b <= bridges.size(); ++b)
+			{
+				for (int y = h - 1; y >= 0; --y)
+				{
+					for (int x = 0; x < w; ++x)
+					{
+						if (b == 0)
+							putchar(ground[y*w + x] ? '#' : '.');
+						else
+							putchar(bridges[b-1].deck[y*w + x] ? '=' : (bridges[b-1].view[y*w + x] ? '#' : '.'));
+					}
+					putchar('\n');
+				}
+				putchar('\n');
+			}
+		}
+		bridgeFuzzWorld(tot, ground, w, h, bridges, RADIUS[k % 3], k >= 3 ? 1 : 0, 1, k >= 3 ? 0.36f : SHEET_SLACK, &failed);
+		if (mine)
+			printf("pairs %lld found %lld missed %lld phantom %lld off %lld close %lld deck %lld switch %lld longer %lld\n", tot.pairs, tot.found,
+				tot.missed, tot.phantom, tot.offGround, tot.tooClose, tot.wrongDeck, tot.badSwitch, tot.longer);
+	}
+	s_verbose = 0;
+	return 0;
+}
+
+static int bridgeFuzz( int count, unsigned int seed )
+{
+	for (int q = 0; q < 6; ++q)
+		s_bridge[q].worstClearance = 99.0;
+	s_seed = seed;
+	int failures = 0;
+	std::vector<unsigned char> ground;
+	std::vector<FuzzBridge> bridges;
+	static const int RADIUS[3] = { 0, 1, 3 };
+	for (int n = 0; n < count; ++n)
+	{
+		int w, h;
+		unsigned int worldSeed = s_seed;
+		randomBridgeWorld(ground, w, h, bridges);
+		if (getenv("NAVTEST_TRACE"))	// to find the world a crash or a hang is in
+			fprintf(stderr, "world %d seed %u\n", n, worldSeed);
+		for (int k = 0; k < 6; ++k)
+		{
+			bool failed = false;
+			bool simplified = k >= 3;
+			bridgeFuzzWorld(s_bridge[k], ground, w, h, bridges, RADIUS[k % 3], simplified ? 1 : 0, 1, simplified ? 0.36f : SHEET_SLACK, &failed);
+			if (failed)
+			{
+				++failures;
+				if (failures <= 5)
+					printf("FAIL bridge world seed %u (%dx%d, %d bridges) radius %d half-cells, %s boundaries\n", worldSeed, w, h,
+						(int)bridges.size(), RADIUS[k % 3], simplified ? "simplified" : "exact");
+			}
+		}
+	}
+	printf("bridges: %d worlds, %d failures\n", count, failures);
+	static const char *NAME[6] = { "exact, radius 0  ", "exact, radius 0.5", "exact, radius 1.5", "tol 1, radius 0  ", "tol 1, radius 0.5", "tol 1, radius 1.5" };
+	for (int r = 0; r < 6; ++r)
+	{
+		const BridgeTotals& t = s_bridge[r];
+		printf("bridges, %s: %lld pairs, %lld with a path (%lld over a bridge); existence differs from the exhaustive search %lld (found a path that is not there %lld), "
+					 "left its sheet %lld, nearer a wall than the radius %lld (nearest %.3f radii), on/off the bridge in the wrong place %lld, changed sheet off shared ground %lld, bad meshes %lld\n",
+			NAME[r], t.pairs, t.found, t.viaBridge, t.missed + t.phantom, t.phantom, t.offGround, t.tooClose, (r % 3) ? t.worstClearance : 0.0,
+			t.wrongDeck, t.badSwitch, t.invalidMesh);
+		printf("    length / grid length: mean %.3f, worst %.3f, longer than the grid path %lld, by the fallback corridor %lld; %.1f nodes a search; a world: %.1f sheets, %.0f triangles, %.1f links\n",
+			t.found ? t.ratioSum / t.found : 0.0, t.worstRatio, t.longer, t.fallbacks, t.pairs ? (double)t.expanded / t.pairs : 0.0,
+			t.worlds ? (double)t.sheets / t.worlds : 0.0, t.worlds ? (double)t.tris / t.worlds : 0.0, t.worlds ? (double)t.links / t.worlds : 0.0);
+	}
+	return failures ? 1 : 0;
+}
+
 static const char *colorOf( int label )
 {
 	switch (label)
@@ -549,8 +1114,12 @@ int main( int argc, char **argv )
 {
 	if (argc >= 3 && !strcmp(argv[1], "fuzz"))
 		return fuzz(atoi(argv[2]), argc >= 4 ? (unsigned int)atoi(argv[3]) : 12345u);
+	if (argc >= 3 && !strcmp(argv[1], "bridges"))
+		return bridgeFuzz(atoi(argv[2]), argc >= 4 ? (unsigned int)atoi(argv[3]) : 12345u);
+	if (argc >= 5 && !strcmp(argv[1], "bridgeworld"))
+		return bridgeWorld((unsigned int)strtoul(argv[2], 0, 10), atoi(argv[3]), atoi(argv[4]), argc >= 6 ? atoi(argv[5]) : 1);
 	if (argc >= 6 && !strcmp(argv[1], "svg"))
 		return svg(argv[2], argv[3], atoi(argv[4]), atoi(argv[5]), argc >= 7 ? atoi(argv[6]) : -1);
-	printf("usage: navtest fuzz <count> [seed] | navtest svg <grid.txt> <out.svg> <num> <den> [radiusHalfCells]\n");
+	printf("usage: navtest fuzz <count> [seed] | navtest bridges <count> [seed] | navtest svg <grid.txt> <out.svg> <num> <den> [radiusHalfCells]\n");
 	return 2;
 }

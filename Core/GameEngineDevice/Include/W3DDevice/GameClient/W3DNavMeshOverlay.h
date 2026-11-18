@@ -1,0 +1,56 @@
+/*
+**	Command & Conquer Generals Zero Hour(tm)
+**	Copyright 2026 zh-pipeline
+**
+**	This program is free software: you can redistribute it and/or modify
+**	it under the terms of the GNU General Public License as published by
+**	the Free Software Foundation, either version 3 of the License, or
+**	(at your option) any later version.
+**
+**	This program is distributed in the hope that it will be useful,
+**	but WITHOUT ANY WARRANTY; without even the implied warranty of
+**	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+**	GNU General Public License for more details.
+**
+**	You should have received a copy of the GNU General Public License
+**	along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+// zh-pipeline @feature 2026-11-18 Navigation mesh overlay: the mesh the selected unit searches and the selected
+// units' paths, drawn on the map (docs/PLAN.md Phase 7; GameLogic/NavMesh.h "debug overlay").
+//
+// Off unless the game is started with "-movetune navmesh.overlay=1" (and "-moverules 2", or there is no mesh).
+// A render object in the 3D scene, modelled on W3DDebugIcons (which exists in debug builds only): it draws through
+// DX8Wrapper like every other render object, and it only reads what the sim has (NavMesh::debugSheets, the units'
+// current paths), so it cannot change what the sim does.
+
+#pragma once
+
+#include "WWLib/always.h"
+#include "WW3D2/rendobj.h"
+#include "WW3D2/vertmaterial.h"
+#include "Lib/BaseType.h"
+
+class W3DNavMeshOverlay : public RenderObjClass
+{
+public:
+	W3DNavMeshOverlay();
+	W3DNavMeshOverlay(const W3DNavMeshOverlay & src);
+	W3DNavMeshOverlay & operator = (const W3DNavMeshOverlay &);
+	~W3DNavMeshOverlay();
+
+	/////////////////////////////////////////////////////////////////////////////
+	// Render Object Interface
+	/////////////////////////////////////////////////////////////////////////////
+	virtual RenderObjClass *	Clone() const;
+	virtual int						Class_ID() const;
+	virtual void					Render(RenderInfoClass & rinfo);
+
+	virtual bool					Cast_Ray(RayCollisionTestClass & raytest);
+
+	virtual void					Get_Obj_Space_Bounding_Sphere(SphereClass & sphere) const;
+	virtual void					Get_Obj_Space_Bounding_Box(AABoxClass & aabox) const;
+
+protected:
+	VertexMaterialClass	  	*m_vertexMaterialClass;
+};

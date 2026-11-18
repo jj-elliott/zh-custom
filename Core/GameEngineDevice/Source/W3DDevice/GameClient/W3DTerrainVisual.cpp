@@ -53,6 +53,8 @@
 #include "W3DDevice/GameClient/W3DWater.h"
 #include "W3DDevice/GameClient/W3DDisplay.h"
 #include "W3DDevice/GameClient/W3DDebugIcons.h"
+#include "W3DDevice/GameClient/W3DNavMeshOverlay.h"
+#include "GameLogic/NavMesh.h"
 #include "W3DDevice/GameClient/W3DTerrainTracks.h"
 #include "W3DDevice/GameClient/W3DShadow.h"
 #include "W3DDevice/GameClient/HeightMap.h"
@@ -642,6 +644,15 @@ Bool W3DTerrainVisual::load( AsciiString filename )
 		icons->Release_Ref(); // belongs to scene.
 	}
 #endif
+
+	// zh-pipeline @feature 2026-11-18 The navigation mesh overlay ("-movetune navmesh.overlay=1"): one more render
+	// object in the scene, like the debug icons above. Not created at all unless asked for.
+	if (W3DDisplay::m_3DScene != nullptr && NavMesh::debugOverlay() != 0)
+	{
+		W3DNavMeshOverlay *overlay = NEW W3DNavMeshOverlay();
+		W3DDisplay::m_3DScene->Add_Render_Object( overlay );
+		overlay->Release_Ref(); // belongs to scene.
+	}
 
 #ifdef DO_UNIT_TIMINGS
 #pragma MESSAGE("********************* WARNING- Doing UNIT TIMINGS. ")

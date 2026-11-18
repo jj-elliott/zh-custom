@@ -25,6 +25,11 @@
 // again after the grid changed, one mesh per (surfaces, unit size) that units actually have. That is sim state.
 // Below level 2 nothing is built unless asked ("-movetune navmesh.build=1") and nothing reads it. From M3 on searches run on it and it becomes sim state: derived, like the pathfinder's grid,
 // from the map and the objects on it, so it is rebuilt after a load rather than saved, and is not in the CRC.
+//
+// Bridges: each usable bridge (pathfinder layers 2..14) is a second mesh over a window of the map, joined to the
+// ground's mesh where their ground meets (GameLogic/NavMeshQuery.h, "Atlas"). A destroyed bridge has no deck and so
+// no mesh; Pathfinder::changeBridgeState marks the meshes dirty like any other change of the grid. Wall tops
+// (layer 15) are not meshed.
 
 #pragma once
 
@@ -68,7 +73,8 @@ namespace NavMesh
 	/// pulled string, the destination. An end that is off the mesh but close to it (a unit against a wall, a
 	/// destination beside a building) is joined to the nearest point of it.
 	/// Returns null when the mesh has no answer (the unit is far from any ground of its size, the destination is not
-	/// connected to it: across a bridge, for one), and the caller then uses the grid pathfinder as before.
+	/// connected to it, the unit is on a wall top or sent to one), and the caller then uses the grid pathfinder as
+	/// before. A route over a bridge comes from the mesh: its nodes on the bridge carry the bridge's layer.
 	/// 'cost' is what the search should be charged against the frame's pathfinding budget.
 	Path *findPath( Object *obj, const LocomotorSet& locomotorSet, const Coord3D *from, const Coord3D *to, Int *cost );
 
@@ -81,4 +87,27 @@ namespace NavMesh
 
 	/// One line for the benchmark: how many paths came from the mesh and why the others did not.
 	void printStats();
+
+	// ---- For the in-game debug overlay (W3DDevice/GameClient/W3DNavMeshOverlay). Reading only: nothing here builds
+	// a mesh or changes anything the sim has, so the overlay cannot change a CRC.
+
+	/// "-movetune navmesh.overlay=1": draw the mesh and the selected units' paths (2: the mesh without its walls).
+	/// 0 = off, the default.
+	Int debugOverlay();
+
+	/// One mesh of the set a unit searches. A vertex (x, y) of it is at world ((x + ox) * h, (y + oy) * h) with
+	/// h = half a pathfinding cell. Triangle labels are NavBuild::SHEET_GROUND / SHEET_WALL / SHEET_DECK /
+	/// SHEET_OTHER (ground that another sheet of the set has).
+	struct DebugSheet
+	{
+		const NavBuild::Mesh *mesh;
+		Int ox, oy;
+		Int layer;	///< the pathfinder layer of this sheet's deck (LAYER_GROUND for the ground's own mesh, which has none)
+	};
+
+	/// The meshes units of obj's surfaces and size search (obj == nullptr: any set that exists), as the sim last built
+	/// them: false until a unit of that kind has asked for a path. upToDate is false when the grid has changed since
+	/// and no such unit has asked for a path yet. The pointers are good until the sim next runs.
+	Bool debugSheets( const Object *obj, const LocomotorSet *locomotorSet, std::vector<DebugSheet>& out, Int *radiusHalfCells,
+										Bool *upToDate );
 }

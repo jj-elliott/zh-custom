@@ -575,10 +575,49 @@ int run()
 	UnsignedInt movingFrames = 0, steerFrames = 0, pushFrames = 0;	// unit-frames under way, and of those with avoidance bending the aim or cutting speed.
 	UnsignedInt ovMM = 0, ovMS = 0, ovSS = 0, ovCross = 0;	// breakdown: both moving / one / neither; pairs with different orders.
 	Bool timedOut = false;
+	// Test hooks, in frames after the first order (-1 = never):
+	//   bench.bridgesDown / bench.bridgesUp   every bridge becomes impassable / passable again for the pathfinder, as
+	//                                         when one is destroyed / repaired (Pathfinder::changeBridgeState)
+	//   bench.reorder                         every order given so far is given again (units get new paths from
+	//                                         wherever they are: on a bridge, for one)
+	Int bridgesDown = -1, bridgesUp = -1, reorder = -1;
+	MoveTune::apply("bench.bridgesDown", bridgesDown);
+	MoveTune::apply("bench.bridgesUp", bridgesUp);
+	MoveTune::apply("bench.reorder", reorder);
 	for (;;)
 	{
 		UnsignedInt now = TheGameLogic->getFrame();
 		UnsignedInt elapsed = now - startFrame;
+
+		if ((bridgesDown >= 0 && elapsed == (UnsignedInt)bridgesDown) || (bridgesUp >= 0 && elapsed == (UnsignedInt)bridgesUp))
+		{
+			Bool up = (bridgesUp >= 0 && elapsed == (UnsignedInt)bridgesUp);
+			Int count = 0;
+			for (Bridge *bridge = TheTerrainLogic->getFirstBridge(); bridge != nullptr; bridge = bridge->getNext())
+			{
+				if (bridge->getLayer() > LAYER_GROUND)
+				{
+					TheAI->pathfinder()->changeBridgeState(bridge->getLayer(), up);
+					++count;
+				}
+			}
+			printf("MoveBenchBridges: frame=%u %d bridges %s\n", elapsed, count, up ? "up" : "down");
+		}
+		if (reorder >= 0 && elapsed == (UnsignedInt)reorder)
+		{
+			Int onBridge = 0;
+			for (o = 0; o < orders.size(); ++o)
+			{
+				orders[o].issued = false;
+				for (size_t i = 0; i < orders[o].ids.size(); ++i)
+				{
+					Object *obj = TheGameLogic->findObjectByID(orders[o].ids[i]);
+					if (obj != nullptr && obj->getLayer() > LAYER_GROUND)
+						++onBridge;
+				}
+			}
+			printf("MoveBenchReorder: frame=%u unitsOnABridge=%d\n", elapsed, onBridge);
+		}
 
 		// Give the orders that are due.
 		for (o = 0; o < orders.size(); ++o)

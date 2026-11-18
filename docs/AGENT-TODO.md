@@ -155,7 +155,8 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       `AIUpdateInterface::computePath`, grid fallback when the mesh has no answer, traffic map and lanes off.
       Suite: reversals 15.9 -> 8.7, arrival 68.4 -> 65.4 s, but pushPct 9 -> 19 (old follower, identical paths).
       `soak.ps1 -Level 2` passes.
-      Bridges + overlay: a second session, worktree branch `move-navmesh-bridges` (not merged; merge needs the user).
+      Bridges + overlay were built by a second session on `claude/move-navmesh-bridges-105441` and merged here on the
+      user's say-so (2026-11-17); its notes follow this session's.
       M4 first part done standalone: `NavDrive` (string -> straights, turning-circle arcs, pivots, planned braking;
       `step()` moves the unit along it exactly), `scripts\drivetest.ps1` (40000 paths, every frame within the unit's
       limits, no turn without a cause). PLAN.md "M4, first part" has the design and the locomotor numbers.
@@ -173,6 +174,20 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       **Open, agent, next:** oncoming / crossing traffic (side-step replans, push priority), idle units pushed
       aside, arrival spots. Head-on overlap is the big remaining number (8.5 of 9.2).
       **Open, human:** a group move round buildings at level 2: does it read as a group?
+      **Bridges are in the mesh (2026-11-18):** a sheet per bridge joined to the ground mesh (`NavQuery::Atlas`,
+      `NavBuild::assignSheets`; PLAN.md "Bridges in the mesh" has the design, what was thrown away, and the numbers).
+      river-cross at level 2: 32 of 32 paths from the mesh, all over a bridge. Destroy/repair and re-pathing from on a
+      bridge are tested through MoveBench hooks (`-Tune bench.bridgesDown=F,bench.bridgesUp=F,bench.reorder=F`).
+      `navtest.ps1` now also fuzzes 1 bridge map per 3 grids against an exhaustive layered search.
+      **In-game overlay built (2026-11-18), nobody has seen it yet:** `W3DNavMeshOverlay`, on with
+      `-moverules 2 -movetune navmesh.overlay=1` (PLAN.md "In-game overlay" says what each colour is).
+      **Open, human:** look at it and say what is wrong or unreadable:
+      `.\scripts\movetest.ps1 -Name pathfinding -Level 2 -ExtraArgs "-movetune navmesh.overlay=1"`, select units,
+      order a move; for a bridge, a skirmish on Winding River with the same two switches.
+      **Open, agent (mesh side):** bucket grid for `locate`/`nearestPassable`/`onMesh`; more than one corridor per
+      node (0.47% of bridge paths are longer than the grid's, worst +54%) together with one corridor search per group
+      order; wall tops (layer 15) are still on the grid. `AIDrive` does not yet check arcs or spread corners on
+      paths that use a bridge (it tests against the ground sheet only).
       **Open, human (optional, nothing to judge yet beyond path shape):** `.\scripts\movetest.ps1 -Name pathfinding -Level 2`.
       **Open, human:** look at a mesh picture: `scripts\navtest.ps1 -Scenario river-cross`.
       **Open, agent:** reversals in chokes (city-mixed 26, river-cross 28; open ground is at target). Start from

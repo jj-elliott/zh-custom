@@ -114,7 +114,10 @@ namespace NavBuild
 
 	/// labels: width*height bytes, row-major (index = y*width + x). simplifyNum/simplifyDen: the tolerance in cells
 	/// (0 = keep the grid's boundaries exactly, collinear points removed).
-	void buildMesh( const unsigned char *labels, int width, int height, int simplifyNum, int simplifyDen, Mesh& out );
+	/// exactLabels: bit n set = a boundary between label 0 and label n is never simplified, so that it stays on the
+	/// grid's lines (where two meshes are joined along such a boundary, NavMeshQuery.h, both must have it there).
+	void buildMesh( const unsigned char *labels, int width, int height, int simplifyNum, int simplifyDen, Mesh& out,
+									unsigned exactLabels = 0 );
 
 	/// The ground as a unit of a given size sees it: where its centre may be. The result has cells of half the size
 	/// (2*width x 2*height, row-major), 0 where the centre of a unit of radius 'radiusHalfCells' half-cells may be and
@@ -124,6 +127,41 @@ namespace NavBuild
 	/// Integer arithmetic only.
 	void erode( const unsigned char *labels, int width, int height, unsigned passMask, int radiusHalfCells,
 							std::vector<unsigned char>& out );
+
+	/// Labels of a mesh built from eroded ground: what erode() and erodeSheet() write, and SHEET_OTHER, which
+	/// assignSheets() adds: ground that is another sheet's (a wall as far as this sheet's mesh goes).
+	enum { SHEET_GROUND = 0, SHEET_WALL = 1, SHEET_DECK = 2, SHEET_OTHER = 3 };
+	/// The boundaries a sheet's mesh must keep on the grid's lines: buildMesh's exactLabels for a sheet.
+	enum { SHEET_EXACT = (1 << SHEET_DECK) | (1 << SHEET_OTHER) };
+
+	/// The same for a bridge's sheet (NavMeshQuery.h, Atlas): a window of the map as a unit on that bridge sees it,
+	/// the deck where there is one and the ground everywhere else. labels and deck are width x height cells: the
+	/// window with pad[0..3] more cells on its left, bottom, right and top, so that walls just outside the window
+	/// shrink the ground inside it (give at least the radius, less only where the map ends); deck[i] != 0 marks the
+	/// cells that are the bridge. mapEdges says which sides of that padded grid are the edge of the map (bit 0 left,
+	/// 1 bottom, 2 right, 3 top). The result is the window alone in half-cells, (width - pad[0] - pad[2])*2 wide:
+	/// SHEET_GROUND, SHEET_WALL, or SHEET_DECK where the unit's centre may be and it is then on the bridge.
+	void erodeSheet( const unsigned char *labels, const unsigned char *deck, int width, int height, unsigned passMask,
+									 int radiusHalfCells, const int pad[4], unsigned mapEdges, std::vector<unsigned char>& out );
+
+	/// One sheet's half-cells: 'cells' is w x h, row-major, and its (0,0) is half-cell (ox, oy) of the ground sheet.
+	struct SheetCells
+	{
+		int ox, oy, w, h;
+		std::vector<unsigned char> cells;
+	};
+
+	/// Shares the ground out between the sheets, so that every spot of ground is in exactly one mesh.
+	/// In: sheets[0] = the ground (erode), sheets[1..] = one window per bridge (erodeSheet).
+	/// A half-cell that a bridge's sheet has as ground goes to that bridge (it is what the bridge's deck opens onto,
+	/// and near the bridge's ends only that sheet has it right: the ground sheet sees a wall where the low deck
+	/// begins); where two bridges' windows overlap, to the bridge whose deck is nearer. All other ground stays the
+	/// ground sheet's. A unit's centre may be wherever any sheet says it may, and that whole area is covered once.
+	/// Out: each sheet's cells for buildMesh (pass SHEET_EXACT): SHEET_GROUND only where the ground is this sheet's,
+	/// SHEET_OTHER where it is another's, SHEET_DECK and SHEET_WALL as before. A bridge's sheet grows by a ring of
+	/// one half-cell (ox, oy, w, h change), so that its ground has a boundary where it meets the ground outside its
+	/// window. Integer arithmetic only.
+	void assignSheets( std::vector<SheetCells>& sheets );
 
 	/// Checks everything a correct mesh must satisfy; returns the number of violations and describes the first few in
 	/// 'report'. Used by the fuzz test and, cheaply, after a build in a debug run.
