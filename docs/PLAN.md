@@ -659,6 +659,63 @@ overlap and pushing are the old follower meeting identical paths. Do not tune th
 in-game overlay (mesh + a unit's path) so the user can look at it; a bucket grid for `locate` / `nearestPassable`;
 then M4, starting with the string's corners turned into arcs a unit can drive (the user's criterion above).
 
+### M4, first part: the drive plan (2026-11-17, late; standalone, not yet in the game)
+
+Two sessions from here: bridges + overlay in a worktree (branch `move-navmesh-bridges`), M4 on `move/collision-rules`.
+
+**The numbers units are made of** (`-movetune bench.loco=1` prints them; per logic frame, 30 a second):
+
+| unit | drive | top speed | turn rate | accel / brake | turning circle | notes |
+|---|---|---|---|---|---|---|
+| Crusader, Battlemaster | treads | 1.0 / 0.83 | 0.105 rad (180 deg/s) | 1.11 / 1.11 | 9.5 units (1 cell) at full speed | at top speed in one frame; pivots on the spot |
+| Humvee | wheels | 2.0 | 0.105 | 1.11 / 1.11 | 6.4, fixed | cannot turn standing; corners at 0.667 |
+| Technical | wheels | 3.0 | 0.105 | 0.111 / 0.056 | 7.2, fixed | 27 frames to top speed, 81 units (8 cells) to stop |
+| Ranger | legs | 0.667 | 0.29 | 0.111 / 0.111 | 2.3 | |
+
+So "slow Generals turning" is not in the turn rates (a tank turns 180 degrees a second, in one cell). What reads as
+ponderous is retail's rule of slowing to nothing when off-line, and what read as broken was followers asking for
+motion the locomotor could not deliver. The plan keeps the numbers and removes the asking.
+
+**The design: plan the line once, then follow it exactly** (`NavDrive.h`, whose header is the specification).
+- When a path is found, the string becomes a *drive plan* made of the unit's own motion: straights, arcs of its
+  turning circle, and (units that can) pivots on the spot. Each corner's circle sits on the inside of the turn and
+  passes through the corner point, so the unit swings round the corner and never cuts inside the string.
+- Corners too close together for full circles get smaller, slower arcs, and in the end a stop and a pivot. A corner
+  that the straightened line passes outside of is dropped (the unit must not turn left to pass a corner the path
+  turns right at). Wheeled units start on their turning circle from the heading they have.
+- Speed is planned with it: each arc has its limit, and braking for an arc or for the end starts as early as that
+  unit's brakes need (frame-exact: S(u) = u^2/2b + u/2). A Technical starts braking eight cells out, on purpose.
+- The unit then moves like a train on rails: `step()` advances along the plan and returns the pose. Other traffic
+  can only lower its speed (`speedCap`); a different line means a new plan. This is the user's three principles as
+  mechanism: no deviation without a reason, one model for planning and execution, slowness that is planned.
+
+**Test** (`scripts/drivetest.ps1`, `tests/navmesh/drivetest.cpp`): 40000 paths (half of them real strings from
+random meshes, half random polylines) x the four units above, every frame checked:
+
+| per frame, per unit | result |
+|---|---|
+| heading change above its turn rate (wheels: in proportion to speed) | never |
+| speed gain above its acceleration / loss above its braking | never (the final frame of a stop is a short step) |
+| moved further than its speed | never |
+| turned one way then the other where the path does not | never |
+| ended anywhere but on the goal, stopped | never |
+| driven line vs string length | +0.4% legs, +0.8% treads, +4-5% wheels |
+
+Known limits, to be measured in game rather than argued:
+- Wheeled units got a turn tighter than their real circle in about half of the test paths (no room for the real
+  one at the start or between close corners). Retail solves the same thing with reversing and three-point turns
+  (`canMoveBackward`); the plan does not reverse yet.
+- The arcs are not checked against the mesh. They pass through the string's corner on its outside, by at most a
+  turning radius (under a cell); the engine side must sample the plan on the unit's mesh and fall back to smaller
+  arcs where a second wall is that close.
+- On random zigzags with corners closer than the turning circle (not a shape a pulled string has) the plan
+  sometimes turns the short way where the zigzag goes the long way round; counted separately, about 1 in 1500.
+
+**Next (M4, in the engine):** at level 2 a ground unit with a mesh path gets a plan and is moved by `step()`
+(position and heading set directly, physics told the velocity), replacing `AISteering` and the locomotor's
+move-towards-position for those units; then speed caps from other units (follow, give way) and what a group does
+with one destination (offsets, merging at a choke); then pushing idle units and arrival.
+
 ### Open (level 1; superseded by the section above)
 
 - Play-test UNIFIED (test saves: `scripts/movetest.ps1`). Expected trouble spots: traffic penalty too weak or too strong

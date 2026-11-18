@@ -38,6 +38,7 @@
 #include "GameLogic/Module/AIUpdate.h"
 #include "GameLogic/Module/PhysicsUpdate.h"
 #include "GameLogic/MoveRules.h"
+#include "GameLogic/Locomotor.h"
 #include "GameLogic/NavMesh.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/TerrainLogic.h"
@@ -338,6 +339,27 @@ namespace
 					{
 						printf("MoveBench: \"%s\" is not a unit that can be ordered about\n", group.spawns[s].templateName.str());
 						return FALSE;
+					}
+					if (n == 0)
+					{
+						// One line per kind of unit: the numbers its movement is made of (distances per logic frame,
+						// radians per frame). The drive model (PLAN.md, M4) is designed from these.
+						Int dumpLoco = 0;
+						MoveTune::apply("bench.loco", dumpLoco);
+						AIUpdateInterface *spawnedAi = obj->getAIUpdateInterface();
+						Locomotor *loco = spawnedAi ? spawnedAi->getCurLocomotor() : nullptr;
+						if (dumpLoco && loco != nullptr)
+						{
+							const GeometryInfo& geom = obj->getGeometryInfo();
+							printf("MoveBenchLoco: unit=%s loco=%s appearance=%d speed=%.3f turn=%.4f accel=%.4f brake=%.4f minSpeed=%.3f minTurnSpeed=%.3f "
+										 "backward=%d pivot=%.1f closeEnough=%.1f ultraAccurate=%d major=%.1f minor=%.1f box=%d infantry=%d\n",
+								group.spawns[s].templateName.str(), loco->getTemplateName().str(), (Int)loco->getAppearance(),
+								loco->getMaxSpeedForCondition(BODY_PRISTINE), loco->getMaxTurnRate(BODY_PRISTINE),
+								loco->getMaxAcceleration(BODY_PRISTINE), loco->getBraking(), loco->getMinSpeed(), loco->getMinTurnSpeed(),
+								loco->canMoveBackwards() ? 1 : 0, loco->getTurnPivotOffset(), loco->getCloseEnoughDist(),
+								loco->isUltraAccurate() ? 1 : 0, geom.getMajorRadius(), geom.getMinorRadius(),
+								geom.getGeomType() == GEOMETRY_BOX ? 1 : 0, obj->isKindOf(KINDOF_INFANTRY) ? 1 : 0);
+						}
 					}
 					Bool placed = false;
 					for (; nextSlot < slots.size() && !placed; ++nextSlot)

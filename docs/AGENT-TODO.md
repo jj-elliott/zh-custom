@@ -155,9 +155,14 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       `AIUpdateInterface::computePath`, grid fallback when the mesh has no answer, traffic map and lanes off.
       Suite: reversals 15.9 -> 8.7, arrival 68.4 -> 65.4 s, but pushPct 9 -> 19 (old follower, identical paths).
       `soak.ps1 -Level 2` passes.
-      **Open, agent, next:** bridge/wall layers + portals (river-cross is all grid fallback); in-game overlay; bucket
-      grid for `locate`/`nearestPassable`; then M4 (drive model, steering, hard separation), starting with corners
-      as drivable arcs. Do not tune `AISteering` for level 2.
+      Bridges + overlay: a second session, worktree branch `move-navmesh-bridges` (not merged; merge needs the user).
+      M4 first part done standalone: `NavDrive` (string -> straights, turning-circle arcs, pivots, planned braking;
+      `step()` moves the unit along it exactly), `scripts\drivetest.ps1` (40000 paths, every frame within the unit's
+      limits, no turn without a cause). PLAN.md "M4, first part" has the design and the locomotor numbers.
+      **Open, agent, next:** engine side of the drive plan: build it in `computePath` at level 2, move the unit by
+      `NavDrive::step` in `doLocomotor` instead of `AISteering` + `locoUpdate_moveTowardsPosition`, sample arcs on
+      the unit's mesh; then speed caps from other units, groups, pushing, arrival. Bucket grid for `locate`.
+      Do not tune `AISteering` for level 2.
       **Open, human (optional, nothing to judge yet beyond path shape):** `.\scripts\movetest.ps1 -Name pathfinding -Level 2`.
       **Open, human:** look at a mesh picture: `scripts\navtest.ps1 -Scenario river-cross`.
       **Open, agent:** reversals in chokes (city-mixed 26, river-cross 28; open ground is at target). Start from
