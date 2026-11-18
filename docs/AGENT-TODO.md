@@ -134,8 +134,12 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       steering choice with memory (stick / hold / ratchet). Overlap 45 -> 1.4, reversals 29 -> 18, arrival unchanged; see PLAN.md.
       2026-11-17 later: played; "too much oversteering". Steering read against "no deviation without a reason":
       five violations fixed (see PLAN.md). steerPct 12 -> 6. Units still pushed apart 10% of the time: plans overlap.
-      **Open, agent, needs the user's go-ahead on the design:** group corridor + per-unit lanes, time reservations with
-      the locomotor's real kinematics, `planErr` metric (PLAN.md, "Next").
+      2026-11-17 evening: lanes built (`AIGroup::friend_moveLanesToPos`): per-cluster route, a lane per vehicle, slow
+      inside, fitted to passable ground, lane-mates merge in row order. One group alone is at retail's jitter with no
+      overlap; head-on groups are not planned against each other and are the open problem. See PLAN.md.
+      **Open, human:** play it (single-group moves, corners, a choke); does a group now travel as a body?
+      **Open, agent:** opposing clusters share the width at plan time; `planErr` + time reservations; attack-move
+      through the planner; arrival is 2 s slower than before lanes.
       **Open, agent:** reversals in chokes (city-mixed 26, river-cross 28; open ground is at target). Start from
       `movetrace.ps1 -Scenario river-cross`; add a narrow-choke scenario.
       **Open, agent:** tune from feedback (constants at the top of `AISteering.cpp`, `MoveTraffic.cpp`); once it settles, record

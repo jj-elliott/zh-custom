@@ -430,6 +430,61 @@ layers spend the journey repairing that. That is the user's second principle, an
 - Local avoidance stays only for what a plan cannot know: a new order, the enemy, a unit that stopped to shoot.
   Target: steerPct and pushPct near zero for a single group on open ground.
 
+### Lanes: a group's plan no longer puts its own units on one line (2026-11-17, evening)
+
+Built on the user's go-ahead. `AIGroup::friend_moveLanesToPos` (its comment is the specification):
+- **Clusters.** Vehicles linked by gaps of at most 8 cells travel together; a selection of two clumps is two plans.
+  (First cut used the whole selection's centroid: on the user's save, two clumps 1000 apart were marched to one route
+  between them, arrival 23.7 -> 31.5 s.)
+- **One route per cluster** (`findGroundPath` from its centre), and **a lane per unit**: about sqrt(n) lanes, 2 to 6,
+  one unit-width plus half a cell apart. A unit's plan is the route's corners moved sideways by its lane, then its
+  place in the block at the destination. It follows that with the engine's own follow-path state, as retail's two
+  columns did.
+- **Slow units in the middle lanes, fast on the outside**, and the cut between lane pairs is moved to where the speed
+  changes so a lane holds one kind of unit. This is the user's earlier "Crusader keeps the inside track, the Humvee
+  goes round", now decided in the plan.
+- **Lanes are fitted into the passable ground at each corner**, probed for the widest unit, slid over as a set or
+  closed up. (A route's corners hug obstacles: centring lanes on them collapsed three of four lanes onto one point at
+  the river, and a lane point that was valid ground but too pinched to drive to left one unit circling for ever.)
+- **Corners near the start and the end are dropped** (the start of a route is how the cluster's middle gets onto it,
+  not somewhere every unit should go).
+- **Lane-mates merge in row order.** Each unit knows its lane and row (`AIUpdateInterface::setLane`, transient); a
+  unit beside a lane-mate with an earlier row drops back instead of both reaching the line together. This is follow
+  with knowledge of the plan, and it took separation among a single group from 18% of frames to 6%.
+
+Not lanes: infantry (they pass through each other), attack-move (`groupAttackMoveToPosition` is still per unit),
+formations, waypoint-queued moves, clusters of fewer than `MinVehiclesForGroup`.
+
+**Suite (5 variants), and the user's save (3):**
+
+| | steerPct | pushPct | reversals | wobble | overlap | meanArrive | stalled |
+|---|---|---|---|---|---|---|---|
+| suite, before lanes | 6.0 | 10.5 | 17.0 | 7.9 | 2.6 | 66.3 s | 7.4 |
+| suite, lanes | 5.8 | 9.1 | 15.7 | 7.3 | 2.1 | 68.4 s | 7.8 |
+| retail | 0 | 0 | 7.8 | 3.2 | 5.8 | 81.2 s | 331 |
+| save, before lanes | 4.9 | 9.8 | 9.7 | 3.8 | 2.1 | 23.7 s | 3.8 |
+| save, lanes | 4.0 | 5.1 | 8.6 | 3.4 | 0.8 | 23.4 s | 3.1 |
+
+Per scenario, reversals before -> after: desert-mixed 7.9 -> 2.2 (retail 2.3; steerPct 1%, the invariant holds),
+city-mixed 24.9 -> 14.7, desert-cross 9.6 -> 12.1, river-cross 29.1 -> 33.7.
+
+Honest reading: **one group moving on its own is now planned, and it shows. Two groups meeting head-on are not
+planned against each other at all**, and both head-on scenarios got slightly worse because eight tidy lanes now meet
+eight tidy lanes nose to nose. Arrival is 2 s (3%) slower overall; not yet explained (suspects: forming the block at
+the end, lane points that must be touched).
+
+**Not built from the proposal:** time reservations with the locomotor's real numbers, and the `planErr` metric. The
+old traffic map (top-speed arrival estimates, soft cost) is unchanged and now matters less for a single group; turning
+it off costs about 4 reversals a unit, so it stays for now.
+
+**Next, in order:**
+1. Two plans against each other. Cheapest honest form: when a cluster's route is planned, look for another cluster's
+   lanes coming the other way along the same ground (the traffic map already knows) and give each side one half of
+   the width, as traffic does. This is a reason known at plan time, not a keep-right habit applied to everyone.
+2. `planErr`, then reservations in time, if 1 is not enough.
+3. Attack-move through the same planner.
+4. Why arrival is 2 s slower.
+
 ### Open
 
 - Play-test UNIFIED (test saves: `scripts/movetest.ps1`). Expected trouble spots: traffic penalty too weak or too strong

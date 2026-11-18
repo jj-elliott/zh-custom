@@ -389,7 +389,20 @@ static Bool choose( Object *obj, AIUpdateInterface *ai, Real dirX, Real dirY, Re
 				// It leads only if we are behind it by its own heading too: two units converging on one line each see
 				// the other "ahead", and would slow each other to a stop.
 				Bool weAreBehindIt = (n.x*n.vx + n.y*n.vy) > 0.0f;
-				if (ahead > 0.0f && weAreBehindIt && WWMath::Fabs(lateral) < bareRadius*FOLLOW_LANE)
+				// A unit with our lane and an earlier row in it is going to be on our line, in front of us: that is the
+				// plan. If it is beside us now we drop back until it is in front (the plan made real), instead of both
+				// arriving on the line together and being pushed apart there.
+				Bool lanePartnerFirst = ai->getLaneKey() != 0 && aiOther->getLaneKey() == ai->getLaneKey()
+																&& aiOther->getLaneRow() < ai->getLaneRow();
+				if (lanePartnerFirst && ahead > -0.5f*bareRadius && n.x*n.x + n.y*n.y < sqr(2.5f*bareRadius))
+				{
+					Real cap = pace + (ahead - bareRadius*FOLLOW_GAP) / FOLLOW_HEADWAY;
+					if (cap < 0.3f*pace)
+						cap = 0.3f*pace;
+					if (cap < followCap)
+						followCap = cap;
+				}
+				else if (ahead > 0.0f && weAreBehindIt && WWMath::Fabs(lateral) < bareRadius*FOLLOW_LANE)
 				{
 					Real gap = ahead - bareRadius*FOLLOW_GAP;
 					if (gap < 0.0f)

@@ -242,6 +242,8 @@ AIUpdateInterface::AIUpdateInterface( Thing *thing, const ModuleData* moduleData
 	m_ignoreCollisionsUntil = 0;
 	m_jamStartFrame = 0;
 	m_jamLastFrame = 0;
+	m_laneKey = 0;
+	m_laneRow = 0;
 	m_queueForPathFrame = 0;
 	m_finalPosition.zero();
 	m_repulsor1 = INVALID_ID;
@@ -2891,6 +2893,8 @@ void AIUpdateInterface::aiDoCommand(const AICommandParms* parms)
 
 	if (!isAllowedToRespondToAiCommands(parms))
 		return;
+
+	m_laneKey = 0;	// zh-pipeline: a new command ends the lane plan (the lane planner sets it after its own command).
 
 #ifdef ALLOW_SURRENDER
 	// surrendered items have very limited options, and only via AI cmds

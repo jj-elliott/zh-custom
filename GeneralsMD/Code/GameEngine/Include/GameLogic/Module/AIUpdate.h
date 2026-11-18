@@ -531,6 +531,12 @@ public:
 	Bool shouldAskToYield(Object *other) const;		///< should idle ally "other" step aside for us
 	Bool isStoppedToAttack(Object *other) const;	///< "other" is standing still shooting: an obstacle, not traffic
 	Bool canSteer() const;												///< is this unit's movement the kind AISteering handles
+	// zh-pipeline MoveRules::UNIFIED, lanes (AIGroup::friend_moveLanesToPos): which lane of which group plan this unit
+	// travels in (0 = none) and its place in it, front = 0. Units with the same key will be on the same line, so they
+	// merge in row order (AISteering, follow). Transient like m_steer: cleared by the next command, not saved.
+	void setLane( UnsignedInt key, Int row ) { m_laneKey = key; m_laneRow = row; }
+	UnsignedInt getLaneKey() const { return m_laneKey; }
+	Int getLaneRow() const { return m_laneRow; }
 	const AISteering::State& getSteerState() const { return m_steer; }	///< for MoveBench's diagnostics
 	Bool isSteeredPair(Object *other) const;			///< we and ally "other" are both under way and steered: no contact rules between us
 	void setFinalPosition(const Coord3D *pos) { m_finalPosition = *pos; m_doFinalPosition = false;}
@@ -740,6 +746,8 @@ private:
 	// zh-pipeline MoveRules::UNIFIED. Transient like m_blockedFrames and deliberately not in xfer: a save/load only
 	// restarts these, and the save format and the retail CRC stream stay unchanged.
 	UnsignedInt	m_jamStartFrame;						///< Frame the current unbroken spell of being blocked by standing allies began.
+	UnsignedInt	m_laneKey;									///< see setLane.
+	Int					m_laneRow;
 	UnsignedInt	m_jamLastFrame;							///< Last frame we were blocked by a standing ally.
 	AISteering::State	m_steer;							///< AISteering's memory for this unit.
 	/**
