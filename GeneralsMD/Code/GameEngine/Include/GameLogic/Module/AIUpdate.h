@@ -29,6 +29,7 @@
 #pragma once
 
 #include "GameLogic/AISteering.h"	// zh-pipeline Phase 7
+namespace AIDrive { struct Data; }	// zh-pipeline Phase 7, GameLogic/AIDrive.h
 #include "GameLogic/Module/UpdateModule.h"
 #include "GameLogic/AI.h"
 #include "GameLogic/AIStateMachine.h"
@@ -746,6 +747,7 @@ private:
 	// zh-pipeline MoveRules::UNIFIED. Transient like m_blockedFrames and deliberately not in xfer: a save/load only
 	// restarts these, and the save format and the retail CRC stream stay unchanged.
 	UnsignedInt	m_jamStartFrame;						///< Frame the current unbroken spell of being blocked by standing allies began.
+	AIDrive::Data *m_drive;									///< zh-pipeline MoveRules::NAVMESH: this unit's drive plan (GameLogic/AIDrive.h); transient.
 	UnsignedInt	m_laneKey;									///< see setLane.
 	Int					m_laneRow;
 	UnsignedInt	m_jamLastFrame;							///< Last frame we were blocked by a standing ally.

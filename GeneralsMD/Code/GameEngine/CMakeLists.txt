@@ -235,6 +235,7 @@ set(GAMEENGINE_SRC
     Include/GameLogic/AIPlayer.h
     Include/GameLogic/AISkirmishPlayer.h
     Include/GameLogic/AIStateMachine.h
+    Include/GameLogic/AIDrive.h
     Include/GameLogic/AISteering.h
     Include/GameLogic/MoveBench.h
     Include/GameLogic/AITNGuard.h
@@ -832,6 +833,7 @@ set(GAMEENGINE_SRC
     Source/GameLogic/AI/AIPlayer.cpp
     Source/GameLogic/AI/AISkirmishPlayer.cpp
     Source/GameLogic/AI/AIStates.cpp
+    Source/GameLogic/AI/AIDrive.cpp
     Source/GameLogic/AI/AISteering.cpp
     Source/GameLogic/AI/MoveBench.cpp
     Source/GameLogic/AI/AITNGuard.cpp

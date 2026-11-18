@@ -159,10 +159,14 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       M4 first part done standalone: `NavDrive` (string -> straights, turning-circle arcs, pivots, planned braking;
       `step()` moves the unit along it exactly), `scripts\drivetest.ps1` (40000 paths, every frame within the unit's
       limits, no turn without a cause). PLAN.md "M4, first part" has the design and the locomotor numbers.
-      **Open, agent, next:** engine side of the drive plan: build it in `computePath` at level 2, move the unit by
-      `NavDrive::step` in `doLocomotor` instead of `AISteering` + `locoUpdate_moveTowardsPosition`, sample arcs on
-      the unit's mesh; then speed caps from other units, groups, pushing, arrival. Bucket grid for `locate`.
-      Do not tune `AISteering` for level 2.
+      Drive plan in the game at level 2 (`AIDrive`, hooks in `doLocomotor`): reversals 15.9 -> 0.56, wobble 0, every
+      plan held, soak passes. Traffic is follow-only by design: head-on groups pass through each other and a group
+      files nose to tail (arrival 68 -> 80 s). PLAN.md "In the game" has the table and the reading.
+      **Open, agent, next (M4 second part, PLAN.md lists it):** group offsets (parallel strings), side-step replans
+      for oncoming traffic with push priority, pushing idle units, arrival spots. Bucket grid for `locate` /
+      `nearestPassable` / `onMesh` (linear scans today). Reversing for wheeled units.
+      **Open, human:** look at level 2 on the test save (`.\scripts\movetest.ps1 -Name pathfinding -Level 2`): does a
+      single unit's motion read as intended (arcs, braking, treads/wheels animating)? Group behaviour is not done.
       **Open, human (optional, nothing to judge yet beyond path shape):** `.\scripts\movetest.ps1 -Name pathfinding -Level 2`.
       **Open, human:** look at a mesh picture: `scripts\navtest.ps1 -Scenario river-cross`.
       **Open, agent:** reversals in chokes (city-mixed 26, river-cross 28; open ground is at target). Start from

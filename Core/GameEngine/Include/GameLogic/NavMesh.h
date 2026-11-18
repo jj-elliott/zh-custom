@@ -72,6 +72,9 @@ namespace NavMesh
 	/// 'cost' is what the search should be charged against the frame's pathfinding budget.
 	Path *findPath( Object *obj, const LocomotorSet& locomotorSet, const Coord3D *from, const Coord3D *to, Int *cost );
 
+	/// Is this point ground the unit's centre may be on, by the mesh of its size? (FALSE when there is no mesh.)
+	Bool onMesh( Object *obj, const LocomotorSet& locomotorSet, Real x, Real y );
+
 	/// One line for the benchmark: how many paths came from the mesh and why the others did not.
 	void printStats();
 }

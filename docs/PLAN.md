@@ -711,10 +711,50 @@ Known limits, to be measured in game rather than argued:
 - On random zigzags with corners closer than the turning circle (not a shape a pulled string has) the plan
   sometimes turns the short way where the zigzag goes the long way round; counted separately, about 1 in 1500.
 
-**Next (M4, in the engine):** at level 2 a ground unit with a mesh path gets a plan and is moved by `step()`
-(position and heading set directly, physics told the velocity), replacing `AISteering` and the locomotor's
-move-towards-position for those units; then speed caps from other units (follow, give way) and what a group does
-with one destination (offsets, merging at a choke); then pushing idle units and arrival.
+**In the game** (2026-11-17, night; `GameLogic/AIDrive.h/.cpp`, three hooks in `AIUpdateInterface::doLocomotor`).
+At level 2 every ground unit with a path (from the mesh or from the grid fallback) gets a plan the first frame the
+path is seen, from its locomotor's numbers, and is then moved by `NavDrive::step`: position and heading set
+directly, `OBJECT_STATUS_BRAKING` held so physics does not move it (the engine's own mechanism), physics told the
+velocity so treads, wheels and dust still see motion. `AISteering` and the locomotor's move-towards-position do not
+run for it. Arcs are sampled on the unit's mesh (`NavMesh::onMesh`) and made smaller if off it. If the object is
+not where the plan left it, the plan is dropped and the old follower finishes that path. At the end of the plan the
+old code does the arriving.
+
+Traffic, **deliberately minimal for this step**: a unit behind another going the same way follows it (speed =
+leader's + gap/20 frames). Nothing moves a unit sideways. Idle units and oncoming units are driven through.
+
+Suite, 3 variants:
+
+| | meanArrive | reversals | wobble | stalled | overlap (of it: crossing) |
+|---|---|---|---|---|---|
+| level 1 (traffic map + lanes + steering) | 68.4 s | 15.9 | 7.5 | 8.3 | 1.7 (1.0) |
+| level 2, mesh paths + old follower | 65.4 s | 8.7 | 4.6 | 4.8 | 2.8 (0.4) |
+| **level 2, mesh paths + drive plan** | 79.5 s | **0.56** | **0** | 13.7 | 11.9 (9.2) |
+| - city-mixed | 98.1 | 1.0 | 0 | 12.2 | 1.0 (0) |
+| - desert-cross | 55.7 | 0 | 0 | 14.7 | 19.7 (13.1) |
+| - desert-mixed | 61.1 | 0 | 0 | 5.5 | 1.5 (0) |
+| - river-cross | 103.2 | 1.2 | 0 | 22.4 | 25.6 (23.7) |
+
+Per run: every plan held to the end (0 abandoned), no arc was off its mesh, no smaller arcs or mid-path pivots were
+needed; wheeled units needed a tighter-than-real turn in 3-5 plans of ~30 (at the start, turning round).
+`soak.ps1 -Level 2` passes (seven recordings, two runs, equal CRCs).
+
+Reading it honestly:
+- **The motion is what was asked for.** Units turn where the path turns and nowhere else; the remaining reversals
+  are path corners. Wobble is zero by construction.
+- **The traffic is not there yet, and it shows in exactly two numbers.** Head-on groups pass through each other
+  (crossing overlap 13-24 on the two head-on maps), and a group with one destination files onto one string and
+  follows nose to tail, so the tail arrives late (city 83 -> 98 s; river 62 -> 103 s, where everything queues for
+  the crossing). Neither is a tuning matter; both are the next piece.
+
+**Next (M4, second part): what units do about each other, still on rails.**
+1. One destination, many units: each unit keeps its offset from the group (SC2 does this when the group is compact),
+   so strings are parallel on open ground instead of identical; where they converge (a choke) units merge by
+   arrival order, which follow already does.
+2. Oncoming and crossing traffic: a new plan with a side step (a line means a plan), chosen once and held; who
+   gives way by push priority.
+3. Idle units in the way: pushed aside by priority (moving beats idle), as SC2 does.
+4. Arrival: a spot for each unit round the destination, decided when the order is given.
 
 ### Open (level 1; superseded by the section above)
 

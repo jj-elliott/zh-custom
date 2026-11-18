@@ -270,6 +270,65 @@ void NavMesh::update( Pathfinder *pathfinder )
 	}
 }
 
+namespace
+{
+	/// Which mesh a unit searches: the labels it may stand on, and its size in half-cells. FALSE: none (it flies).
+	Bool classOf( Object *obj, const LocomotorSet& locomotorSet, unsigned& mask, Int& radius )
+	{
+		// Which labels this unit may stand on.
+		LocomotorSurfaceTypeMask surfaces = locomotorSet.getValidSurfaces();
+		if (surfaces & LOCOMOTORSURFACE_AIR)
+			return FALSE;
+		mask = 0;
+		if (surfaces & LOCOMOTORSURFACE_GROUND)
+		{
+			mask |= 1u << NavMesh::NAV_CLEAR;
+			if (obj->getCrusherLevel() > 0)
+				mask |= 1u << NavMesh::NAV_FENCE;
+		}
+		if (surfaces & LOCOMOTORSURFACE_WATER) mask |= 1u << NavMesh::NAV_WATER;
+		if (surfaces & LOCOMOTORSURFACE_CLIFF) mask |= 1u << NavMesh::NAV_CLIFF;
+		if (surfaces & LOCOMOTORSURFACE_RUBBLE) mask |= 1u << NavMesh::NAV_RUBBLE;
+		if (mask == 0)
+			return FALSE;
+
+		// Its size, in half-cells, rounded down so that rounding never closes a gap the unit fits through. Infantry
+		// are points: they pass through each other and through one-cell gaps, as on the grid.
+		const Real HALF = PATHFIND_CELL_SIZE_F * 0.5f;
+		radius = 0;
+		if (!obj->isKindOf(KINDOF_INFANTRY))
+		{
+			const GeometryInfo& geom = obj->getGeometryInfo();
+			Real r = geom.getMajorRadius();
+			if (geom.getGeomType() == GEOMETRY_BOX)
+				r = (geom.getMajorRadius() + geom.getMinorRadius()) * 0.5f;
+			radius = REAL_TO_INT_FLOOR(r / HALF);
+			if (radius > MAX_RADIUS_HALF_CELLS)
+				radius = MAX_RADIUS_HALF_CELLS;
+			if (radius < 0)
+				radius = 0;
+		}
+		return TRUE;
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
+Bool NavMesh::onMesh( Object *obj, const LocomotorSet& locomotorSet, Real x, Real y )
+{
+	unsigned mask;
+	Int radius;
+	if (s_labels.empty() || obj == nullptr || !classOf(obj, locomotorSet, mask, radius))
+		return FALSE;
+	SizedMesh *sm = sizedMesh(mask, radius);
+	const Real HALF = PATHFIND_CELL_SIZE_F * 0.5f;
+	NavQuery::Pt p, out;
+	p.x = x / HALF;
+	p.y = y / HALF;
+	int tri = -1;
+	// "On" allows a quarter of a half-cell: a line that runs along the mesh's edge is on it.
+	return NavQuery::nearestPassable(sm->mesh, p, 1u, 0.25f, nullptr, -1, out, tri);
+}
+
 //-------------------------------------------------------------------------------------------------
 Path *NavMesh::findPath( Object *obj, const LocomotorSet& locomotorSet, const Coord3D *from, const Coord3D *to, Int *cost )
 {
@@ -278,39 +337,11 @@ Path *NavMesh::findPath( Object *obj, const LocomotorSet& locomotorSet, const Co
 	if (s_labels.empty() || obj == nullptr)
 		return nullptr;
 
-	// Which labels this unit may stand on.
-	LocomotorSurfaceTypeMask surfaces = locomotorSet.getValidSurfaces();
-	if (surfaces & LOCOMOTORSURFACE_AIR)
+	unsigned mask;
+	Int radius;
+	if (!classOf(obj, locomotorSet, mask, radius))
 		return nullptr;
-	unsigned mask = 0;
-	if (surfaces & LOCOMOTORSURFACE_GROUND)
-	{
-		mask |= 1u << NAV_CLEAR;
-		if (obj->getCrusherLevel() > 0)
-			mask |= 1u << NAV_FENCE;
-	}
-	if (surfaces & LOCOMOTORSURFACE_WATER) mask |= 1u << NAV_WATER;
-	if (surfaces & LOCOMOTORSURFACE_CLIFF) mask |= 1u << NAV_CLIFF;
-	if (surfaces & LOCOMOTORSURFACE_RUBBLE) mask |= 1u << NAV_RUBBLE;
-	if (mask == 0)
-		return nullptr;
-
-	// Its size, in half-cells, rounded down so that rounding never closes a gap the unit fits through. Infantry
-	// are points: they pass through each other and through one-cell gaps, as on the grid.
 	const Real HALF = PATHFIND_CELL_SIZE_F * 0.5f;
-	Int radius = 0;
-	if (!obj->isKindOf(KINDOF_INFANTRY))
-	{
-		const GeometryInfo& geom = obj->getGeometryInfo();
-		Real r = geom.getMajorRadius();
-		if (geom.getGeomType() == GEOMETRY_BOX)
-			r = (geom.getMajorRadius() + geom.getMinorRadius()) * 0.5f;
-		radius = REAL_TO_INT_FLOOR(r / HALF);
-		if (radius > MAX_RADIUS_HALF_CELLS)
-			radius = MAX_RADIUS_HALF_CELLS;
-		if (radius < 0)
-			radius = 0;
-	}
 	SizedMesh *sm = sizedMesh(mask, radius);
 	if (cost)
 		*cost = 200;

@@ -58,6 +58,7 @@
 #include "GameLogic/MoveTraffic.h"	// zh-pipeline Phase 7
 #include "GameLogic/NavMesh.h"
 #include "GameLogic/AISteering.h"	// zh-pipeline Phase 7
+#include "GameLogic/AIDrive.h"	// zh-pipeline Phase 7
 #include "GameLogic/Locomotor.h"
 #include "GameLogic/Module/AIUpdate.h"
 #include "GameLogic/Module/BodyModule.h"
@@ -245,6 +246,7 @@ AIUpdateInterface::AIUpdateInterface( Thing *thing, const ModuleData* moduleData
 	m_jamLastFrame = 0;
 	m_laneKey = 0;
 	m_laneRow = 0;
+	m_drive = nullptr;
 	m_queueForPathFrame = 0;
 	m_finalPosition.zero();
 	m_repulsor1 = INVALID_ID;
@@ -641,6 +643,7 @@ void AIUpdateInterface::onObjectCreated()
 //-------------------------------------------------------------------------------------------------
 AIUpdateInterface::~AIUpdateInterface()
 {
+	AIDrive::destroy(m_drive);	// zh-pipeline
 	m_locomotorSet.clear();
 	m_curLocomotor = nullptr;
 
@@ -2414,6 +2417,7 @@ UpdateSleepTime AIUpdateInterface::doLocomotor()
 
 	Bool blocked = m_blockedFrames > 0;
 	Bool requiresConstantCalling = TRUE;	// assume the worst.
+	Bool droveOnPlan = FALSE;	// zh-pipeline: see AIDrive below
 
 	if (m_curLocomotor)
 	{
@@ -2481,6 +2485,17 @@ UpdateSleepTime AIUpdateInterface::doLocomotor()
 						Real myMaxSpeed = m_curLocomotor->getMaxSpeedForCondition(getObject()->getBodyModule()->getDamageState());
 						if( speed == FAST_AS_POSSIBLE || speed > myMaxSpeed )
 							speed = myMaxSpeed;
+
+						// zh-pipeline @feature 2026-11-17 MoveRules::NAVMESH: a ground unit is moved along its drive plan
+						// (GameLogic/AIDrive.h) instead of being aimed at a point on the path and pushed there. Nothing
+						// below runs for it: no blocked-speed limits, no AISteering, no locomotor force.
+						if (MoveRules::navmesh() && isDoingGroundMovement() && AIDrive::update(getObject(), this, m_drive, speed))
+						{
+							droveOnPlan = TRUE;
+							blocked = FALSE;
+							m_doFinalPosition = FALSE;
+							break;
+						}
 
 						if (blocked && speed>m_curMaxBlockedSpeed)
 						{
@@ -2567,6 +2582,9 @@ UpdateSleepTime AIUpdateInterface::doLocomotor()
 					break;
 			}
 		}
+
+		if (!droveOnPlan)
+			AIDrive::release(getObject(), m_drive);	// zh-pipeline: not on its plan this frame; physics has it back.
 
 		if (!blocked && m_blockedFrames>1)
 		{
