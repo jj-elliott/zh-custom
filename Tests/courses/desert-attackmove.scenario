@@ -1,0 +1,10 @@
+# One mixed group ATTACK-MOVES across open desert with nothing to shoot at: the attack-move order goes through the
+# same paths and steering as a move, and this is the check that it does.
+map Maps\Tournament Desert\Tournament Desert.map
+group
+from Player_1_Start
+to Player_2_Start
+attackmove
+spawn AmericaTankCrusader 6
+spawn AmericaVehicleHumvee 4
+spawn AmericaInfantryRanger 6

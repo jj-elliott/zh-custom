@@ -178,6 +178,11 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       not use them to justify deviating from it. Overlap 0.56 with no head-on overlap, reversals 3.6, no timeouts;
       city and river are slow. Untuned and unseen.
       **Open, human:** play level 2 (`.\scripts\movetest.ps1 -Name pathfinding -Level 2`): groups, head-on, a choke.
+      Third pass: level 2 was slow because retail moves units faster than their listed speed off the map axes
+      (PLAN.md "Third pass"); `drive.speedScale` 1.1716 applied. Bridge approaches use the mesh; `desert-attackmove`
+      added. Suite: level 2 arrives as soon as level 1 with half its overlap and a third of its turning.
+      **Open, human:** play level 2; say whether units feel the right speed (they are 15% faster than vanilla going
+      straight north-south or east-west, about vanilla on average); a fight on attack-move.
       Second pass done: bucket grid for mesh lookups, corner look-ahead + spread corner targets, push-rank right of
       way. PLAN.md "The brief, item by item" is the checklist; "Still owed" is the list (bridge paths steered
       without the mesh, city slow, corridor cache, attack-move scenario, tuning, deleting the rails).

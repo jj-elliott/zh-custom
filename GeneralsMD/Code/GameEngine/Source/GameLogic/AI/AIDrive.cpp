@@ -56,6 +56,7 @@ namespace AIDrive
 		// Steering (drive.mode 1): the route's points, which of them is being made for, the velocity being asked
 		// for (smoothed) and the speed the unit has.
 		std::vector<NavDrive::Pt> route;
+		std::vector<unsigned char> routeOnGround;	///< per route point: it is on the ground layer (not a bridge's deck)
 		Int nextPoint;
 		Real wantX, wantY;
 		Real speed;
@@ -87,6 +88,7 @@ namespace
 	// (3 variants): one file 98.1 s to arrive / 12.7 stalled / overlap 1.3; three abreast 98.4 / 5.5 / 0.6; no limit
 	// 102.2 / 7.9 / 2.3 (the outside of a wide wheel is a long way round).
 	Real SPREAD_MAX = 3.0f;
+	Real SPEED_SCALE = 1.17157288f;	// see kinematicsOf
 	Int DEBUG_UNIT = 0;
 	Bool s_loaded = false;
 	Int s_spread = 0, s_spreadUndone = 0;
@@ -139,6 +141,7 @@ namespace
 		MoveTune::apply("drive.followGap", FOLLOW_GAP);
 		MoveTune::apply("drive.offPlan", OFF_PLAN);
 		MoveTune::apply("drive.turnEase", TURN_EASE);
+		MoveTune::apply("drive.speedScale", SPEED_SCALE);
 		MoveTune::apply("drive.spread", SPREAD);
 		MoveTune::apply("drive.spreadSpacing", SPREAD_SPACING);
 		MoveTune::apply("drive.spreadMax", SPREAD_MAX);
@@ -174,7 +177,14 @@ namespace
 	void kinematicsOf( const Object *obj, const Locomotor *loco, NavDrive::Kinematics& kin )
 	{
 		BodyDamageType damage = obj->getBodyModule()->getDamageState();
-		kin.maxSpeed = loco->getMaxSpeedForCondition(damage);
+		// The speed a unit is listed with is not the speed the retail game moves it at. Retail's locomotors hold
+		// the unit's speed to that figure as physics measures it, and that measure (getForwardSpeed2D, an average
+		// of two components) reads low by a factor that depends on the heading: 1 along an axis, 1.41 on a
+		// diagonal. Units therefore travel faster than listed, by about 17% over all headings; upstream's own
+		// constant for it is DiagonalCompensation2D in Locomotor.cpp (2*sqrt(2) / (1 + sqrt(2))). A unit moved here
+		// at its listed speed is that much slower than the game people know (the user saw it on a Humvee), so the
+		// same factor is applied, the same on every heading.
+		kin.maxSpeed = loco->getMaxSpeedForCondition(damage) * SPEED_SCALE;
 		kin.turnRate = loco->getMaxTurnRate(damage);
 		kin.accel = loco->getMaxAcceleration(damage);
 		kin.brake = loco->getBraking();
@@ -188,7 +198,7 @@ namespace
 		if (look == LOCO_WHEELS_FOUR || look == LOCO_MOTORCYCLE)
 		{
 			// The locomotor's own rule (moveTowardsPositionWheels): the turn is in proportion to speed up to this.
-			kin.turnSpeed = loco->getMinTurnSpeed();
+			kin.turnSpeed = loco->getMinTurnSpeed() * SPEED_SCALE;
 			if (kin.turnSpeed < kin.maxSpeed * 0.25f)
 				kin.turnSpeed = kin.maxSpeed * 0.25f;
 			// Above that speed its turning circle grows with speed: it corners wide and fast where there is room.
@@ -721,9 +731,11 @@ namespace
 			data->pathFirst = *first;
 			data->pathLast = *last;
 			data->route.clear();
+			data->routeOnGround.clear();
 			NavDrive::Pt pt;
 			pt.x = pos->x; pt.y = pos->y;
 			data->route.push_back(pt);
+			data->routeOnGround.push_back(obj->getLayer() == LAYER_GROUND ? 1 : 0);
 			data->allGround = obj->getLayer() == LAYER_GROUND;
 			Int guard = 4096;
 			for (PathNode *node = path->getFirstNode()->getNextOptimized(); node != nullptr && --guard > 0; node = node->getNextOptimized())
@@ -731,14 +743,16 @@ namespace
 				pt.x = node->getPosition()->x;
 				pt.y = node->getPosition()->y;
 				data->route.push_back(pt);
+				data->routeOnGround.push_back(node->getLayer() == LAYER_GROUND ? 1 : 0);
 				if (node->getLayer() != LAYER_GROUND)
 					data->allGround = FALSE;
 			}
 			// A group's members do not all make for the same corner point: each one's is moved out from the wall by
 			// where it stands across the group, as far as the ground has room (spreadCorners). What they seek is then
 			// a band round the corner, not a point everyone has to squeeze past.
-			if (data->allGround)
-				spreadCorners(obj, ai, data->route);
+			// (On a route with a bridge too: a corner on or beside the deck finds no room on the ground mesh and
+			// stays where it is.)
+			spreadCorners(obj, ai, data->route);
 			data->nextPoint = 1;
 			data->wantX = 0.0f;
 			data->wantY = 0.0f;
@@ -760,7 +774,6 @@ namespace
 		Real heading = obj->getOrientation();
 		Real hx = Cos(heading), hy = Sin(heading);
 		Real ourRadius = radiusOf(obj);
-		Bool onGround = data->allGround && obj->getLayer() == LAYER_GROUND;
 		++s_steerFrames;
 
 		// ---- Which point of the route it is making for: the next one not yet reached or passed; and, every few
@@ -776,7 +789,11 @@ namespace
 			else
 				break;
 		}
-		if (onGround && data->nextPoint < lastPoint && ((now + (UnsignedInt)obj->getID()) % (UnsignedInt)LOOK_EVERY) == 0)
+		// The mesh is asked about wherever the unit and the stretch it is on are on the ground; on a bridge's deck
+		// (and on the ground at its ends, which belongs to the bridge's own sheet) the route is simply followed.
+		Bool onGround = obj->getLayer() == LAYER_GROUND && data->routeOnGround[data->nextPoint] && data->routeOnGround[data->nextPoint - 1];
+		if (onGround && data->nextPoint < lastPoint && data->routeOnGround[data->nextPoint + 1]
+				&& ((now + (UnsignedInt)obj->getID()) % (UnsignedInt)LOOK_EVERY) == 0)
 		{
 			const NavDrive::Pt& after = route[data->nextPoint + 1];
 			if (NavMesh::segmentOnMesh(obj, ai->getLocomotorSet(), x, y, after.x, after.y))
@@ -787,6 +804,7 @@ namespace
 		}
 		const NavDrive::Pt& target = route[data->nextPoint];
 		Real toX = target.x - x, toY = target.y - y;
+		(void)onGround;
 		Real toDist = sqrt(toX*toX + toY*toY);
 		Real remaining = toDist;
 		for (Int i = data->nextPoint; i < lastPoint; ++i)
@@ -981,14 +999,21 @@ namespace
 				askY += cy / cl * W_COHERE;
 			}
 		}
+		// The blend gives a direction; how fast is a separate matter. Being pushed sideways turns a unit, it does not
+		// slow it (scaling the whole blend down to length 1 cost a group in close order a fifth of its speed);
+		// being pushed back does: the share of full speed is how much of the blend still points along the route.
 		Real askLen = sqrt(askX*askX + askY*askY);
-		if (askLen > 1.0f)
+		Real share = askX * seekX + askY * seekY;
+		if (share > 1.0f) share = 1.0f;
+		if (share < 0.25f) share = 0.25f;
+		if (askLen > 0.001f)
 		{
-			askX /= askLen;
-			askY /= askLen;
+			askX = askX / askLen * share;
+			askY = askY / askLen * share;
 		}
 		// The speed it would like: its own, less for a leader, and no more than lets it stop at the end.
-		Real top = desiredSpeed < kin.maxSpeed ? desiredSpeed : kin.maxSpeed;
+		// (What the AI wants is in listed speeds: the same factor applies, see kinematicsOf.)
+		Real top = desiredSpeed * SPEED_SCALE < kin.maxSpeed ? desiredSpeed * SPEED_SCALE : kin.maxSpeed;
 		if (followMost < top)
 			top = followMost;
 		Real stopMost = (-kin.brake + sqrt(kin.brake * kin.brake + 8.0f * kin.brake * remaining)) * 0.5f;
