@@ -1031,8 +1031,8 @@ infantry). Not changed yet, so that numbers stay comparable.
   (1.1716, `Locomotor.cpp`). Level 2 moved units at the listed speed on every heading. It now applies that factor,
   the same on every heading (`drive.speedScale`). Consequence, measured with one unit of each kind on a
   north-south course: level 2 is 15% *faster* than retail there (Humvee 21.9 s against 25.7), and by the same
-  reasoning slower than retail on a pure diagonal. **A choice for the user**: one speed on every heading at
-  retail's average (now), or the listed speed (set `drive.speedScale=1`), or copy retail's dependence on heading.
+  reasoning slower than retail on a pure diagonal. **Decided by the user (2026-11-18): the vanilla average**, one
+  speed on every heading (`drive.speedScale` stays 1.1716).
 - Tried first and kept, though it was not the cause: sideways parts of the blend (separation, avoidance) turn a unit
   but no longer slow it; only a push back along the route does.
 - **Bridge routes:** the mesh is now asked about wherever the unit and the stretch it is on are on the ground (per
@@ -1050,7 +1050,7 @@ Suite, 6 courses, 3 variants:
 | level 1 | 59.2 | 81.0 | 1.3 (0.7) | 11.2 | 5.2 | 6.1 | 0 |
 | **level 2** | 59.5 | 76.0 | 0.59 (0) | 3.7 | 0.67 | 5.4 | 0 |
 
-**Still owed** (replaces the list above): the user's decision on speed; the corridor cache for group orders (a
+**Still owed** (replaces the list above): the corridor cache for group orders (a
 group of 30 on the city map is about 30 searches of 1-2 ms spread over ~10 frames by the path budget, so it is a
 latency of a third of a second, not a hitch: measure before building); wall tops; weights tuned from play; then
 delete the rails (`drive.mode=0`, `NavDrive` plan following, `trySidestep`) and level 1.
