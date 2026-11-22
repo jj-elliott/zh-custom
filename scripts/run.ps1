@@ -7,7 +7,9 @@
 # the game's own log files written during the run. The folder path is printed last so the agent can read it.
 # NOTE: the parameter is $GameArgs, not $Args: $Args is a PowerShell automatic variable and a parameter of that name
 # binds unreliably (Start-Process saw it as empty). The -Args alias keeps the documented command line working.
-param([Alias("Args")][string]$GameArgs = "-win", [int]$TimeoutSec = 0, [int]$Screenshot = 0, [string]$Click = "", [switch]$NoCopyExe)
+param([Alias("Args")][string]$GameArgs = "-win", [int]$TimeoutSec = 0, [int]$Screenshot = 0, [string]$Click = "", [switch]$NoCopyExe, [switch]$FromBuild)
+# -FromBuild runs this checkout's build\...\generalszh.exe in place (with -useCwd, from the game folder) and stages nothing:
+# for a second worktree, whose build must not replace the exe in the shared dev install.
 # -Click "x,y[;x,y...]" clicks those client-area pixels (left button) after the focus nudge, one second apart, before the shot.
 $ErrorActionPreference = "Stop"
 $repo = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -16,14 +18,20 @@ $game = $local.gameDir
 $out = "$repo\tests\out\run-$(Get-Date -Format yyyyMMdd-HHmmss)"
 New-Item -ItemType Directory -Force $out | Out-Null
 
-if (-not $NoCopyExe) {
+$runExe = "$game\generalszh.exe"
+if ($FromBuild) {
+  $built = Get-ChildItem "$repo\build" -Recurse -Include generalszh.exe | ? FullName -match Release | sort LastWriteTime -Descending | select -First 1
+  if (-not $built) { throw "no built generalszh.exe under $repo\build" }
+  $runExe = $built.FullName
+  $GameArgs = "-useCwd $GameArgs"
+} elseif (-not $NoCopyExe) {
   $exe = Get-ChildItem "$repo\build" -Recurse -Include generalszh.exe | ? FullName -match Release | select -First 1
   if ($exe) { Copy-Item $exe.FullName "$game\generalszh.exe" -Force }
 }
 $before = Get-ChildItem "$game\crashdumps\*.dmp","$env:USERPROFILE\Documents\Command and Conquer Generals Zero Hour Data\CrashDumps\*.dmp" -ErrorAction SilentlyContinue | % FullName
 $startTime = Get-Date
 
-$p = Start-Process -FilePath "$game\generalszh.exe" -ArgumentList $GameArgs -WorkingDirectory $game -PassThru `
+$p = Start-Process -FilePath $runExe -ArgumentList $GameArgs -WorkingDirectory $game -PassThru `
        -RedirectStandardOutput "$out\stdout.txt" -RedirectStandardError "$out\stderr.txt"
 
 if ($Screenshot -gt 0) {
