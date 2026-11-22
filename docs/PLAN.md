@@ -507,7 +507,7 @@ layer checked on its own before the next one stands on it.
 | Walkability grid | Exists: the pathfinder's cells (10 world units; clear / water / cliff / rubble / obstacle / impassable, fence bit). It stays the source of truth for *what the ground is*; structures keep stamping it as they do now. |
 | Constrained Delaunay navmesh | **New, M1 done.** One mesh for every kind of unit: every boundary between cell types is a constrained edge and every triangle has a label, so a search filters by the unit's surfaces (ground, water, cliff, rubble, fence for crushers) the way the grid search does. |
 | Dynamic obstacle carving | **M2.** Every footprint change already funnels through three places (`internal_classifyObjectFootprint`, `classifyFence`, `classifyMap`; bridges through `changeBridgeState`). A whole 475x475 map rebuilds in 5 ms, so M2 starts with "rebuild when the grid changed, at most once a frame" and only goes to local retriangulation if a measured late-game base says it must. |
-| Clearance, layers | **M2, done except wall tops.** A mesh per unit size, built from ground shrunk by that radius (Demyen's per-crossing widths were built and dropped, see below), so a wide unit's mesh simply has no gap it cannot pass. Bridges are the engine's layers 2..14: each gets its own mesh of a window round it, joined to the ground's mesh where their ground meets ("Bridges in the mesh" below). Wall tops (layer 15) still use the grid. |
+| Clearance, layers | **M2, done (wall tops since 2026-11-22, "Wall tops in the mesh" below).** A mesh per unit size, built from ground shrunk by that radius (Demyen's per-crossing widths were built and dropped, see below), so a wide unit's mesh simply has no gap it cannot pass. Bridges are the engine's layers 2..14: each gets its own mesh of a window round it, joined to the ground's mesh where their ground meets ("Bridges in the mesh" below). Wall tops (layer 15) still use the grid. |
 | A* over triangles + funnel | **M3.** A* on triangle edges with the clearance test, then the funnel with the unit's radius, so the path is the taut string a unit of that width can follow. Replaces `findPath` / `findGroundPath` / `patchPath` for ground units at the new level; aircraft are untouched. First playable milestone (new paths, old follower). |
 | Path caching / throttling | **M3.** The engine already queues path requests (5000 cells a frame). A group order searches the triangle corridor once per cluster and funnels per unit. |
 | Velocity steering (seek, separation, cohesion), spatial hash | **M4.** Replaces `AISteering`, lanes, the traffic map and the retail blocked/stuck/repath machinery at the new level. Neighbours from `ThePartitionManager` (iteration order is deterministic). |
@@ -548,7 +548,7 @@ What that means for M3/M4 (the test every steering decision is held to):
 | | what | done when |
 |---|---|---|
 | **M1** | Mesh from the grid: boundary chains, simplification, CDT, labels. Standalone test tool. | **Done 2026-11-17**, see below. |
-| M2 | Rebuild on grid change (**done**); unit width (**done**: a mesh per size, below); bridges (**done**, below; wall tops not); debug overlay in game (**built, not yet looked at**, below). | fuzz covers edits; mesh == grid after every footprint change in a soak run; overlay looks right to the user. |
+| M2 | Rebuild on grid change (**done**); unit width (**done**: a mesh per size, below); bridges (**done**, below) and wall tops (**done**, "Wall tops in the mesh"); debug overlay in game (**built, not yet looked at**, below). | fuzz covers edits; mesh == grid after every footprint change in a soak run; overlay looks right to the user. |
 | M3 | Point location, A*, funnel; `MoveRules` level 2 routes ground paths through it (**done**, below, bridges included); corners as drivable arcs. | path exists <=> grid says a path exists, on every suite map; lengths <= grid paths; plays. |
 | M4 | Drive model + steering + hard separation + push priorities; removes level 1's layers at level 2. | suite: no overlap, deviation only with a neighbour as cause; the user plays it against SC2 in their head. |
 | M5 | Arrival radius, group goals, attack-move. | same. |
@@ -737,7 +737,7 @@ Same reading as before: straighter paths, a third less turning; stalled and push
 one string across a bridge and the old follower pushes them apart. That is M4's job, not a reason to touch the mesh.
 `verify.ps1` (retail replay, level 0) passes; `soak.ps1 -Level 2` passes on the seven recordings.
 
-Still owed on bridges: wall tops (layer 15; units on them use the grid); two bridges that touch each other (the
+Still owed on bridges: (wall tops: done since, "Wall tops in the mesh"); two bridges that touch each other (the
 deck of one cannot open onto ground the other owns; no stock map does this); `locate` / `nearestPassable` are still
 linear scans, now over every sheet near the point.
 
@@ -1003,7 +1003,7 @@ infantry). Not changed yet, so that numbers stay comparable.
 
 | brief | state |
 |---|---|
-| Walkability grid; CDT navmesh; dynamic carving; clearance and layers | done (grid -> per-size meshes, rebuilt on change, bridges as sheets). Wall tops still on the grid. |
+| Walkability grid; CDT navmesh; dynamic carving; clearance and layers | done (grid -> per-size meshes, rebuilt on change, bridges and wall tops as sheets). |
 | A* over triangles; funnel | done, fuzzed against exhaustive search. 0.03-0.5% of paths longer than the grid's. |
 | Path caching and throttling | throttling done (searches charged to the frame budget). **No corridor cache for a group order**: each member searches. |
 | Velocity steering: seek, separation, cohesion | done, untuned. |
@@ -1095,7 +1095,7 @@ Suite, 7 courses, 3 variants:
 
 **The brief is footprint-complete except for two things, both deliberate:**
 - **Wall tops** (pathfinder layer 15, units walking on fortress walls) are still pathed by the grid. Few maps have
-  them and nothing in the suite does; doing it blind would be untested code.
+  them and nothing in the suite does; doing it blind would be untested code. (Done since: "Wall tops in the mesh".)
 - **Level 1 is still in the tree** (`AISteering`, `MoveTraffic`, group lanes) and is still the default. Deleting it
   and making level 2 the default is M6: one decision for the user, then a mechanical change. Retail (level 0)
   stays whatever happens: it is upstream's code and what `verify.ps1` replays against.
@@ -1117,6 +1117,76 @@ Checked: the suite and the soak's final CRCs are identical before and after the 
 removed); `skirmish-01.rep` verifies at level 0.
 
 **Everything in tests and docs that says "level 1" or "unified" from here up is history.**
+
+### Wall tops in the mesh (2026-11-22)
+
+The user: "can we solve for wall tops as well or no?" Yes, and it turned out smaller than bridges, because of what
+the pathfinder's wall layer is:
+- **A wall top is joined to the ground nowhere.** `PathfindLayer::classifyWallCells` gives a cell to the top only if
+  all four of its corners are on a wall piece, turns the outermost ring of those into cliff, and makes every cell
+  that merely touches a piece impassable. So every neighbour of a cell a unit can stand on is itself a cell of the
+  layer; the layer has no connect cells (`setConnectLayer` is only ever called for bridges). In this game units are
+  on a wall because the map put them there, and they stay there. The brief for this task said "joined to the
+  ground where the pathfinder has connect cells": there are none, so the sheet is joined to nothing, exactly as the
+  grid has it. A ground unit ordered onto a wall is refused by the mesh and then by the grid, as before.
+- **One sheet for all the tops** (`NavMesh::readLayers`, layer 15, read only on maps that have wall pieces): the
+  top's cells and nothing round them. Cliff-rim cells count as top only for units that climb cliffs.
+- **Half a cell smaller than the top, all round.** The engine holds a unit at the wall's height only while
+  `Pathfinder::isPointOnWall` says so (a clear cell of the layer under it; otherwise `getLayerHeight` answers with
+  the ground). A path along the exact edge of the outermost clear cell is, to that test, in the next cell: the
+  first run had a Ranger sink into the wall and walk its length inside it. So the top is shrunk by the unit's
+  radius plus one half-cell. Cost: a top whose clear strip is a single cell wide has no sheet (fortress wall tops
+  are four cells).
+- **A unit on a top goes to the nearest spot of the top it is on, wherever it is sent** (`NavMesh::findPath`,
+  `confinedToWall`). It cannot leave, and a group order's spots are spread wider than a wall: before this the one
+  member whose spot fell beside the top was handed to the grid and walked off the wall. This is the only decision
+  here that shows in play; the alternative was a unit ignoring its order or walking through the wall.
+- **Steering** (`AIDrive::steer`, three small changes): a wall top counts as a surface the unit's mesh is asked
+  about (`surfaceOf`), so the unit is clamped to the top's mesh like a ground unit to the ground's, and always
+  while its layer is the wall's; units on a top and units on the ground (under an arch of the same wall) ignore
+  each other. `NavMesh::onMesh` / `segmentOnMesh` answer for the top when the unit asked about is on it.
+- **A piece destroyed:** `classifyObjectFootprint` re-classifies the wall cells; it now also marks the mesh dirty
+  there (it did through the structure-footprint path anyway). The engine kills whoever stood on the piece; the
+  rest get a mesh without it at their next path.
+
+Tests. Fuzz: one in four bridges of the bridge fuzz is now a wall top (the same deck, a sheet with no ground and no
+joins): 1000 maps x 6 builds, 0 failures, existence equal to the exhaustive search throughout; of the pairs along
+one top (start and goal both on it) the search answers exactly as the exhaustive one does. In the engine, headless:
+two stock maps have fortress walls (Fallen Empire, Iron Dragon; found by searching every map in `MapsZH.big` for
+the six `WALK_ON_TOP_OF_WALL` templates). New scenario directive `onwall` (MoveBench places the group on the top
+and checks every frame that each unit is on the wall's layer, over a clear cell of it and at the wall's height),
+new courses on Fallen Empire's wall:
+
+| course | paths from the mesh along the top | unit-frames off the top | arrive |
+|---|---|---|---|
+| `wall-walk` (6 Rangers, 400 units along) | 6 of 6 | 0 | all |
+| `wall-long` (3 Rangers, 2300 units, over every arch and wall building) | all | 0 | all |
+| `wall-walk`, the piece under the destination destroyed (`-Tune bench.wallDown=0`) | rebuilt without it; all re-pathed | 0 | all, at the end of what is left (47 units short) |
+| `wall-walk`, order repeated mid-walk (`bench.reorder=150`) | 12 of 12 | 0 | all |
+
+Suite, 9 courses, 3 variants (`movesuite.ps1 -SkipBuild -Detail`): no timeouts at level 2 on any course.
+
+| | timeouts | meanArrive | maxArrive | overlap | reversals | wobble | stalled |
+|---|---|---|---|---|---|---|---|
+| level 2, all nine | 0 | 61.7 s | 77.6 | 0.03 | 4.4 | 1.4 | 4.3 |
+| retail, all nine | 0.04 | 72.1 | 91.8 | 4.8 | 4.4 | 1.7 | 155 |
+| level 2 `wall-walk` | 0 | 18.3 | 20.2 | 0 | 2.2 | 0.45 | 1.4 |
+| retail `wall-walk` | 0 | 19.9 | 22.3 | 0 | 0 | 0 | 0.2 |
+| level 2 `wall-long` | 0 | 99.4 | 101.6 | 0 | 1.7 | 0 | 1.0 |
+| retail `wall-long` | 0 | 115.3 | 116.6 | 0 | 0 | 0 | 0.1 |
+
+(The all-courses rows are not comparable with earlier tables: two courses were added.) One steering fix came out
+of it: on a narrow top a unit short of its place, with a unit standing in the way that can be neither pushed nor
+gone round, stepped forward and was pushed back every frame for the rest of the run; on a wall top "getting
+nowhere" is now measured against the nearest the unit has been (`steer()`, wall tops only, so no ground course
+changes). `verify.ps1` passes (retail replay); `soak.ps1` passes at the default level on the seven recordings.
+The ground courses were not re-run against the branch tip's build to prove them unchanged to the digit.
+
+**Not verified:** nobody has watched it (no launch without the user's word); Iron Dragon's wall was not run; no
+vehicle was tried on a top (a tank's radius leaves no sheet on a four-cell top, so it is refused, as the grid's
+clearance test would); what a unit on a top does when attacked or attacking is untouched engine code.
+Also in this change: the headless benchmark scripts pass `-multiinstance`, so they run while a game is open (they
+exited at once before, silently: the engine allows one instance; replays already had this).
 
 **(Superseded) Next (M4, second part, continued): what units do about each other, still on rails.**
 1. (Done, above: corners abreast.)

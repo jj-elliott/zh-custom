@@ -29,7 +29,7 @@ if ($Scenario) {
   $file = "$repo\tests\courses\$Scenario.scenario"
   if (-not (Test-Path $file)) { throw "no such scenario: $file" }
   $log = Join-Path $out "run-$Scenario.txt"
-  $a = @("-useCwd", "-headless", "-movebench", "`"$file`"", "-movetune", "navmesh.dump=1")
+  $a = @("-useCwd", "-headless", "-multiinstance", "-movebench", "`"$file`"", "-movetune", "navmesh.dump=1")
   $p = Start-Process -FilePath $gameExe.FullName -ArgumentList $a -WorkingDirectory $game -PassThru -RedirectStandardOutput $log
   if (-not $p.WaitForExit(300000)) { $p.Kill(); throw "timeout" }
   $lines = Get-Content $log

@@ -248,6 +248,7 @@ public:
 	void addWallPiece(Object *wallPiece); // Adds a wall piece.
 	void removeWallPiece(Object *wallPiece);  // Removes a wall piece.
 	Real getWallHeight() {return m_wallHeight;}
+	Int getNumWallPieces() const { return m_numWallPieces; }	///< zh-pipeline: 0 = this map has no wall to walk on (NavMesh.cpp)
 	Bool isPointOnWall(const Coord3D *pos);
 
 	void updateLayer(Object *obj, PathfindLayerEnum layer); ///< Updates object's layer.

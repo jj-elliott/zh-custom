@@ -44,6 +44,8 @@ namespace
 	// A bridge as the pathfinder has it: the cells of its layer over a rectangle of the map. kind: 0 = not on the
 	// bridge (a unit on this layer is on the ground there, Pathfinder::getCell falls back to the ground cell),
 	// 1 = deck, 2 = on the layer and impassable (the bridge's sides; every cell of a destroyed bridge).
+	// The wall tops (LAYER_WALL, all walk-on wall pieces of the map together) are one more of these, with 3 = a
+	// cell of the top's rim, which the pathfinder makes a cliff: only a unit that climbs cliffs may stand there.
 	struct LayerCells
 	{
 		Int layer;
@@ -101,7 +103,7 @@ namespace
 	std::vector<SizedMesh *> s_sized;
 	UnsignedInt s_gridSerial = 1;
 	Int s_statMesh = 0, s_statNoStart = 0, s_statNoGoal = 0, s_statNoPath = 0, s_statBuilds = 0, s_statNodes = 0;
-	Int s_statBridge = 0, s_statWall = 0;
+	Int s_statBridge = 0, s_statWall = 0, s_statOnWall = 0;
 
 	const Int MAX_RADIUS_HALF_CELLS = 5;
 
@@ -136,12 +138,19 @@ namespace
 		cells[0].w = s_width * 2;
 		cells[0].h = s_height * 2;
 		sm->layerOf.assign(1, (Int)LAYER_GROUND);
-		const Int need = (radius + 1) / 2;	// cells: walls this near the window still shrink the ground inside it
-		const Int margin = need + 1;
 		std::vector<unsigned char> view, deck;
 		for (size_t i = 0; i < s_layers.size(); ++i)
 		{
 			const LayerCells& lc = s_layers[i];
+			const Bool wallTop = (lc.layer == (Int)LAYER_WALL);
+			// A wall top is shrunk by half a cell more than the unit's size. The engine holds a unit at the wall's
+			// height only while it is over a cell of the top proper (Pathfinder::isPointOnWall; elsewhere
+			// getLayerHeight gives the ground's height), and a point on the very edge of the outermost such cell is,
+			// to that test, already in the next one: a unit whose path ran along the edge of the unshrunk top sank
+			// into the wall. Half a cell in, every point of the mesh is inside a cell of the top.
+			const Int shrink = wallTop ? radius + 1 : radius;
+			const Int need = (shrink + 1) / 2;	// cells: walls this near the window still shrink the ground inside it
+			const Int margin = need + 1;
 			Int x0 = lc.x0 - margin, y0 = lc.y0 - margin, x1 = lc.x0 + lc.w + margin, y1 = lc.y0 + lc.h + margin;
 			if (x0 < 0) x0 = 0;
 			if (y0 < 0) y0 = 0;
@@ -164,14 +173,23 @@ namespace
 					Int cx = x + px0, cy = y + py0;
 					Int lx = cx - lc.x0, ly = cy - lc.y0;
 					unsigned char kind = (lx >= 0 && ly >= 0 && lx < lc.w && ly < lc.h) ? lc.kind[ly*lc.w + lx] : (unsigned char)0;
-					view[y*pw + x] = (unsigned char)(kind == 1 ? NavMesh::NAV_CLEAR : (kind == 2 ? NavMesh::NAV_BLOCKED : s_labels[cy*s_width + cx]));
-					deck[y*pw + x] = (unsigned char)(kind == 1 ? 1 : 0);
+					unsigned char label;
+					if (kind == 1)
+						label = NavMesh::NAV_CLEAR;
+					else if (kind == 3)
+						label = NavMesh::NAV_CLIFF;
+					else if (kind == 2 || wallTop)
+						label = NavMesh::NAV_BLOCKED;	// a wall top is not joined to the ground anywhere (see readLayers)
+					else
+						label = s_labels[cy*s_width + cx];
+					view[y*pw + x] = label;
+					deck[y*pw + x] = (unsigned char)((kind == 1 || kind == 3) ? 1 : 0);
 				}
 			}
 			int pad[4] = { x0 - px0, y0 - py0, px1 - x1, py1 - y1 };
 			unsigned mapEdges = (px0 == 0 ? 1u : 0u) | (py0 == 0 ? 2u : 0u) | (px1 == s_width ? 4u : 0u) | (py1 == s_height ? 8u : 0u);
 			NavBuild::SheetCells sc;
-			NavBuild::erodeSheet(&view[0], &deck[0], pw, ph, mask, radius, pad, mapEdges, sc.cells);
+			NavBuild::erodeSheet(&view[0], &deck[0], pw, ph, mask, shrink, pad, mapEdges, sc.cells);
 			// No deck this unit can be on (it is too wide for the bridge, or may not use the surface): no sheet.
 			Bool usable = false;
 			for (size_t c = 0; c < sc.cells.size() && !usable; ++c)
@@ -301,8 +319,7 @@ namespace
 		}
 	}
 
-	/// The bridges, in the order the terrain has them (the same on both machines). Wall tops (LAYER_WALL) are not
-	/// read: units on them still get their paths from the grid.
+	/// The bridges, in the order the terrain has them (the same on both machines), then the wall tops.
 	void readLayers( Pathfinder *pathfinder, Int width, Int height, std::vector<LayerCells>& layers )
 	{
 		layers.clear();
@@ -345,6 +362,54 @@ namespace
 			}
 			if (any)
 				layers.push_back(lc);
+		}
+
+		// The wall tops: one layer for every walk-on wall piece on the map (fortress walls). The pathfinder gives a
+		// cell of it to the top only if all four of the cell's corners are on a piece, then turns the outermost ring
+		// of those into cliff; every cell that touches the top without being wholly on it is on the layer and
+		// impassable. So every neighbour of a cell a unit can stand on is itself on the layer: the top never touches
+		// a ground cell, the grid has no connect cells for it, and units are on it only because the map put them
+		// there. Its sheet is therefore the top alone, with nothing round it.
+		if (pathfinder->getNumWallPieces() > 0)
+		{
+			const PathfindLayerEnum layer = LAYER_WALL;
+			Int lox = width, loy = height, hix = -1, hiy = -1;
+			std::vector<unsigned char> all(width * height, 0);
+			for (Int y = 0; y < height; ++y)
+			{
+				for (Int x = 0; x < width; ++x)
+				{
+					const PathfindCell *cell = pathfinder->getCell(layer, x, y);
+					if (cell == nullptr || cell->getLayer() != layer)
+						continue;
+					unsigned char kind = 2;
+					if (cell->getType() == PathfindCell::CELL_CLEAR)
+						kind = 1;
+					else if (cell->getType() == PathfindCell::CELL_CLIFF)
+						kind = 3;
+					all[y*width + x] = kind;
+					if (x < lox) lox = x;
+					if (x > hix) hix = x;
+					if (y < loy) loy = y;
+					if (y > hiy) hiy = y;
+				}
+			}
+			if (hix >= lox && hiy >= loy)
+			{
+				LayerCells lc;
+				lc.layer = (Int)layer;
+				lc.x0 = lox;
+				lc.y0 = loy;
+				lc.w = hix - lox + 1;
+				lc.h = hiy - loy + 1;
+				lc.kind.resize(lc.w * lc.h);
+				for (Int y = 0; y < lc.h; ++y)
+				{
+					for (Int x = 0; x < lc.w; ++x)
+						lc.kind[y*lc.w + x] = all[(y + loy)*width + (x + lox)];
+				}
+				layers.push_back(lc);
+			}
 		}
 	}
 
@@ -509,6 +574,17 @@ Bool NavMesh::onMesh( Object *obj, const LocomotorSet& locomotorSet, Real x, Rea
 	p.x = x / HALF;
 	p.y = y / HALF;
 	int tri = -1;
+	// A unit on a wall top is asked about the top (its sheet's deck), which it cannot leave.
+	if (obj->getLayer() == LAYER_WALL)
+	{
+		Int k = sheetOfLayer(sm, LAYER_WALL);
+		if (k == 0)
+			return FALSE;
+		NavQuery::Pt local;
+		local.x = p.x - (Real)sm->atlas.sheets[k].ox;
+		local.y = p.y - (Real)sm->atlas.sheets[k].oy;
+		return NavQuery::nearestPassable(sm->meshes[k], sm->grids[k], local, 1u << NavBuild::SHEET_DECK, 0.25f, out, tri);
+	}
 	// "On" allows a quarter of a half-cell: a line that runs along the mesh's edge is on it.
 	// Ground is ground whichever sheet it belongs to: the ground at a bridge's ends is on the bridge's sheet, and
 	// asking the main sheet alone called it a wall (an infantryman stood facing it for a whole run). Decks are not
@@ -536,6 +612,16 @@ Bool NavMesh::segmentOnMesh( Object *obj, const LocomotorSet& locomotorSet, Real
 	NavQuery::Pt a, b;
 	a.x = x0 / HALF; a.y = y0 / HALF;
 	b.x = x1 / HALF; b.y = y1 / HALF;
+	if (obj->getLayer() == LAYER_WALL)
+	{
+		Int k = sheetOfLayer(sm, LAYER_WALL);
+		if (k == 0)
+			return FALSE;
+		NavQuery::Pt la, lb;
+		la.x = a.x - (Real)sm->atlas.sheets[k].ox; la.y = a.y - (Real)sm->atlas.sheets[k].oy;
+		lb.x = b.x - (Real)sm->atlas.sheets[k].ox; lb.y = b.y - (Real)sm->atlas.sheets[k].oy;
+		return NavQuery::segmentClear(sm->meshes[k], sm->grids[k], la, lb, 1u << NavBuild::SHEET_DECK, 2.0f);
+	}
 	// Clear within one sheet's ground. (A line that passes from one sheet's ground to another's is answered "no":
 	// that only makes a look-ahead or a spread corner more cautious beside a bridge.)
 	for (size_t k = 0; k < sm->meshes.size(); ++k)
@@ -622,18 +708,20 @@ Path *NavMesh::findPath( Object *obj, const LocomotorSet& locomotorSet, const Co
 	if (!sizeClassOf(obj, locomotorSet, mask, radius))
 		return nullptr;
 
-	// Wall tops are not meshed: a unit on one, or sent to one, is pathed by the grid.
 	PathfindLayerEnum objLayer = obj->getLayer();
 	PathfindLayerEnum toLayer = TheTerrainLogic->getLayerForDestination(to);
-	if (objLayer == LAYER_WALL || toLayer == LAYER_WALL)
-	{
-		++s_statWall;
-		return nullptr;
-	}
 
 	SizedMesh *sm = sizedMesh(mask, radius);
 	if (cost)
 		*cost = 200;
+
+	// A wall top is its own sheet, joined to nothing. A unit on one, or sent to one, that has no such sheet (it is
+	// too wide for the top, or the piece under it has gone) is left to the grid, which says no the same way.
+	if ((objLayer == LAYER_WALL || toLayer == LAYER_WALL) && sheetOfLayer(sm, LAYER_WALL) == 0)
+	{
+		++s_statWall;
+		return nullptr;
+	}
 
 	UnsignedInt now = TheGameLogic->getFrame();
 	// Only for a unit setting off from rest, which is what the members of a fresh order are. A unit that asks
@@ -693,6 +781,8 @@ Path *NavMesh::findPath( Object *obj, const LocomotorSet& locomotorSet, const Co
 	{
 		for (size_t k = 1; k < sm->layerOf.size(); ++k)
 		{
+			if (sm->layerOf[k] == (Int)LAYER_WALL)
+				continue;	// a wall top has no end where a unit on the ground could already be on it
 			if (TheTerrainLogic->objectInteractsWithBridgeLayer(obj, sm->layerOf[k]))
 			{
 				startDeck = (Int)k;
@@ -702,6 +792,15 @@ Path *NavMesh::findPath( Object *obj, const LocomotorSet& locomotorSet, const Co
 	}
 	Int goalDeck = sheetOfLayer(sm, toLayer);
 	Bool goalGround = (goalDeck == 0);
+	// A unit on a wall top cannot leave it (nothing joins a top to the ground), so wherever it is sent it goes to
+	// the nearest spot of the top it is on. That is also where the place a group order gives it usually is: the
+	// order's spots are spread wider than the top. (Left to the grid, it was walked off the wall.)
+	Bool confinedToWall = (objLayer == LAYER_WALL);
+	if (confinedToWall)
+	{
+		goalDeck = sheetOfLayer(sm, LAYER_WALL);
+		goalGround = false;
+	}
 
 	// The ends, on the mesh (which is in half-cells). A unit may stand nearer a wall than its mesh allows (it was
 	// built there, it was pushed, the grid let it), and so may a destination: each is joined to the nearest point of
@@ -709,7 +808,7 @@ Path *NavMesh::findPath( Object *obj, const LocomotorSet& locomotorSet, const Co
 	NavQuery::Pt s, g;
 	s.x = from->x / HALF; s.y = from->y / HALF;
 	g.x = to->x / HALF;   g.y = to->y / HALF;
-	Real reach = (Real)(radius + 4);
+	Real reach = confinedToWall ? 1.0e6f : (Real)(radius + 4);
 	NavQuery::AtlasPath found;
 	int result = NavQuery::findPath(sm->atlas, s, startDeck, startGround, g, goalDeck, goalGround, reach, found);
 	if (result == NavQuery::PATH_NO_START)
@@ -742,7 +841,7 @@ Path *NavMesh::findPath( Object *obj, const LocomotorSet& locomotorSet, const Co
 	c = *from;
 	pts.push_back(c);
 	layers.push_back(objLayer);
-	Bool overBridge = false;
+	Bool overBridge = false, onWall = false;
 	for (size_t k = 0; k < found.pts.size(); ++k)
 	{
 		if (found.inserted[k] == 1)
@@ -752,7 +851,9 @@ Path *NavMesh::findPath( Object *obj, const LocomotorSet& locomotorSet, const Co
 			layer = (PathfindLayerEnum)sm->layerOf[found.sheet[k]];
 		else if (k > 0 && found.deck[k-1])
 			layer = (PathfindLayerEnum)sm->layerOf[found.sheet[k-1]];
-		if (layer != LAYER_GROUND)
+		if (layer == LAYER_WALL)
+			onWall = true;
+		else if (layer != LAYER_GROUND)
 			overBridge = true;
 		c.x = found.pts[k].x * HALF;
 		c.y = found.pts[k].y * HALF;
@@ -760,9 +861,19 @@ Path *NavMesh::findPath( Object *obj, const LocomotorSet& locomotorSet, const Co
 		pts.push_back(c);
 		layers.push_back(layer);
 	}
-	c = *to;
-	pts.push_back(c);
-	layers.push_back(toLayer);
+	if (confinedToWall && (toLayer != LAYER_WALL || sqr(pts.back().x - to->x) + sqr(pts.back().y - to->y) > 1.0f))
+	{
+		// Sent to somewhere off the top: the string's own end, the nearest spot on it, is where it goes.
+		layers.back() = LAYER_WALL;
+	}
+	else
+	{
+		c = *to;
+		pts.push_back(c);
+		layers.push_back(toLayer);
+	}
+	if (onWall)
+		++s_statOnWall;
 	if (overBridge)
 		++s_statBridge;
 	else if (CACHE && objLayer == LAYER_GROUND && toLayer == LAYER_GROUND && pts.size() >= 4)
@@ -850,7 +961,8 @@ void NavMesh::printStats()
 		return;
 	// mesh: paths the mesh gave (overBridge of them cross a bridge); the others went to the grid: no ground of the
 	// unit's size near it (noStart), the destination not connected to it (noGoal), a search that failed though it
-	// is (noPath, should be 0), a unit on or sent to a wall top (wall).
+	// is (noPath, should be 0), a unit on or sent to a wall top that has no sheet for it (wall). onWall: paths the
+	// mesh gave along a wall top.
 	Int sheets = 0;
 	for (size_t i = 0; i < s_sized.size(); ++i)
 	{
@@ -858,7 +970,7 @@ void NavMesh::printStats()
 			sheets = (Int)s_sized[i]->meshes.size();
 	}
 	printf("NavMeshCache: reused=%d of %d\n", s_statCached, s_statMesh);
-	printf("NavMeshPaths: mesh=%d overBridge=%d noStart=%d noGoal=%d noPath=%d wall=%d sizes=%d bridgeSheets=%d builds=%d meanNodes=%.1f\n",
-		s_statMesh, s_statBridge, s_statNoStart, s_statNoGoal, s_statNoPath, s_statWall, (Int)s_sized.size(), sheets > 0 ? sheets - 1 : 0,
+	printf("NavMeshPaths: mesh=%d overBridge=%d onWall=%d noStart=%d noGoal=%d noPath=%d wall=%d sizes=%d bridgeSheets=%d builds=%d meanNodes=%.1f\n",
+		s_statMesh, s_statBridge, s_statOnWall, s_statNoStart, s_statNoGoal, s_statNoPath, s_statWall, (Int)s_sized.size(), sheets > 0 ? sheets - 1 : 0,
 		s_statBuilds, s_statMesh ? (Real)s_statNodes / (Real)s_statMesh : 0.0f);
 }

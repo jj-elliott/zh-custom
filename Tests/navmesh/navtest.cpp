@@ -370,13 +370,14 @@ static int fuzz( int count, unsigned int seed )
 
 //-------------------------------------------------------------------------------------------------
 // Bridges: random maps with one to three bridges, each a second level over its footprint (NavMeshQuery.h, Atlas).
+// One in four is a wall top instead: the same deck, but its sheet has no ground and is joined to nothing.
 // The atlas search against an exhaustive search over half-cells that knows nothing of sheets or of which sheet has
 // which ground: a unit's centre may be on any half-cell of ground that some sheet allows, or on a bridge's deck,
 // and it gets on and off a deck where the bridge's own sheet has ground beside it.
 struct BridgeTotals
 {
 	long long worlds, pairs, found, refFound, phantom, missed, offGround, tooClose, wrongDeck, badSwitch, longer, viaBridge;
-	long long expanded, links, sheets, tris, invalidMesh, fallbacks;
+	long long expanded, links, sheets, tris, invalidMesh, fallbacks, wallPairs, wallFound;
 	double ratioSum, worstRatio, worstClearance;
 };
 static BridgeTotals s_bridge[6];	// radius 0 / 0.5 / 1.5 cells; exact, then simplified
@@ -392,6 +393,7 @@ struct FuzzBridge
 	std::vector<unsigned char> view;	// whole map: what a unit on this bridge may stand on (0) or not (1)
 	std::vector<unsigned char> deck;	// whole map: 1 = the bridge itself
 	int x0, y0, x1, y1;								// cells the bridge touches: [x0, x1) x [y0, y1)
+	bool wall;												// a wall top: its sheet is the deck alone, joined to no ground (NavMesh.cpp, readLayers)
 };
 
 static void randomBridgeWorld( std::vector<unsigned char>& ground, int& w, int& h, std::vector<FuzzBridge>& bridges )
@@ -461,6 +463,7 @@ static void randomBridgeWorld( std::vector<unsigned char>& ground, int& w, int& 
 		float hl = 4.0f + (float)(rnd() % 21) * 0.5f, hw = 1.5f + (float)(rnd() % 6) * 0.5f;
 		int clearance = rnd() % 3;	// 0 low: no ground under it; 1 high; 2 low near its ends
 		bool openMouths = (rnd() & 1) != 0;
+		br.wall = (rnd() % 4) == 0;
 		br.view.assign(w*h, 0);
 		br.deck.assign(w*h, 0);
 		br.x0 = w; br.y0 = h; br.x1 = 0; br.y1 = 0;
@@ -534,7 +537,7 @@ static void randomBridgeWorld( std::vector<unsigned char>& ground, int& w, int& 
 	{
 		FuzzBridge& br = bridges[b];
 		for (i = 0; i < w*h; ++i)
-			br.view[i] = (unsigned char)(br.view[i] == 1 ? 0 : (br.view[i] == 2 ? 1 : ground[i]));
+			br.view[i] = (unsigned char)(br.view[i] == 1 ? 0 : ((br.view[i] == 2 || br.wall) ? 1 : ground[i]));
 	}
 }
 
@@ -739,6 +742,13 @@ static void bridgeFuzzWorld( BridgeTotals& tot, const std::vector<unsigned char>
 		++tot.pairs;
 		tot.expanded += path.expanded;
 		tot.fallbacks += path.fallback;
+		// Along one wall top, start to goal: the case the game has (nothing gets onto or off a wall).
+		if (fs != 0 && fs == ts && bridges[fs-1].wall)
+		{
+			++tot.wallPairs;
+			if (found)
+				++tot.wallFound;
+		}
 		if (refDist >= 0.0f)
 			++tot.refFound;
 		if (found != (refDist >= 0.0f))
@@ -925,8 +935,8 @@ static int bridgeFuzz( int count, unsigned int seed )
 					 "left its sheet %lld, nearer a wall than the radius %lld (nearest %.3f radii), on/off the bridge in the wrong place %lld, changed sheet off shared ground %lld, bad meshes %lld\n",
 			NAME[r], t.pairs, t.found, t.viaBridge, t.missed + t.phantom, t.phantom, t.offGround, t.tooClose, (r % 3) ? t.worstClearance : 0.0,
 			t.wrongDeck, t.badSwitch, t.invalidMesh);
-		printf("    length / grid length: mean %.3f, worst %.3f, longer than the grid path %lld, by the fallback corridor %lld; %.1f nodes a search; a world: %.1f sheets, %.0f triangles, %.1f links\n",
-			t.found ? t.ratioSum / t.found : 0.0, t.worstRatio, t.longer, t.fallbacks, t.pairs ? (double)t.expanded / t.pairs : 0.0,
+		printf("    length / grid length: mean %.3f, worst %.3f, longer than the grid path %lld, by the fallback corridor %lld; along a wall top %lld of %lld pairs; %.1f nodes a search; a world: %.1f sheets, %.0f triangles, %.1f links\n",
+			t.found ? t.ratioSum / t.found : 0.0, t.worstRatio, t.longer, t.fallbacks, t.wallFound, t.wallPairs, t.pairs ? (double)t.expanded / t.pairs : 0.0,
 			t.worlds ? (double)t.sheets / t.worlds : 0.0, t.worlds ? (double)t.tris / t.worlds : 0.0, t.worlds ? (double)t.links / t.worlds : 0.0);
 	}
 	return failures ? 1 : 0;

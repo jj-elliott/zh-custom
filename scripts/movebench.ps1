@@ -37,6 +37,7 @@ param(
   [int]$TimeoutSec = 600
 )
 $ErrorActionPreference = "Stop"
+if (Get-Process generalszh -ErrorAction SilentlyContinue) { Write-Warning "a game is running: these runs are second instances (-multiinstance); their numbers are not comparable with runs on their own" }
 $repo = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $local = Get-Content "$repo\.zh-local.json" | ConvertFrom-Json
 $game = $local.gameDir
@@ -90,7 +91,7 @@ function Invoke-Bench([string]$tune, [string]$label) {
 }
 
 function Invoke-BenchOnce([string]$tune, [string]$label) {
-  $a = if ($scenarioFile) { @("-useCwd", "-headless", "-movebench", "`"$scenarioFile`"") } else { @("-useCwd", "-headless", "-loadsave", $installed, "-movebench", $courseArg) }
+  $a = if ($scenarioFile) { @("-useCwd", "-headless", "-multiinstance", "-movebench", "`"$scenarioFile`"") } else { @("-useCwd", "-headless", "-multiinstance", "-loadsave", $installed, "-movebench", $courseArg) }
   if ($Level -ge 0) { $a += @("-moverules", $Level) }
   if ($tune) { $a += @("-movetune", $tune) }
   $o = "$out\run-$((Get-ChildItem $out).Count).txt"

@@ -28,8 +28,10 @@
 //
 // Bridges: each usable bridge (pathfinder layers 2..14) is a second mesh over a window of the map, joined to the
 // ground's mesh where their ground meets (GameLogic/NavMeshQuery.h, "Atlas"). A destroyed bridge has no deck and so
-// no mesh; Pathfinder::changeBridgeState marks the meshes dirty like any other change of the grid. Wall tops
-// (layer 15) are not meshed.
+// no mesh; Pathfinder::changeBridgeState marks the meshes dirty like any other change of the grid.
+// Wall tops (layer 15: the tops of every walk-on wall piece on the map, one layer) are one more sheet, of the top
+// alone: the pathfinder joins a top to the ground nowhere, so neither does the mesh, and a unit on a top is sent
+// to the nearest spot of that top wherever it is ordered. The sheet is half a cell smaller all round than the top.
 
 #pragma once
 
@@ -73,7 +75,7 @@ namespace NavMesh
 	/// pulled string, the destination. An end that is off the mesh but close to it (a unit against a wall, a
 	/// destination beside a building) is joined to the nearest point of it.
 	/// Returns null when the mesh has no answer (the unit is far from any ground of its size, the destination is not
-	/// connected to it, the unit is on a wall top or sent to one), and the caller then uses the grid pathfinder as
+	/// connected to it: a unit on the ground sent onto a wall top, for one), and the caller then uses the grid pathfinder as
 	/// before. A route over a bridge comes from the mesh: its nodes on the bridge carry the bridge's layer.
 	/// 'cost' is what the search should be charged against the frame's pathfinding budget.
 	Path *findPath( Object *obj, const LocomotorSet& locomotorSet, const Coord3D *from, const Coord3D *to, Int *cost );

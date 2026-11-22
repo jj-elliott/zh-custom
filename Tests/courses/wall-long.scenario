@@ -1,0 +1,8 @@
+# The length of Fallen Empire's fortress wall: over its arches and wall buildings, 2300 world units on the top.
+# (If the pieces' tops do not join, the units go as far along as the top they are on reaches.)
+map Maps\Fallen Empire\Fallen Empire.map
+group
+onwall
+from 330 1260
+to 2630 1258
+spawn AmericaInfantryRanger 3

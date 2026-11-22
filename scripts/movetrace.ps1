@@ -21,7 +21,10 @@ if ($Unit) { $t += ",debug.unit=$Unit" }
 if ($Tune) { $t += ",$Tune" }
 $out = "$repo\tests\out\movetrace-$Scenario-$Seed-$Unit.txt"
 New-Item -ItemType Directory -Force (Split-Path $out) | Out-Null
-$a = @("-useCwd", "-headless", "-movebench", "`"$file`"", "-movetune", $t)
+# -multiinstance lets a headless run start while a game is open (the engine otherwise allows one instance and the run
+# exits at once, printing nothing). Numbers taken that way have been seen to differ from a run on its own: do not compare them.
+if (Get-Process generalszh -ErrorAction SilentlyContinue) { Write-Warning "a game is running: this run is a second instance; its numbers are not comparable with a run on its own" }
+$a = @("-useCwd", "-headless", "-multiinstance", "-movebench", "`"$file`"", "-movetune", $t)
 if ($Level -ge 0) { $a += @("-moverules", $Level) }
 $p = Start-Process -FilePath $exe.FullName -ArgumentList $a -WorkingDirectory $game -PassThru -RedirectStandardOutput $out
 if (-not $p.WaitForExit(300000)) { $p.Kill(); throw "timeout" }
