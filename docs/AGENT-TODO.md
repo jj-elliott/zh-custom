@@ -155,6 +155,56 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       `AIUpdateInterface::computePath`, grid fallback when the mesh has no answer, traffic map and lanes off.
       Suite: reversals 15.9 -> 8.7, arrival 68.4 -> 65.4 s, but pushPct 9 -> 19 (old follower, identical paths).
       `soak.ps1 -Level 2` passes.
+      Bridges + overlay were built by a second session on `claude/move-navmesh-bridges-105441` and merged here on the
+      user's say-so (2026-11-17); its notes follow this session's.
+      M4 first part done standalone: `NavDrive` (string -> straights, turning-circle arcs, pivots, planned braking;
+      `step()` moves the unit along it exactly), `scripts\drivetest.ps1` (40000 paths, every frame within the unit's
+      limits, no turn without a cause). PLAN.md "M4, first part" has the design and the locomotor numbers.
+      Drive plan in the game at level 2 (`AIDrive`, hooks in `doLocomotor`): reversals 15.9 -> 0.56, wobble 0, every
+      plan held, soak passes. Traffic is follow-only by design: head-on groups pass through each other and a group
+      files nose to tail (arrival 68 -> 80 s). PLAN.md "In the game" has the table and the reading.
+      **Open, agent, next (M4 second part, PLAN.md lists it):** group offsets (parallel strings), side-step replans
+      for oncoming traffic with push priority, pushing idle units, arrival spots. Bucket grid for `locate` /
+      `nearestPassable` / `onMesh` (linear scans today). Reversing for wheeled units.
+      User's first look: Humvee wheels did not animate, turning wanted easing, Humvee felt slow. Fixed/changed
+      (PLAN.md "First look by the user"): physics kept driven and told the speed; heading eased (`drive.turnEase`);
+      wheeled units corner wide and fast where there is room.
+      User looked again: "it looked good and can verify the animations worked."
+      Groups take corners abreast now (`AIDrive::spreadCorners`, at most three places; PLAN.md has the table).
+      Side-steps for oncoming / standing units, first version (`trySidestep`; each to its own right, half each):
+      crossing overlap 5.2 -> 0.8 across the suite, at 2 planned turns a side-step. PLAN.md has the table.
+      **2026-11-18: the rails are replaced by the brief's micro tier** (`AIDrive.cpp` `steer()`, `drive.mode=1`
+      default; PLAN.md "M4 again"). The user: the SC2 brief supersedes the earlier preference/invariant notes; do
+      not use them to justify deviating from it. Overlap 0.56 with no head-on overlap, reversals 3.6, no timeouts;
+      city and river are slow. Untuned and unseen.
+      **Open, human:** play level 2 (`.\scripts\movetest.ps1 -Name pathfinding -Level 2`): groups, head-on, a choke.
+      **2026-11-22 M6 done:** level 2 is the default; level 1 (AISteering, MoveTraffic, lanes) deleted; `-moverules 0`
+      is retail. `movesuite.ps1` rows are now "level 2 (default)" and RETAIL.
+      **Open, agent:** wall tops (layer 15) as a mesh sheet (handed to the bridges session, branch
+      `claude/move-navmesh-bridges-105441`; merge needs the user). Tuning waits for the user's notes.
+      **2026-11-22 footprint pass** (PLAN.md "Footprint pass"): user played, large units navigated badly -> retail's
+      contact rules were still running under steering; off at level 2 now, their jobs done by steering (arrival,
+      pushing into clear room, going round, re-route at a wall). Weight-based right of way, route cache for group
+      orders, corner rule fixed, rails deleted. Suite: no timeouts, overlap 0.04.
+      **Open, human:** play level 2 again, big units especially; then say whether level 2 becomes the default and
+      level 1 is deleted (M6).
+      **Open, agent:** wall tops (layer 15) in the mesh; M6 on the user's word; tuning only after the user's notes.
+      Third pass: level 2 was slow because retail moves units faster than their listed speed off the map axes
+      (PLAN.md "Third pass"); `drive.speedScale` 1.1716 applied. Bridge approaches use the mesh; `desert-attackmove`
+      added. Suite: level 2 arrives as soon as level 1 with half its overlap and a third of its turning.
+      Speed decided by the user: the vanilla average on every heading (`drive.speedScale` 1.1716 stays).
+      **Open, human:** play level 2 (groups, head-on, a choke, a fight on attack-move); the overlay is
+      `-ExtraArgs "-movetune navmesh.overlay=1"`.
+      Second pass done: bucket grid for mesh lookups, corner look-ahead + spread corner targets, push-rank right of
+      way. PLAN.md "The brief, item by item" is the checklist; "Still owed" is the list (bridge paths steered
+      without the mesh, city slow, corridor cache, attack-move scenario, tuning, deleting the rails).
+      (Earlier note:) waypoint radius for groups (city / bridges are slow), tune weights from what the user
+      sees, priority right of way, bucket grid for `onMesh`, then delete the rails (`drive.mode=0`, `NavDrive`
+      plan following, `spreadCorners`, `trySidestep`) once steering has been played and accepted.
+      (Old note, rails:) the group moves over as a body (members step into their own neighbours today); crossing
+      traffic; bridges are single file (mesh not asked about decks by `spreadCorners` / side-step); arrival spots;
+      idle units that cannot be passed (no room) still rely on the old yield-on-contact.
+      **Open, human:** a group move round buildings at level 2: does it read as a group?
       **Bridges are in the mesh (2026-11-18):** a sheet per bridge joined to the ground mesh (`NavQuery::Atlas`,
       `NavBuild::assignSheets`; PLAN.md "Bridges in the mesh" has the design, what was thrown away, and the numbers).
       river-cross at level 2: 32 of 32 paths from the mesh, all over a bridge. Destroy/repair and re-pathing from on a
@@ -165,10 +215,10 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       **Open, human:** look at it and say what is wrong or unreadable:
       `.\scripts\movetest.ps1 -Name pathfinding -Level 2 -ExtraArgs "-movetune navmesh.overlay=1"`, select units,
       order a move; for a bridge, a skirmish on Winding River with the same two switches.
-      **Open, agent, next:** bucket grid for `locate`/`nearestPassable`; more than one corridor per
+      **Open, agent (mesh side):** bucket grid for `locate`/`nearestPassable`/`onMesh`; more than one corridor per
       node (0.47% of bridge paths are longer than the grid's, worst +54%) together with one corridor search per group
-      order; wall tops (layer 15) are still on the grid; then M4 (drive model, steering, hard separation), starting
-      with corners as drivable arcs. Do not tune `AISteering` for level 2.
+      order; wall tops (layer 15) are still on the grid. `AIDrive` does not yet check arcs or spread corners on
+      paths that use a bridge (it tests against the ground sheet only).
       **Open, human (optional, nothing to judge yet beyond path shape):** `.\scripts\movetest.ps1 -Name pathfinding -Level 2`.
       **Open, human:** look at a mesh picture: `scripts\navtest.ps1 -Scenario river-cross`.
       **Open, agent:** reversals in chokes (city-mixed 26, river-cross 28; open ground is at target). Start from

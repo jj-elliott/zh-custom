@@ -770,6 +770,361 @@ selected ground unit picks the mesh; with nothing selected it is whichever set w
 node together with one corridor search per group order; then M4, starting with the string's corners turned into
 arcs a unit can drive (the user's criterion above).
 
+### M4, first part: the drive plan (2026-11-17, late; standalone, not yet in the game)
+
+Two sessions from here: bridges + overlay in a worktree (branch `move-navmesh-bridges`), M4 on `move/collision-rules`.
+
+**The numbers units are made of** (`-movetune bench.loco=1` prints them; per logic frame, 30 a second):
+
+| unit | drive | top speed | turn rate | accel / brake | turning circle | notes |
+|---|---|---|---|---|---|---|
+| Crusader, Battlemaster | treads | 1.0 / 0.83 | 0.105 rad (180 deg/s) | 1.11 / 1.11 | 9.5 units (1 cell) at full speed | at top speed in one frame; pivots on the spot |
+| Humvee | wheels | 2.0 | 0.105 | 1.11 / 1.11 | 6.4, fixed | cannot turn standing; corners at 0.667 |
+| Technical | wheels | 3.0 | 0.105 | 0.111 / 0.056 | 7.2, fixed | 27 frames to top speed, 81 units (8 cells) to stop |
+| Ranger | legs | 0.667 | 0.29 | 0.111 / 0.111 | 2.3 | |
+
+So "slow Generals turning" is not in the turn rates (a tank turns 180 degrees a second, in one cell). What reads as
+ponderous is retail's rule of slowing to nothing when off-line, and what read as broken was followers asking for
+motion the locomotor could not deliver. The plan keeps the numbers and removes the asking.
+
+**The design: plan the line once, then follow it exactly** (`NavDrive.h`, whose header is the specification).
+- When a path is found, the string becomes a *drive plan* made of the unit's own motion: straights, arcs of its
+  turning circle, and (units that can) pivots on the spot. Each corner's circle sits on the inside of the turn and
+  passes through the corner point, so the unit swings round the corner and never cuts inside the string.
+- Corners too close together for full circles get smaller, slower arcs, and in the end a stop and a pivot. A corner
+  that the straightened line passes outside of is dropped (the unit must not turn left to pass a corner the path
+  turns right at). Wheeled units start on their turning circle from the heading they have.
+- Speed is planned with it: each arc has its limit, and braking for an arc or for the end starts as early as that
+  unit's brakes need (frame-exact: S(u) = u^2/2b + u/2). A Technical starts braking eight cells out, on purpose.
+- The unit then moves like a train on rails: `step()` advances along the plan and returns the pose. Other traffic
+  can only lower its speed (`speedCap`); a different line means a new plan. This is the user's three principles as
+  mechanism: no deviation without a reason, one model for planning and execution, slowness that is planned.
+
+**Test** (`scripts/drivetest.ps1`, `tests/navmesh/drivetest.cpp`): 40000 paths (half of them real strings from
+random meshes, half random polylines) x the four units above, every frame checked:
+
+| per frame, per unit | result |
+|---|---|
+| heading change above its turn rate (wheels: in proportion to speed) | never |
+| speed gain above its acceleration / loss above its braking | never (the final frame of a stop is a short step) |
+| moved further than its speed | never |
+| turned one way then the other where the path does not | never |
+| ended anywhere but on the goal, stopped | never |
+| driven line vs string length | +0.4% legs, +0.8% treads, +4-5% wheels |
+
+Known limits, to be measured in game rather than argued:
+- Wheeled units got a turn tighter than their real circle in about half of the test paths (no room for the real
+  one at the start or between close corners). Retail solves the same thing with reversing and three-point turns
+  (`canMoveBackward`); the plan does not reverse yet.
+- The arcs are not checked against the mesh. They pass through the string's corner on its outside, by at most a
+  turning radius (under a cell); the engine side must sample the plan on the unit's mesh and fall back to smaller
+  arcs where a second wall is that close.
+- On random zigzags with corners closer than the turning circle (not a shape a pulled string has) the plan
+  sometimes turns the short way where the zigzag goes the long way round; counted separately, about 1 in 1500.
+
+**In the game** (2026-11-17, night; `GameLogic/AIDrive.h/.cpp`, three hooks in `AIUpdateInterface::doLocomotor`).
+At level 2 every ground unit with a path (from the mesh or from the grid fallback) gets a plan the first frame the
+path is seen, from its locomotor's numbers, and is then moved by `NavDrive::step`: position and heading set
+directly, `OBJECT_STATUS_BRAKING` held so physics does not move it (the engine's own mechanism), physics told the
+velocity so treads, wheels and dust still see motion. `AISteering` and the locomotor's move-towards-position do not
+run for it. Arcs are sampled on the unit's mesh (`NavMesh::onMesh`) and made smaller if off it. If the object is
+not where the plan left it, the plan is dropped and the old follower finishes that path. At the end of the plan the
+old code does the arriving.
+
+Traffic, **deliberately minimal for this step**: a unit behind another going the same way follows it (speed =
+leader's + gap/20 frames). Nothing moves a unit sideways. Idle units and oncoming units are driven through.
+
+Suite, 3 variants:
+
+| | meanArrive | reversals | wobble | stalled | overlap (of it: crossing) |
+|---|---|---|---|---|---|
+| level 1 (traffic map + lanes + steering) | 68.4 s | 15.9 | 7.5 | 8.3 | 1.7 (1.0) |
+| level 2, mesh paths + old follower | 65.4 s | 8.7 | 4.6 | 4.8 | 2.8 (0.4) |
+| **level 2, mesh paths + drive plan** | 79.5 s | **0.56** | **0** | 13.7 | 11.9 (9.2) |
+| - city-mixed | 98.1 | 1.0 | 0 | 12.2 | 1.0 (0) |
+| - desert-cross | 55.7 | 0 | 0 | 14.7 | 19.7 (13.1) |
+| - desert-mixed | 61.1 | 0 | 0 | 5.5 | 1.5 (0) |
+| - river-cross | 103.2 | 1.2 | 0 | 22.4 | 25.6 (23.7) |
+
+Per run: every plan held to the end (0 abandoned), no arc was off its mesh, no smaller arcs or mid-path pivots were
+needed; wheeled units needed a tighter-than-real turn in 3-5 plans of ~30 (at the start, turning round).
+`soak.ps1 -Level 2` passes (seven recordings, two runs, equal CRCs).
+
+Reading it honestly:
+- **The motion is what was asked for.** Units turn where the path turns and nowhere else; the remaining reversals
+  are path corners. Wobble is zero by construction.
+- **The traffic is not there yet, and it shows in exactly two numbers.** Head-on groups pass through each other
+  (crossing overlap 13-24 on the two head-on maps), and a group with one destination files onto one string and
+  follows nose to tail, so the tail arrives late (city 83 -> 98 s; river 62 -> 103 s, where everything queues for
+  the crossing). Neither is a tuning matter; both are the next piece.
+
+**First look by the user (2026-11-17, single units on the test save), and what changed:**
+- "Wheel animations were not working for the Humvee." Wheels, treads and dust are drawn from physics' cached
+  speed and its "driven" state, and physics was asleep: `AIDrive` now gives it a motive force of nothing each frame
+  (as the locomotor does), sets its velocity, drops the cached speed and sets the turning flag. Not checkable
+  headless: **needs the user's eyes again.**
+- "The turning could use a bit more easing ... like the vehicles have momentum." The plan's heading starts and
+  stops turning at the full rate in one frame. The object's heading now closes half of its difference from the
+  plan's each frame (`drive.turnEase`, 0.5): it leans into a turn over a few frames and settles out, trailing by
+  about 12 degrees in a steady turn. The line travelled is unchanged; it cannot overshoot, so it adds no reversals
+  (suite still 0.37). If more weight is wanted the honest next step is speed (slower into corners), not more lag.
+- "The Humvee seemed to be moving slower than vanilla." Not on a straight (new course `desert-solo`: 25.6 s at
+  level 2, 25.7 s retail), but every bend, however slight, was taken on its tight circle at a third of its speed.
+  A wheeled unit's circle grows with speed above `turnSpeed`, so corners are now planned wide and fast where the
+  mesh has room and come down to the tight circle only where it has not.
+
+Second look by the user (same evening): "it looked good and can verify the animations worked."
+
+**M4, second part, step 1: a group takes corners abreast** (2026-11-17, late night; `AIDrive::spreadCorners`).
+A group order already gives each member its own destination (the group keeps its shape), so on open ground the
+strings were parallel all along; what made a group file into one line was that every string bends round the same
+wall corners. Now, when a member's plan is made, each corner of its string is moved out from the wall by where the
+member stands across the group at that corner (the group's shape is remembered per order: `AIDrive::registerGroup`,
+`AIUpdateInterface::setGroupSlot`): the member nearest the wall keeps the corner, the others pass outside it in the
+order they stand. There are as many places as the ground has room for, a unit's width apart and **at most three**;
+members who share a place follow one another. A moved corner whose straights would leave the unit's ground
+(`NavMesh::segmentOnMesh`, a triangle walk tested against sampling in `drivetest`) goes back where it was.
+
+Why three (city-mixed, 3 variants):
+
+| abreast at a corner | meanArrive | stalled | overlap | detour |
+|---|---|---|---|---|
+| 1 (one file, before) | 98.1 s | 12.7 | 1.3 | 1.06 |
+| 2 | 99.6 | 6.5 | 0.1 | 1.08 |
+| **3** | 98.4 | 5.5 | 0.6 | 1.09 |
+| 5 | 100.7 | 7.6 | 2.1 | 1.11 |
+| no limit | 102.2 | 7.9 | 2.3 | 1.12 |
+
+Honest reading: it does not get the group there sooner (the outside of the wheel is a longer way), it gets it there
+with less than half the standing about and less overlap, and it looks like a group instead of a queue. The two
+desert courses have no corners and are unchanged; river-cross is still on grid paths.
+Suite at level 2 now: reversals 0.47, wobble 0, arrival 68.5 s, stalled 9.0, overlap 9.2 (8.5 of it head-on).
+
+**M4, second part, step 2: side-steps for oncoming and standing units** (2026-11-18; `AIDrive` `trySidestep`,
+first version). The bridges branch was merged first (river-cross now takes every path from the mesh).
+- A unit on rails cannot swerve, so it gets a new line: the old one moved sideways from a little way ahead until it
+  is past, then on to the rest of its route. Decided once, on a straight, then held for at least 1.5 s.
+- Traffic's rule: **each to its own right, half each.** Against an oncoming unit the line only moves right, by half
+  of what would clear it (the other is assumed to do the same; if it does not, there is a second side-step later).
+  A standing (idle) unit is passed on the nearer side by the whole of it. Looks 2 s ahead.
+- This needed a plan made for a unit that is rolling (`NavDrive::build(..., rollingSpeed)`): it starts on the
+  turning circle it has at that speed instead of stopping to pivot, and if its brakes cannot make the new line it
+  is not given one (`Plan::brakingRun`). drivetest re-plans a third of its runs at speed: 160000 runs, 0 failures.
+
+Suite, level 2, 3 variants, before -> after side-steps:
+
+| | overlap (crossing) | reversals | wobble | meanArrive | stalled |
+|---|---|---|---|---|---|
+| desert-cross | 20.2 (13.0) -> 13.2 (4.0) | 0 -> 3.8 | 0 -> 0.55 | 55.2 -> 57.1 | 14.0 -> 22.3 |
+| river-cross (bridges) | 16.3 (12.9) -> 4.8 (0) | 1.3 -> 5.1 | 0.04 -> 1.3 | 103.3 -> 104.0 | 30.8 -> 33.1 |
+| all five courses | 7.7 (5.2) -> 4.5 (0.8) | 0.55 -> 2.2 | 0.01 -> 0.39 | 68.7 -> 69.3 | 11.1 -> 13.2 |
+
+Honest reading: units no longer drive through oncoming units where there is room to step aside, and the price is
+two planned turns per side-step. What is **not** right yet:
+- **A unit steps into its own neighbours.** Each member decides alone, so on desert-cross the overlap that is left
+  is mostly inside a group (10.7 of 13.2). The fix is for the group to move over as a body (the first member's
+  side-step sets the shift for its group; members beside it take the same one), not more per-unit rules.
+- Looking further ahead (4 s, 6 s) made it worse, not better (more side-steps, more neighbours stepped into).
+- river-cross is slow at level 2 (104 s against 69 s at level 1) because both groups queue nose to tail for the
+  bridges; the bridge decks are not places `spreadCorners` or the side-step ask the mesh about yet.
+
+### M4 again: the micro tier as the brief has it (2026-11-18). THIS REPLACES THE RAILS
+
+The user, on being told that corner-spreading and side-steps were stand-ins for the brief's separation, cohesion and
+avoidance: "is the core problem here that units in SC2 don't have the same headings / constraints as generals
+units which prompted the changes to the design?" and: "once we'd swapped to implementing the SC2 brief it should
+supercede those previous notes about preferences / invariants etc. a lot of those were in response to faults in
+the old system, they should not be used as justification for why we deviate from the 'known good' implementation."
+
+Answer, for the record: only partly. Tanks turn 180 degrees a second and pivot; infantry faster; only wheeled units
+are really constrained. Putting units on rails (one fixed line, traffic may only slow it) was my choice, argued
+from the earlier "no deviation without a reason" notes, and it is why groups and oncoming traffic needed a special
+rule each. **From here the brief is the plan and those notes are history. A deviation from the brief needs a
+concrete reason in this engine, stated to the user.** The one such reason so far: a unit's turn rate,
+acceleration, braking and (wheels) turning circle limit how it follows the velocity it asks for.
+
+**Built** (`AIDrive.cpp`, `steer()`, `drive.mode=1`, the default at level 2; `drive.mode=0` is the rails, kept
+for comparison until this has been played):
+- Every frame a unit asks for a velocity: **seek** the next point of its route (the pulled string; the point after
+  it if that can be gone to directly on its mesh) + **separation** from units nearer than 1.35 x touching +
+  slight **cohesion** with its group + **predictive avoidance** (velocities projected 1.5 s; sideways, away from
+  the side the other will pass on, dead ahead to the right), smoothed, and no faster than lets it stop at the end.
+- It then moves as this engine's unit can: turns towards that velocity within its turn rate (wheels: in
+  proportion to speed), slower the more it faces away (tracks and legs down to a pivot), within its acceleration
+  and brakes. Small heading errors are closed gently so a stream of small changes does not show as twitching.
+- **Pushing:** units that touch are pushed apart; two moving units share it; a moving unit pushes an idle ally (and
+  allied infantry) out of its way. **Walls:** a unit's centre stays on the mesh of its size; a step that would
+  leave it slides along the edge.
+- **Arrival:** a unit whose place is taken stops beside it once it is as near as it will get (the brief's arrival
+  radius). A wheeled unit whose point is inside its own turning circle creeps and turns tightly instead of circling
+  it for ever (found by the benchmark: a Humvee orbiting its destination).
+
+Suite, level 2, 3 variants:
+
+| | overlap (crossing) | reversals | wobble | meanArrive | stalled | timeouts |
+|---|---|---|---|---|---|---|
+| level 1 (old system) | 1.4 (0.8) | 12.7 | 6.0 | 59.8 s | 6.7 | 0 |
+| rails + corners abreast + side-steps | 4.5 (0.8) | 2.2 | 0.39 | 69.3 s | 13.2 | 0 |
+| **steering per the brief** | **0.56 (0)** | 3.6 | 0.58 | 72.2 s | 8.6 | 0 |
+| - city-mixed | 2.0 | 6.0 | 0.93 | 112.3 | 20.4 | |
+| - desert-cross (head-on) | 0 | 3.9 | 0.41 | 57.5 | 4.3 | |
+| - desert-mixed | 0.8 | 2.0 | 0.38 | 66.0 | 5.2 | |
+| - river-cross (bridges, head-on) | 0 | 5.9 | 1.2 | 99.5 | 13.1 | |
+
+Reading: units no longer overlap or pass through each other anywhere, with no rule per situation, at about the
+turning the rails needed once side-steps were added. What is weak: **the city and the river are slow** (112 s and
+99 s; level 1 took 84 and 69). Everything seeks the same corner point and squeezes past it; the brief's answer is
+the same as for arrival (a waypoint counts as reached within a radius that grows with the crowd) and has not been
+built for waypoints yet. Weights are first guesses; nothing has been tuned and **nobody has looked at it**.
+`soak.ps1 -Level 2` passes; `skirmish-01.rep` verifies at level 0.
+
+Still owed from the brief: waypoint radius for groups; right of way by priority beyond moving-over-idle; a spatial
+bucket grid for the mesh lookups (`onMesh` is a linear scan, now called every frame per unit); attack-move.
+
+**Second pass on the micro tier (2026-11-18, later):**
+- **Spatial partitioning** (`NavQuery::TriGrid`): a bucket grid over each size's ground mesh; `NavMesh::onMesh` and
+  `segmentOnMesh`, asked every frame per unit, look only in the buckets near the point. drivetest checks it gives
+  the full scan's answers (0 differ).
+- **Corners:** a unit looks every other frame whether the point after its next can be gone to directly, and a
+  group's members seek corners moved out from the wall by where each stands across the group (`spreadCorners`,
+  kept from the rails: here it only sets what is sought; steering does the rest).
+- **Priority:** of two moving allies in contact the one with the lower push rank (a player's order outranks a
+  unit's own move) gives more ground and does more of the avoiding. An idle ally is pushed only if it is in the
+  way (ahead, on the line), not when merely brushed past.
+- Tried and undone: infantry not shoving parked vehicles (they then never reach their places among them:
+  desert-mixed timed out).
+
+Suite, level 2, 3 variants, now: overlap 0.54 (head-on 0), reversals 3.9, wobble 0.6, mean arrival 71.6 s,
+stalled 6.7 (level 1: 1.4 / 12.7 / 6.0 / 59.8 s / 6.7). Part of the arrival gap is the measure: a unit that has
+arrived and is then nudged by a later arrival counts as still moving (tanks in city-mixed "arrive" with the
+infantry). Not changed yet, so that numbers stay comparable.
+
+**The brief, item by item: where it stands.**
+
+| brief | state |
+|---|---|
+| Walkability grid; CDT navmesh; dynamic carving; clearance and layers | done (grid -> per-size meshes, rebuilt on change, bridges as sheets). Wall tops still on the grid. |
+| A* over triangles; funnel | done, fuzzed against exhaustive search. 0.03-0.5% of paths longer than the grid's. |
+| Path caching and throttling | throttling done (searches charged to the frame budget). **No corridor cache for a group order**: each member searches. |
+| Velocity steering: seek, separation, cohesion | done, untuned. |
+| Spatial partitioning | done for the mesh; unit neighbours come from the engine's partition manager. |
+| Predictive avoidance | done (1.5 s). |
+| Priority and pushing | moving displaces idle; push rank decides right of way. No melee/ranged distinction (the game has none to speak of). |
+| Dynamic arrival radius | done for the destination (stop beside a taken place). |
+| Attack-move transition | **not verified.** Attack-move orders path per unit through the same code, so they get mesh paths and steering, and the engine's own target acquisition interrupts them; nobody has run or watched one at level 2. |
+
+**Still owed before this can be called finished:**
+1. Paths that use a bridge are steered without the mesh (no wall clamp, no look-ahead, no spread): river-cross is
+   slow (100 s; level 1 69 s). `onMesh` / `segmentOnMesh` need to ask the atlas, not only the ground sheet.
+2. The city is slow (111 s; level 1 84 s); cause not yet isolated beyond the measuring artifact above.
+3. A corridor cache for group orders.
+4. An attack-move scenario in the suite.
+5. Weights tuned from what the user sees; then the rails (`drive.mode=0`, `NavDrive` plan following,
+   `trySidestep`) deleted, and level 1 after that (M6).
+
+**Third pass (2026-11-18, evening): why level 2 was slow, bridge routes, attack-move.**
+- **The slowness was speed, not traffic.** Traced an infantryman through city-mixed: at full speed 89% of the time
+  and still 20% later than retail. Retail's locomotors hold a unit's speed to its listed figure *as physics measures
+  it*, and that measure (`getForwardSpeed2D`, an average of two components) reads low by a factor that depends on
+  the heading: 1 along a map axis, 1.41 on a diagonal. So retail units travel at their listed speed north-south and
+  east-west and up to 41% faster in between. Upstream's constant for the average is `DiagonalCompensation2D`
+  (1.1716, `Locomotor.cpp`). Level 2 moved units at the listed speed on every heading. It now applies that factor,
+  the same on every heading (`drive.speedScale`). Consequence, measured with one unit of each kind on a
+  north-south course: level 2 is 15% *faster* than retail there (Humvee 21.9 s against 25.7), and by the same
+  reasoning slower than retail on a pure diagonal. **Decided by the user (2026-11-18): the vanilla average**, one
+  speed on every heading (`drive.speedScale` stays 1.1716).
+- Tried first and kept, though it was not the cause: sideways parts of the blend (separation, avoidance) turn a unit
+  but no longer slow it; only a push back along the route does.
+- **Bridge routes:** the mesh is now asked about wherever the unit and the stretch it is on are on the ground (per
+  route point), so the approaches to a bridge have the wall clamp, look-ahead and spread corners; on the deck and
+  the ground at its ends (which belongs to the bridge's sheet) the route is followed as before.
+- **Attack-move:** new course `desert-attackmove` (a mixed group attack-moving with nothing to shoot at): every
+  path from the mesh, steering active, no overlap, all arrive. What a group does on *meeting* an enemy at level 2
+  is still unseen.
+
+Suite, 6 courses, 3 variants:
+
+| | meanArrive | maxArrive | overlap (head-on) | reversals | wobble | stalled | timeouts |
+|---|---|---|---|---|---|---|---|
+| retail | 68.3 s | 93.3 | 4.0 (0.5) | 5.4 | 2.2 | 224 | 0.06 |
+| level 1 | 59.2 | 81.0 | 1.3 (0.7) | 11.2 | 5.2 | 6.1 | 0 |
+| **level 2** | 59.5 | 76.0 | 0.59 (0) | 3.7 | 0.67 | 5.4 | 0 |
+
+**Still owed** (replaces the list above): the corridor cache for group orders (a
+group of 30 on the city map is about 30 searches of 1-2 ms spread over ~10 frames by the path budget, so it is a
+latency of a third of a second, not a hitch: measure before building); wall tops; weights tuned from play; then
+delete the rails (`drive.mode=0`, `NavDrive` plan following, `trySidestep`) and level 1.
+
+### Footprint pass (2026-11-22): what the user's play found, and the brief completed
+
+The user played some challenge maps at level 2: "certainly improvements", but "some regressions, particularly around
+large units ... an Overlord tank, I felt like I was having an extremely difficult time getting it to navigate
+properly when it feels like it should be one of the highest priority and heaviest units." And: finish the footprint
+before any tuning; and, on hearing the cause, "is there any reason to retain any of the old vanilla rules now that
+we have level 2 built out?" (No: see the first item.)
+
+- **Retail's contact rules are off at level 2** (`AIUpdateInterface::processCollision` returns at once). They were
+  still running under the steering, and their "move away" order replaced a unit's own move when a mover touched it
+  before its path had come back. Big units touch at the start, so half a group with Overlords stopped for good
+  ten seconds into a move (new course `city-heavy` reproduces it). General, not an Overlord matter.
+- What those rules had been doing quietly is now steering's: no slide onto the goal cell's centre at arrival; a
+  unit whose place is taken stops making for it and is carried clear before it stands; one held just short of its
+  place by the crowd stands after 1.5 s; an idle unit is pushed only into clear room (`roomFor`).
+- **Weight is right of way:** of two moving allies of equal push rank, each gives the other's share of their
+  combined mass, in pushing, keeping apart and avoiding. An Overlord moves a Battlemaster.
+- **Going round:** held back half a second by something it cannot push, a unit goes round it and keeps the side it
+  chose. Held at a wall for a second, it gets a new route from where it stands.
+- **Corners:** being near a corner, or level with it, counts as done with it only if the point after is reachable
+  from there. (An 8-unit "near enough" let a unit turn up a one-cell alley from beside its mouth, into the wall.)
+- **Route cache for group orders** (the brief's corridor cache): a unit setting off from rest may take a route
+  found within the last second from and to nearly the same places for its size, if it can go straight to that
+  route's first corner and from its last to its own place. Two straight-line questions instead of a search:
+  14 of 18 members of a group reuse the first member's route.
+- `onMesh` / `segmentOnMesh` ask every sheet's ground (the ground at a bridge's ends is on the bridge's sheet).
+- **The rails are deleted** from `AIDrive.cpp` (plan following, side-steps, follow cap, `drive.mode`). `NavDrive`
+  stays as the kinematics type and a tested library nobody calls.
+- MoveBench: stopping far from the destination is a timeout, not an arrival; `bench.ovlog=1` lists overlapping pairs.
+
+Suite, 7 courses, 3 variants:
+
+| | timeouts | meanArrive | maxArrive | overlap | reversals | wobble | stalled |
+|---|---|---|---|---|---|---|---|
+| retail | 0.05 | 73.4 s | 98.1 | 6.2 | 5.6 | 2.2 | 199 |
+| level 1 | 0.14 | 63.8 | 88.9 | 1.07 | 11.3 | 5.1 | 6.0 |
+| **level 2** | 0 | 62.5 | 82.3 | 0.04 | 5.1 | 1.8 | 5.2 |
+
+**The brief is footprint-complete except for two things, both deliberate:**
+- **Wall tops** (pathfinder layer 15, units walking on fortress walls) are still pathed by the grid. Few maps have
+  them and nothing in the suite does; doing it blind would be untested code.
+- **Level 1 is still in the tree** (`AISteering`, `MoveTraffic`, group lanes) and is still the default. Deleting it
+  and making level 2 the default is M6: one decision for the user, then a mechanical change. Retail (level 0)
+  stays whatever happens: it is upstream's code and what `verify.ps1` replays against.
+
+Not done because it is tuning, which the user has put after this: weights (reversals are 5.1 where the rails had
+2.2), the turn-in-place and speed curves, how wide a group spreads.
+
+### M6 (2026-11-22): level 2 is the default, level 1 is deleted
+
+On the user's word. `MoveRules::LATEST` is `NAVMESH`; `-moverules 1` now gives 2 (the number 2 is kept so nothing
+that says "level 2" changes meaning); `-moverules 0` is retail, for `verify.ps1` and comparison. Deleted:
+`AISteering.h/.cpp`, `MoveTraffic.h/.cpp` and its five hooks in `AIPathfind.cpp`, group lanes
+(`AIGroup::friend_moveLanesToPos`, `planLanes`, the lane fields on `AIUpdateInterface`), the steering call in
+`doLocomotor`, the steering columns' source in MoveBench (steerPct / pushPct now always read 0).
+Left, deliberately: the `MoveRules::unified()` branches inside retail's contact code (`processCollision`,
+`blockedBy`, `getPushRank`, ...). At level 2 ground units never reach most of them and `getPushRank` is used by
+steering; unpicking the rest from upstream's functions is churn for no behaviour.
+Checked: the suite and the soak's final CRCs are identical before and after the deletion (nothing level 2 used was
+removed); `skirmish-01.rep` verifies at level 0.
+
+**Everything in tests and docs that says "level 1" or "unified" from here up is history.**
+
+**(Superseded) Next (M4, second part, continued): what units do about each other, still on rails.**
+1. (Done, above: corners abreast.)
+2. (First version done, above.) Next: a group moves over as a body; crossing traffic (at right angles) is still
+   driven through; who gives way by push priority where there is no room for both.
+3. Idle units in the way: pushed aside by priority (moving beats idle), as SC2 does.
+4. Arrival: a spot for each unit round the destination, decided when the order is given.
+
 ### Open (level 1; superseded by the section above)
 
 - Play-test UNIFIED (test saves: `scripts/movetest.ps1`). Expected trouble spots: traffic penalty too weak or too strong

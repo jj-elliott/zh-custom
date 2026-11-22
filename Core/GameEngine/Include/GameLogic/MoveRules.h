@@ -18,21 +18,21 @@
 
 // zh-pipeline @feature 2026-11-16 Unit movement rules switch (docs/PLAN.md Phase 7).
 //
-// Two settings: RETAIL (0), the untouched 2003 behaviour, and UNIFIED (1, the default), our movement system:
-//   where to go   the pathfinder, made aware of the routes other units have already planned (GameLogic/MoveTraffic.h)
-//   how to go     local avoidance, which also does queueing and the last-resort jam escape (GameLogic/AISteering.h)
-//   on contact    only what those two cannot do: an idle ally steps aside, stacked idle units spread out
-// Everything the unified system replaces is switched off under it: the retail two-column group move, blocking and
-// deadlock-breaking between moving allies, and the intermediate contact rules this project went through
-// (pass-through, queue speed caps, stalled-queue repaths; see PLAN.md for that history).
+// Two settings: RETAIL (0), the untouched 2003 behaviour, and NAVMESH (2, the default), our movement system
+// (docs/PLAN.md Phase 7, "The StarCraft 2 model"):
+//   where to go   a navigation mesh per unit size, A* over its triangles and the funnel (GameLogic/NavMesh.h)
+//   how to go     per-tick velocity steering within the unit's own turn rate, acceleration and brakes; pushing,
+//                 right of way by rank and weight, settling at the destination (GameLogic/AIDrive.h)
+// At NAVMESH none of retail's contact rules run for ground units. Level 1 (UNIFIED: a traffic map, AISteering and
+// group lanes on the grid pathfinder) was the first attempt; it is deleted, and asking for 1 gives 2. unified() is
+// kept as a name for "not retail" where a branch written for level 1 still serves level 2.
 //
 // RETAIL stays because the pre-Phase-7 replay baseline (tests/replays/skirmish-01.rep) proves, by still reproducing
 // at level 0, that the switch leaks nothing, and because it is the comparison when judging feel.
 //
-// THIS IS SIM STATE. Both machines of a network game must run the same setting or they desync. The default is
-// UNIFIED; "-moverules 0" selects retail and exists for replay verification and comparison. It is fixed for the life
-// of the process and is not part of a save game or a replay (scripts/verify.ps1 reads it from "<replay>.args").
-// UNIFIED is still being iterated on: a replay recorded with one build of it is not expected to reproduce on the next.
+// THIS IS SIM STATE. Both machines of a network game must run the same setting or they desync. "-moverules 0"
+// selects retail and exists for replay verification and comparison. It is fixed for the life of the process and is
+// not part of a save game or a replay (scripts/verify.ps1 reads it from "<replay>.rep.args").
 
 #pragma once
 
@@ -46,11 +46,10 @@ namespace MoveRules
 	enum Level CPP_11(: Int)
 	{
 		RETAIL = 0,		///< unchanged behaviour: reproduces replays recorded before Phase 7
-		UNIFIED = 1,	///< congestion-aware pathfinding + local avoidance + minimal contact rules
-		NAVMESH = 2,	///< under construction (PLAN.md "The StarCraft 2 model"): ground paths come from the navigation
-									///< mesh (GameLogic/NavMesh.h); the traffic map and group lanes are off; the rest is level 1
+		UNIFIED = 1,	///< (deleted; selecting it gives NAVMESH)
+		NAVMESH = 2,	///< navigation mesh paths + per-tick steering (GameLogic/NavMesh.h, GameLogic/AIDrive.h)
 
-		LATEST = UNIFIED,	///< the default
+		LATEST = NAVMESH,	///< the default (since 2026-11-22; level 1 can no longer be selected: asking for it gives 2)
 		HIGHEST = NAVMESH	///< the most "-moverules" accepts
 	};
 

@@ -21,9 +21,8 @@ $scenarios = @(Get-ChildItem "$repo\tests\courses\*.scenario" | ForEach-Object B
 if (-not $scenarios) { throw "no scenarios in tests\courses" }
 
 $metrics = "score", "meanArrive", "maxArrive", "overlap", "reversals", "stalled", "detour", "timeout", "ovMM", "ovMS", "ovCross", "wobble", "steerPct", "pushPct"
-$runs = @([pscustomobject]@{ name = "unified (defaults)"; tune = ""; level = -1 })
+$runs = @([pscustomobject]@{ name = "level 2 (default)"; tune = ""; level = -1 })
 foreach ($c in $Configs) { $runs += [pscustomobject]@{ name = $c; tune = $c; level = -1 } }
-$runs += [pscustomobject]@{ name = "NAVMESH (level 2)"; tune = ""; level = 2 }   # under construction, see PLAN.md
 if (-not $NoRetail) { $runs += [pscustomobject]@{ name = "RETAIL"; tune = ""; level = 0 } }
 
 $summary = @()

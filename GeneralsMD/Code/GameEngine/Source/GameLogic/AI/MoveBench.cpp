@@ -38,6 +38,8 @@
 #include "GameLogic/Module/AIUpdate.h"
 #include "GameLogic/Module/PhysicsUpdate.h"
 #include "GameLogic/MoveRules.h"
+#include "GameLogic/AIDrive.h"
+#include "GameLogic/Locomotor.h"
 #include "GameLogic/NavMesh.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/TerrainLogic.h"
@@ -338,6 +340,27 @@ namespace
 					{
 						printf("MoveBench: \"%s\" is not a unit that can be ordered about\n", group.spawns[s].templateName.str());
 						return FALSE;
+					}
+					if (n == 0)
+					{
+						// One line per kind of unit: the numbers its movement is made of (distances per logic frame,
+						// radians per frame). The drive model (PLAN.md, M4) is designed from these.
+						Int dumpLoco = 0;
+						MoveTune::apply("bench.loco", dumpLoco);
+						AIUpdateInterface *spawnedAi = obj->getAIUpdateInterface();
+						Locomotor *loco = spawnedAi ? spawnedAi->getCurLocomotor() : nullptr;
+						if (dumpLoco && loco != nullptr)
+						{
+							const GeometryInfo& geom = obj->getGeometryInfo();
+							printf("MoveBenchLoco: unit=%s loco=%s appearance=%d speed=%.3f turn=%.4f accel=%.4f brake=%.4f minSpeed=%.3f minTurnSpeed=%.3f "
+										 "backward=%d pivot=%.1f closeEnough=%.1f ultraAccurate=%d major=%.1f minor=%.1f box=%d infantry=%d\n",
+								group.spawns[s].templateName.str(), loco->getTemplateName().str(), (Int)loco->getAppearance(),
+								loco->getMaxSpeedForCondition(BODY_PRISTINE), loco->getMaxTurnRate(BODY_PRISTINE),
+								loco->getMaxAcceleration(BODY_PRISTINE), loco->getBraking(), loco->getMinSpeed(), loco->getMinTurnSpeed(),
+								loco->canMoveBackwards() ? 1 : 0, loco->getTurnPivotOffset(), loco->getCloseEnoughDist(),
+								loco->isUltraAccurate() ? 1 : 0, geom.getMajorRadius(), geom.getMinorRadius(),
+								geom.getGeomType() == GEOMETRY_BOX ? 1 : 0, obj->isKindOf(KINDOF_INFANTRY) ? 1 : 0);
+						}
 					}
 					Bool placed = false;
 					for (; nextSlot < slots.size() && !placed; ++nextSlot)
@@ -656,11 +679,6 @@ int run()
 			{
 				t.lastMovingFrame = now;
 				++movingFrames;
-				// The logic frame counter has moved on since the unit's update: its stamps are one behind.
-				if (ai->getSteerState().activeFrame + 1 >= now)
-					++steerFrames;
-				if (ai->getSteerState().pushFrame + 1 >= now)
-					++pushFrames;
 				if (moved < STANDING_SPEED)
 					++t.stalledFrames;
 			}
@@ -685,9 +703,7 @@ int run()
 					t.lastReversalFrame = now;
 					Real gx = pos->x - t.dest.x;
 					Real gy = pos->y - t.dest.y;
-					if (now - ai->getSteerState().activeFrame <= LOGICFRAMES_PER_SECOND/2)
-						++t.revSteer;
-					else if (now - t.orderFrame < 5*LOGICFRAMES_PER_SECOND)
+					if (now - t.orderFrame < 5*LOGICFRAMES_PER_SECOND)
 						++t.revStart;
 					else if (gx*gx + gy*gy < 200.0f*200.0f)
 						++t.revEnd;
@@ -717,6 +733,14 @@ int run()
 					++overlapPairFrames;
 					Int movers = ((a->getAI() && a->getAI()->isMoving()) ? 1 : 0) + ((b->getAI() && b->getAI()->isMoving()) ? 1 : 0);
 					if (movers == 2) ++ovMM; else if (movers == 1) ++ovMS; else ++ovSS;
+					{
+						// "-movetune bench.ovlog=1": which pairs, when (one line a pair each second).
+						static Int ovLog = -1;
+						if (ovLog < 0) { ovLog = 0; MoveTune::apply("bench.ovlog", ovLog); }
+						if (ovLog && (TheGameLogic->getFrame() % LOGICFRAMES_PER_SECOND) == 0)
+							printf("MoveBenchOverlap: f=%u a=%u b=%u movers=%d dist=%.1f reach=%.1f\n", TheGameLogic->getFrame(),
+								(unsigned)units[u].id, (unsigned)units[v].id, movers, WWMath::Sqrtf(dx*dx + dy*dy), reach);
+					}
 					if (units[u].dest.x != units[v].dest.x || units[u].dest.y != units[v].dest.y)
 						++ovCross;
 				}
@@ -748,8 +772,8 @@ int run()
 			maxArrive = arrive;
 		reversals += t.reversals;
 		wobble += t.quickReversals;
-		printf("MoveBenchUnit: id=%u vehicle=%d radius=%.1f reversals=%d revSteer=%d stalled=%u\n", (unsigned)t.id, t.vehicle ? 1 : 0,
-			t.radius, t.reversals, t.revSteer, t.stalledFrames);
+		printf("MoveBenchUnit: id=%u vehicle=%d radius=%.1f reversals=%d revSteer=%d stalled=%u lastMoving=%u\n", (unsigned)t.id, t.vehicle ? 1 : 0,
+			t.radius, t.reversals, t.revSteer, t.stalledFrames, t.lastMovingFrame);
 		revSteer += t.revSteer;
 		revStart += t.revStart;
 		revEnd += t.revEnd;
@@ -757,6 +781,10 @@ int run()
 		Real gx = t.lastPos.x - t.dest.x;
 		Real gy = t.lastPos.y - t.dest.y;
 		sumShort += WWMath::Sqrtf(gx*gx + gy*gy);
+		// Standing still is not arriving. A unit that has stopped this far from where its group was sent (a group's
+		// members stand round the spot, not on it) has given up, and the run counts as timed out.
+		if (gx*gx + gy*gy > 400.0f * 400.0f)
+			timedOut = true;
 		Real sx = t.lastPos.x - t.startPos.x;
 		Real sy = t.lastPos.y - t.startPos.y;
 		Real straight = WWMath::Sqrtf(sx*sx + sy*sy);
@@ -769,6 +797,7 @@ int run()
 	if (counted == 0)
 		counted = 1;
 	NavMesh::printStats();
+	AIDrive::printStats();
 	printf("MoveBench: units=%d meanArrive=%.2f maxArrive=%.2f goalDist=%.1f overlap=%.2f reversals=%.2f stalled=%.2f detour=%.3f timeout=%d frames=%u level=%d ovMM=%.2f ovMS=%.2f ovSS=%.2f ovCross=%.2f revSteer=%.2f revStart=%.2f revEnd=%.2f wobble=%.2f steerPct=%.1f pushPct=%.1f\n",
 		counted, sumArrive / counted, maxArrive, sumShort / counted,
 		(Real)overlapPairFrames / (Real)LOGICFRAMES_PER_SECOND,

@@ -55,9 +55,8 @@
 #include "GameLogic/AI.h"
 #include "GameLogic/AIPathfind.h"
 #include "GameLogic/MoveRules.h"	// zh-pipeline Phase 7
-#include "GameLogic/MoveTraffic.h"	// zh-pipeline Phase 7
 #include "GameLogic/NavMesh.h"
-#include "GameLogic/AISteering.h"	// zh-pipeline Phase 7
+#include "GameLogic/AIDrive.h"	// zh-pipeline Phase 7
 #include "GameLogic/Locomotor.h"
 #include "GameLogic/Module/AIUpdate.h"
 #include "GameLogic/Module/BodyModule.h"
@@ -243,8 +242,11 @@ AIUpdateInterface::AIUpdateInterface( Thing *thing, const ModuleData* moduleData
 	m_ignoreCollisionsUntil = 0;
 	m_jamStartFrame = 0;
 	m_jamLastFrame = 0;
-	m_laneKey = 0;
-	m_laneRow = 0;
+	m_drive = nullptr;
+	m_groupOffsetX = 0.0f;
+	m_groupOffsetY = 0.0f;
+	m_groupRadius = 0.0f;
+	m_groupKey = 0;
 	m_queueForPathFrame = 0;
 	m_finalPosition.zero();
 	m_repulsor1 = INVALID_ID;
@@ -641,6 +643,7 @@ void AIUpdateInterface::onObjectCreated()
 //-------------------------------------------------------------------------------------------------
 AIUpdateInterface::~AIUpdateInterface()
 {
+	AIDrive::destroy(m_drive);	// zh-pipeline
 	m_locomotorSet.clear();
 	m_curLocomotor = nullptr;
 
@@ -1066,7 +1069,13 @@ UpdateSleepTime AIUpdateInterface::update()
 				goalPos = *getObject()->getPosition();
 				TheAI->pathfinder()->snapPosition(getObject(), &goalPos);
 			}
-			setFinalPosition(&goalPos);
+			// zh-pipeline MoveRules::NAVMESH: a unit stays where steering brought it to rest (on its place, or beside
+			// it if the place was taken). Retail slides it onto the centre of its goal cell here, which at that level
+			// stacks units that had just been kept apart (infantry share cells).
+			if (MoveRules::navmesh())
+				goalPos = *getObject()->getPosition();
+			else
+				setFinalPosition(&goalPos);
 			TheAI->pathfinder()->updateGoal(getObject(), &goalPos, getObject()->getLayer());
 		}
 		m_movementComplete = FALSE;
@@ -1608,6 +1617,13 @@ Bool AIUpdateInterface::processCollision(PhysicsBehavior *physics, Object *other
 	Bool otherMoving = ( aiOther && aiOther->isMoving() );
 	if (!isDoingGroundMovement()) return FALSE;
 	if (!aiOther->isDoingGroundMovement()) return FALSE;
+	// zh-pipeline MoveRules::NAVMESH: what ground units do on touching is the steering layer's business (AIDrive:
+	// separation, pushing, right of way). None of retail's contact rules run at that level: no blocked flags or
+	// stuck re-paths, and no "move away" orders. Those orders replaced a unit's own move when a mover touched it
+	// before its path had come back (found with Overlords, whose size makes them touch at the start: half a group
+	// stopped for good ten seconds into a move).
+	if (MoveRules::navmesh())
+		return FALSE;
 	if (selfMoving)
 	{
 		// zh-pipeline MoveRules::UNIFIED: see isSteeredPair. None of the rules below apply between moving allies.
@@ -1930,29 +1946,6 @@ Bool AIUpdateInterface::computePath( PathfindServicesInterface *pathServices, Co
 	Path *theNewPath = nullptr;
 	TheAI->pathfinder()->setIgnoreObstacleID( getIgnoredObstacleID() );
 
-	// zh-pipeline @feature 2026-11-16 MoveRules::UNIFIED, congestion-aware pathing (GameLogic/MoveTraffic.h): tell the
-	// traffic map who is about to be pathed, so the search prices cells other units have planned to use, and the
-	// route found is recorded for the units pathed after us.
-	// Vehicles only: infantry walk through each other and are nudged aside by vehicles (AISteering), so they neither
-	// claim routes nor avoid claimed ones. How much traffic costs a vehicle scales with its top speed (1 world unit a
-	// frame, a main battle tank, = 1): a nimble unit loses little by a detour and is the one that takes it; a slow
-	// one keeps the direct line.
-	if (MoveRules::unified() && !MoveRules::navmesh() && isDoingGroundMovement() && m_curLocomotor != nullptr
-			&& !getObject()->isKindOf(KINDOF_AIRCRAFT) && !getObject()->isKindOf(KINDOF_INFANTRY))
-	{
-		Real topSpeed = m_curLocomotor->getMaxSpeedForCondition(getObject()->getBodyModule()->getDamageState());
-		if (topSpeed > 0.01f)
-		{
-			const GeometryInfo& geom = getObject()->getGeometryInfo();
-			Real halfWidth = (geom.getGeomType() == GEOMETRY_BOX) ? geom.getMinorRadius() : geom.getMajorRadius();
-			Real willingness = topSpeed;
-			if (willingness < 0.5f) willingness = 0.5f;
-			if (willingness > 1.75f) willingness = 1.75f;
-			MoveTraffic::setMover((UnsignedInt)getObject()->getID(), PATHFIND_CELL_SIZE_F / topSpeed,
-				REAL_TO_INT_FLOOR(halfWidth / PATHFIND_CELL_SIZE_F + 0.5f), willingness);
-		}
-	}
-
 	Coord3D originalDestination = *destination;
 	// sanity check - if destination cell is invalid, don't bother pathing
 
@@ -1997,10 +1990,6 @@ Bool AIUpdateInterface::computePath( PathfindServicesInterface *pathServices, Co
 		m_retryPath = true;
 	}
 	TheAI->pathfinder()->setIgnoreObstacleID( INVALID_ID );
-	if (theNewPath) {
-		MoveTraffic::stamp(theNewPath);	// zh-pipeline: no-op unless a mover was set above
-	}
-	MoveTraffic::clearMover();
 	if (theNewPath) {
 		// destroy previous path
 		destroyPath();
@@ -2413,6 +2402,7 @@ UpdateSleepTime AIUpdateInterface::doLocomotor()
 
 	Bool blocked = m_blockedFrames > 0;
 	Bool requiresConstantCalling = TRUE;	// assume the worst.
+	Bool droveOnPlan = FALSE;	// zh-pipeline: see AIDrive below
 
 	if (m_curLocomotor)
 	{
@@ -2481,6 +2471,17 @@ UpdateSleepTime AIUpdateInterface::doLocomotor()
 						if( speed == FAST_AS_POSSIBLE || speed > myMaxSpeed )
 							speed = myMaxSpeed;
 
+						// zh-pipeline @feature 2026-11-17 MoveRules::NAVMESH: a ground unit is moved along its drive plan
+						// (GameLogic/AIDrive.h) instead of being aimed at a point on the path and pushed there. Nothing
+						// below runs for it: no blocked-speed limits, no AISteering, no locomotor force.
+						if (MoveRules::navmesh() && isDoingGroundMovement() && AIDrive::update(getObject(), this, m_drive, speed))
+						{
+							droveOnPlan = TRUE;
+							blocked = FALSE;
+							m_doFinalPosition = FALSE;
+							break;
+						}
+
 						if (blocked && speed>m_curMaxBlockedSpeed)
 						{
 							speed = m_curMaxBlockedSpeed;
@@ -2501,19 +2502,6 @@ UpdateSleepTime AIUpdateInterface::doLocomotor()
 							}
 							if (speed>m_bumpSpeedLimit) {
 								speed = m_bumpSpeedLimit;
-							}
-						}
-
-						// zh-pipeline @feature 2026-11-16 MoveRules::UNIFIED: local avoidance bends this frame's aim point and
-						// speed around the units ahead, queues behind moving ones it touches, and reports when that queue has
-						// held it at a standstill for 2 s (then this unit alone ignores collisions for 2 s). Not for the last
-						// three cells (units settle on their goal cells by the retail rules) or while already ignoring collisions.
-						if (canSteer() && onPathDistToGoal+getPathExtraDistance() > 3.0f*PATHFIND_CELL_SIZE_F
-								&& m_ignoreCollisionsUntil <= TheGameLogic->getFrame())
-						{
-							if (AISteering::steer(getObject(), this, goalPos, speed, m_steer))
-							{
-								setIgnoreCollisionTime(2*LOGICFRAMES_PER_SECOND);
 							}
 						}
 
@@ -2566,6 +2554,9 @@ UpdateSleepTime AIUpdateInterface::doLocomotor()
 					break;
 			}
 		}
+
+		if (!droveOnPlan)
+			AIDrive::release(getObject(), m_drive);	// zh-pipeline: not on its plan this frame; physics has it back.
 
 		if (!blocked && m_blockedFrames>1)
 		{
@@ -2907,7 +2898,7 @@ void AIUpdateInterface::aiDoCommand(const AICommandParms* parms)
 	if (!isAllowedToRespondToAiCommands(parms))
 		return;
 
-	m_laneKey = 0;	// zh-pipeline: a new command ends the lane plan (the lane planner sets it after its own command).
+	m_groupRadius = 0.0f;	// zh-pipeline: a new command ends the unit's place in a group (the group order sets it after its command).
 
 #ifdef ALLOW_SURRENDER
 	// surrendered items have very limited options, and only via AI cmds
