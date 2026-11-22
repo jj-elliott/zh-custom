@@ -740,6 +740,14 @@ int run()
 					++overlapPairFrames;
 					Int movers = ((a->getAI() && a->getAI()->isMoving()) ? 1 : 0) + ((b->getAI() && b->getAI()->isMoving()) ? 1 : 0);
 					if (movers == 2) ++ovMM; else if (movers == 1) ++ovMS; else ++ovSS;
+					{
+						// "-movetune bench.ovlog=1": which pairs, when (one line a pair each second).
+						static Int ovLog = -1;
+						if (ovLog < 0) { ovLog = 0; MoveTune::apply("bench.ovlog", ovLog); }
+						if (ovLog && (TheGameLogic->getFrame() % LOGICFRAMES_PER_SECOND) == 0)
+							printf("MoveBenchOverlap: f=%u a=%u b=%u movers=%d dist=%.1f reach=%.1f\n", TheGameLogic->getFrame(),
+								(unsigned)units[u].id, (unsigned)units[v].id, movers, WWMath::Sqrtf(dx*dx + dy*dy), reach);
+					}
 					if (units[u].dest.x != units[v].dest.x || units[u].dest.y != units[v].dest.y)
 						++ovCross;
 				}
@@ -780,6 +788,10 @@ int run()
 		Real gx = t.lastPos.x - t.dest.x;
 		Real gy = t.lastPos.y - t.dest.y;
 		sumShort += WWMath::Sqrtf(gx*gx + gy*gy);
+		// Standing still is not arriving. A unit that has stopped this far from where its group was sent (a group's
+		// members stand round the spot, not on it) has given up, and the run counts as timed out.
+		if (gx*gx + gy*gy > 400.0f * 400.0f)
+			timedOut = true;
 		Real sx = t.lastPos.x - t.startPos.x;
 		Real sy = t.lastPos.y - t.startPos.y;
 		Real straight = WWMath::Sqrtf(sx*sx + sy*sy);

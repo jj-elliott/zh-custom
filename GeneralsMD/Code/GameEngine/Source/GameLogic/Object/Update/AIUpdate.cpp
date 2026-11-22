@@ -1073,7 +1073,13 @@ UpdateSleepTime AIUpdateInterface::update()
 				goalPos = *getObject()->getPosition();
 				TheAI->pathfinder()->snapPosition(getObject(), &goalPos);
 			}
-			setFinalPosition(&goalPos);
+			// zh-pipeline MoveRules::NAVMESH: a unit stays where steering brought it to rest (on its place, or beside
+			// it if the place was taken). Retail slides it onto the centre of its goal cell here, which at that level
+			// stacks units that had just been kept apart (infantry share cells).
+			if (MoveRules::navmesh())
+				goalPos = *getObject()->getPosition();
+			else
+				setFinalPosition(&goalPos);
 			TheAI->pathfinder()->updateGoal(getObject(), &goalPos, getObject()->getLayer());
 		}
 		m_movementComplete = FALSE;
@@ -1615,6 +1621,13 @@ Bool AIUpdateInterface::processCollision(PhysicsBehavior *physics, Object *other
 	Bool otherMoving = ( aiOther && aiOther->isMoving() );
 	if (!isDoingGroundMovement()) return FALSE;
 	if (!aiOther->isDoingGroundMovement()) return FALSE;
+	// zh-pipeline MoveRules::NAVMESH: what ground units do on touching is the steering layer's business (AIDrive:
+	// separation, pushing, right of way). None of retail's contact rules run at that level: no blocked flags or
+	// stuck re-paths, and no "move away" orders. Those orders replaced a unit's own move when a mover touched it
+	// before its path had come back (found with Overlords, whose size makes them touch at the start: half a group
+	// stopped for good ten seconds into a move).
+	if (MoveRules::navmesh())
+		return FALSE;
 	if (selfMoving)
 	{
 		// zh-pipeline MoveRules::UNIFIED: see isSteeredPair. None of the rules below apply between moving allies.

@@ -62,6 +62,10 @@ namespace AIDrive
 		Real speed;
 		Bool arrived;
 		Int heldAtGoal;
+		Int nearGoalFrames;	///< frames near its place without getting nearer
+		Real lastRemaining;
+		Int stuckFrames;		///< frames (leaky) of being pushed back along its route by something it cannot move
+		Real slideSide;			///< which way round it is going while stuck: +1 / -1, 0 = not decided
 		Bool abandoned;		///< this path is left to the old follower
 		Bool holding;			///< we have set OBJECT_STATUS_BRAKING
 	};
@@ -97,6 +101,7 @@ namespace
 	Real W_SEPARATE = 1.4f;					// weights of the parts of the velocity a unit asks for (seek is 1)
 	Real W_COHERE = 0.08f;
 	Real W_AVOID = 1.2f;
+	Real W_SLIDE = 1.2f;						// going round something it is pressed against and cannot push
 	Real SEP_RANGE = 1.35f;					// separation acts inside this many (sums of radii)
 	Real AVOID_FRAMES = 45.0f;			// how far ahead velocities are projected for avoidance
 	Real AVOID_CLEAR = 1.1f;				// ... and how many (sums of radii) a predicted miss must be to need nothing
@@ -674,6 +679,40 @@ namespace
 		return a;
 	}
 
+	/// May 'who' be moved to (x, y) without being put on top of some other ground unit? (Asked before a moving unit
+	/// pushes an idle one: a parked unit shoved by a late arrival must not end up on its parked neighbour.)
+	Bool roomFor( Object *who, Real x, Real y, const Object *pusher )
+	{
+		Real radius = radiusOf(who);
+		Bool infantry = who->isKindOf(KINDOF_INFANTRY);
+		Coord3D at;
+		at.x = x; at.y = y; at.z = who->getPosition()->z;
+		SimpleObjectIterator *iter = ThePartitionManager->iterateObjectsInRange( &at, radius * 2.0f + 3.0f * PATHFIND_CELL_SIZE_F, FROM_CENTER_2D, nullptr, ITER_SORTED_NEAR_TO_FAR );
+		MemoryPoolObjectHolder hold(iter);
+		for (Object *other = iter->first(); other; other = iter->next())
+		{
+			if (other == who || other == pusher || other->isEffectivelyDead() || other->getContainedBy() != nullptr)
+				continue;
+			if (other->isKindOf(KINDOF_STRUCTURE) || other->isKindOf(KINDOF_IMMOBILE))
+				continue;
+			AIUpdateInterface *aiOther = other->getAI();
+			if (aiOther == nullptr || !aiOther->isDoingGroundMovement() || other->isAboveTerrain())
+				continue;
+			if (other->isKindOf(KINDOF_INFANTRY) != infantry)
+				continue;	// vehicles and infantry are not kept off each other when standing
+			Real dx = other->getPosition()->x - x, dy = other->getPosition()->y - y;
+			Real both = radius + radiusOf(other);
+			if (dx*dx + dy*dy < sqr(both * PUSH_CONTACT))
+			{
+				// already that close where it stands? Then moving it must at least not make it worse.
+				Real ox = other->getPosition()->x - who->getPosition()->x, oy = other->getPosition()->y - who->getPosition()->y;
+				if (dx*dx + dy*dy < ox*ox + oy*oy)
+					return FALSE;
+			}
+		}
+		return TRUE;
+	}
+
 	/// Put the object where it has been moved to, facing as it has turned, and tell physics (see AIDrive.h).
 	void applyPose( Object *obj, PhysicsBehavior *physics, AIDrive::Data *data, Real x, Real y, Real heading, Real moved, Real turned )
 	{
@@ -760,6 +799,10 @@ namespace
 			data->speed = rolling < 0.0f ? 0.0f : (rolling > kin.maxSpeed ? kin.maxSpeed : rolling);
 			data->arrived = FALSE;
 			data->heldAtGoal = 0;
+			data->stuckFrames = 0;
+			data->nearGoalFrames = 0;
+			data->lastRemaining = 1.0e9f;
+			data->slideSide = 0.0f;
 			data->abandoned = data->route.size() < 2;
 			data->shownHeading = obj->getOrientation();
 			++s_plans;
@@ -811,7 +854,8 @@ namespace
 			remaining += sqrt(sqr(route[i+1].x - route[i].x) + sqr(route[i+1].y - route[i].y));
 
 		// ---- Arrived?
-		if (data->nextPoint == lastPoint && toDist <= (data->speed > 1.0f ? data->speed : 1.0f))
+		// (Not onto a place that was found taken last frame: that unit stops beside it, below.)
+		if (data->nextPoint == lastPoint && data->heldAtGoal == 0 && toDist <= (data->speed > 1.0f ? data->speed : 1.0f))
 		{
 			applyPose(obj, physics, data, target.x, target.y, heading, toDist, 0.0f);
 			data->arrived = TRUE;
@@ -827,6 +871,7 @@ namespace
 		Real pushX = 0.0f, pushY = 0.0f;
 		Real followMost = 1.0e9f;
 		Bool goalTaken = FALSE;
+		Bool touchingStanding = FALSE;
 		Bool weAreInfantry = obj->isKindOf(KINDOF_INFANTRY);
 		Real myVx = hx * data->speed, myVy = hy * data->speed;
 		{
@@ -865,7 +910,7 @@ namespace
 							Real side = (ix * hy - iy * hx) >= 0.0f ? 1.0f : -1.0f;
 							moved.x += hy * side * by;
 							moved.y += -hx * side * by;
-							if (NavMesh::onMesh(other, aiOther->getLocomotorSet(), moved.x, moved.y))
+							if (NavMesh::onMesh(other, aiOther->getLocomotorSet(), moved.x, moved.y) && roomFor(other, moved.x, moved.y, obj))
 							{
 								other->setPosition(&moved);
 								++s_pushes;
@@ -892,6 +937,11 @@ namespace
 				// ... and only one that is in the way: ahead of us, on our line. One we merely brush past stays put.
 				if (pushable && !(rx * hx + ry * hy > 0.0f && fabs(rx * hy - ry * hx) < both * 0.8f))
 					pushable = FALSE;
+				// ... and not once we know our own place is taken: then it is we who stop short, not they who move.
+				if (data->heldAtGoal > 0)
+					pushable = FALSE;
+				if (otherSpeed < 0.05f && dist < both * PUSH_CONTACT * 0.95f)
+					touchingStanding = TRUE;	// (a little inside the distance pushing holds them at, or it never settles)
 				Real awayX = dist > 0.01f ? -rx / dist : -hy, awayY = dist > 0.01f ? -ry / dist : hx;
 
 				// Separation: stronger the nearer, nothing beyond SEP_RANGE. (An idle ally is pushed instead.)
@@ -900,6 +950,13 @@ namespace
 					Real w = 1.0f - dist / (both * SEP_RANGE);
 					if (pushable)
 						w *= 0.3f;
+					else if (ally)
+					{
+						// the lighter of two allies does more of the keeping apart
+						Real ourMass = physics->getMass(), itsMass = otherPhysics->getMass();
+						Real share = (ourMass + itsMass) > 0.0f ? itsMass / (ourMass + itsMass) : 0.5f;
+						w *= 0.4f + 1.2f * share;
+					}
 					sepX += awayX * w;
 					sepY += awayY * w;
 				}
@@ -921,12 +978,13 @@ namespace
 						Coord3D moved = *op;
 						moved.x -= awayX * give;
 						moved.y -= awayY * give;
-						if (NavMesh::onMesh(other, aiOther->getLocomotorSet(), moved.x, moved.y))
+						if (NavMesh::onMesh(other, aiOther->getLocomotorSet(), moved.x, moved.y) && roomFor(other, moved.x, moved.y, obj))
 						{
 							other->setPosition(&moved);
 							++s_pushes;
+							by *= 0.2f;
 						}
-						by *= 0.2f;
+						// (no room for it to move: all of the giving way is ours)
 					}
 					else if (otherIdle)
 					{
@@ -936,8 +994,19 @@ namespace
 					{
 						// Right of way: of two moving allies the one with the lower push rank (an order from the
 						// player outranks a move the unit thought of itself) gives more of the ground.
+						// Same rank: by weight. The heavier unit gives less (an Overlord moves a Battlemaster, not the
+						// other way about): each takes the other's share of their combined mass.
 						Int mine = ai->getPushRank(), its = aiOther->getPushRank();
-						by *= mine > its ? 0.25f : (mine < its ? 0.75f : 0.5f);
+						if (mine != its)
+							by *= mine > its ? 0.25f : 0.75f;
+						else
+						{
+							Real ourMass = physics->getMass(), itsMass = otherPhysics->getMass();
+							Real share = (ourMass + itsMass) > 0.0f ? itsMass / (ourMass + itsMass) : 0.5f;
+							if (share < 0.1f) share = 0.1f;
+							if (share > 0.9f) share = 0.9f;
+							by *= share;
+						}
 					}
 					else
 						by *= 0.5f;
@@ -945,8 +1014,8 @@ namespace
 					pushY += awayY * by;
 				}
 				// Someone standing where we are going, and we are nearly there?
-				if (otherSpeed < 0.05f && sqr(op->x - route[lastPoint].x) + sqr(op->y - route[lastPoint].y) < sqr(both * 0.8f))
-					goalTaken = TRUE;
+				if (otherSpeed < 0.05f && sqr(op->x - route[lastPoint].x) + sqr(op->y - route[lastPoint].y) < sqr(both * PUSH_CONTACT))
+					goalTaken = TRUE;	// standing there, we would be touching it
 				// Following: no faster than a unit just ahead going our way allows.
 				Real ahead = rx * hx + ry * hy;
 				Real lateral = rx * hy - ry * hx;
@@ -976,6 +1045,13 @@ namespace
 								Int mine = ai->getPushRank(), its = aiOther->getPushRank();
 								if (mine > its) w *= 0.5f;	// it is for the other to get out of our way, mostly
 								else if (mine < its) w *= 1.4f;
+								else
+								{
+									// same rank: the lighter does more of the avoiding
+									Real ourMass = physics->getMass(), itsMass = otherPhysics->getMass();
+									Real share = (ourMass + itsMass) > 0.0f ? itsMass / (ourMass + itsMass) : 0.5f;
+									w *= 0.4f + 1.2f * share;
+								}
 							}
 							// Sideways, away from the side it will pass on; dead ahead: to the right.
 							Real side = mx * hy - my * hx;	// > 0: it passes on our right
@@ -987,16 +1063,36 @@ namespace
 				}
 			}
 		}
-		Real askX = seekX + sepX * W_SEPARATE + avoidX * W_AVOID;
-		Real askY = seekY + sepY * W_SEPARATE + avoidY * W_AVOID;
-		if (cohCount > 0)
+		// Its place is taken and it is nearly there: it stops making for the place and lets separation carry it
+		// clear of whoever is standing there (the brief's arrival radius: the crowd at a spot grows outward).
+		Bool settling = goalTaken && remaining < 3.0f * ourRadius + 2.0f * PATHFIND_CELL_SIZE_F;
+		Real seekShare = settling ? 0.0f : 1.0f;
+		Real askX = seekX * seekShare + sepX * W_SEPARATE + avoidX * W_AVOID;
+		Real askY = seekY * seekShare + sepY * W_SEPARATE + avoidY * W_AVOID;
+		// Held back by something it cannot push (a parked unit with no room to move, a crowd) and getting nowhere:
+		// it goes round. The way round is along the face it is pressed against, to whichever side its route lies
+		// (to the right if the thing is dead ahead), and it keeps to the side it chose until it is free. Only after
+		// half a second of being held: brushing against something is not being stuck. (Found by the benchmark: an
+		// infantryman marching on the spot against a parked tank.)
 		{
-			Real cx = cohX / (Real)cohCount, cy = cohY / (Real)cohCount;
-			Real cl = sqrt(cx*cx + cy*cy);
-			if (cl > 3.0f * ourRadius)
+			Real pressed = sqrt(pushX*pushX + pushY*pushY);
+			Bool held = pressed > 0.05f && !settling && (pushX * seekX + pushY * seekY) < -0.3f * pressed;
+			if (held)
+				++data->stuckFrames;
+			else if (data->stuckFrames > 0)
+				data->stuckFrames -= (data->stuckFrames > 2 ? 2 : data->stuckFrames);
+			if (data->stuckFrames == 0)
+				data->slideSide = 0.0f;
+			if (held && data->stuckFrames > 15)
 			{
-				askX += cx / cl * W_COHERE;
-				askY += cy / cl * W_COHERE;
+				Real tx = -pushY / pressed, ty = pushX / pressed;	// the face, turned left of the push
+				if (data->slideSide == 0.0f)
+				{
+					Real along = tx * seekX + ty * seekY;
+					data->slideSide = (along < -0.05f || (along <= 0.05f && (tx * hy - ty * hx) < 0.0f)) ? -1.0f : 1.0f;
+				}
+				askX += tx * data->slideSide * W_SLIDE;
+				askY += ty * data->slideSide * W_SLIDE;
 			}
 		}
 		// The blend gives a direction; how fast is a separate matter. Being pushed sideways turns a unit, it does not
@@ -1004,8 +1100,13 @@ namespace
 		// being pushed back does: the share of full speed is how much of the blend still points along the route.
 		Real askLen = sqrt(askX*askX + askY*askY);
 		Real share = askX * seekX + askY * seekY;
-		if (share > 1.0f) share = 1.0f;
-		if (share < 0.25f) share = 0.25f;
+		if (settling)
+			share = touchingStanding ? 0.4f : 0.0f;	// easing clear of the crowd, then standing
+		else
+		{
+			if (share > 1.0f) share = 1.0f;
+			if (share < 0.25f) share = 0.25f;
+		}
 		if (askLen > 0.001f)
 		{
 			askX = askX / askLen * share;
@@ -1026,9 +1127,27 @@ namespace
 
 		// Its place is taken and it is as near as it will get: this is where it stops (the arrival radius grows with
 		// the crowd already there).
-		if (goalTaken && remaining < 3.0f * ourRadius + 2.0f * PATHFIND_CELL_SIZE_F)
+		// Nearly there and getting no nearer (the units already standing round its place hold it off, though nobody is
+		// on the place itself): after a second and a half this is where it stands.
+		// ("Nearly there" for this is as wide as its group stands: the crowd round a spot is that big.)
+		if (!settling && remaining < 3.0f * ourRadius + 2.0f * PATHFIND_CELL_SIZE_F + ai->getGroupRadius())
 		{
-			if (++data->heldAtGoal > 20)
+			if (remaining > data->lastRemaining - 0.05f)
+				++data->nearGoalFrames;
+			else if (data->nearGoalFrames > 0)
+				--data->nearGoalFrames;
+			if (data->nearGoalFrames > 45)
+				settling = TRUE, data->heldAtGoal = 100;
+		}
+		else
+			data->nearGoalFrames = 0;
+		data->lastRemaining = remaining;
+		if (settling)
+		{
+			// (counted only while it is clear of everyone standing: it does not stop on top of anybody)
+			// ... but it does stop: after two seconds of trying it stands where it is.
+			++data->heldAtGoal;
+			if ((!touchingStanding && data->heldAtGoal > 8) || data->heldAtGoal > 60)
 			{
 				Coord3D here = *pos;
 				path->updateLastNode(&here);
