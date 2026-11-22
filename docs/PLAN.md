@@ -1055,6 +1055,54 @@ group of 30 on the city map is about 30 searches of 1-2 ms spread over ~10 frame
 latency of a third of a second, not a hitch: measure before building); wall tops; weights tuned from play; then
 delete the rails (`drive.mode=0`, `NavDrive` plan following, `trySidestep`) and level 1.
 
+### Footprint pass (2026-11-22): what the user's play found, and the brief completed
+
+The user played some challenge maps at level 2: "certainly improvements", but "some regressions, particularly around
+large units ... an Overlord tank, I felt like I was having an extremely difficult time getting it to navigate
+properly when it feels like it should be one of the highest priority and heaviest units." And: finish the footprint
+before any tuning; and, on hearing the cause, "is there any reason to retain any of the old vanilla rules now that
+we have level 2 built out?" (No: see the first item.)
+
+- **Retail's contact rules are off at level 2** (`AIUpdateInterface::processCollision` returns at once). They were
+  still running under the steering, and their "move away" order replaced a unit's own move when a mover touched it
+  before its path had come back. Big units touch at the start, so half a group with Overlords stopped for good
+  ten seconds into a move (new course `city-heavy` reproduces it). General, not an Overlord matter.
+- What those rules had been doing quietly is now steering's: no slide onto the goal cell's centre at arrival; a
+  unit whose place is taken stops making for it and is carried clear before it stands; one held just short of its
+  place by the crowd stands after 1.5 s; an idle unit is pushed only into clear room (`roomFor`).
+- **Weight is right of way:** of two moving allies of equal push rank, each gives the other's share of their
+  combined mass, in pushing, keeping apart and avoiding. An Overlord moves a Battlemaster.
+- **Going round:** held back half a second by something it cannot push, a unit goes round it and keeps the side it
+  chose. Held at a wall for a second, it gets a new route from where it stands.
+- **Corners:** being near a corner, or level with it, counts as done with it only if the point after is reachable
+  from there. (An 8-unit "near enough" let a unit turn up a one-cell alley from beside its mouth, into the wall.)
+- **Route cache for group orders** (the brief's corridor cache): a unit setting off from rest may take a route
+  found within the last second from and to nearly the same places for its size, if it can go straight to that
+  route's first corner and from its last to its own place. Two straight-line questions instead of a search:
+  14 of 18 members of a group reuse the first member's route.
+- `onMesh` / `segmentOnMesh` ask every sheet's ground (the ground at a bridge's ends is on the bridge's sheet).
+- **The rails are deleted** from `AIDrive.cpp` (plan following, side-steps, follow cap, `drive.mode`). `NavDrive`
+  stays as the kinematics type and a tested library nobody calls.
+- MoveBench: stopping far from the destination is a timeout, not an arrival; `bench.ovlog=1` lists overlapping pairs.
+
+Suite, 7 courses, 3 variants:
+
+| | timeouts | meanArrive | maxArrive | overlap | reversals | wobble | stalled |
+|---|---|---|---|---|---|---|---|
+| retail | 0.05 | 73.4 s | 98.1 | 6.2 | 5.6 | 2.2 | 199 |
+| level 1 | 0.14 | 63.8 | 88.9 | 1.07 | 11.3 | 5.1 | 6.0 |
+| **level 2** | 0 | 62.5 | 82.3 | 0.04 | 5.1 | 1.8 | 5.2 |
+
+**The brief is footprint-complete except for two things, both deliberate:**
+- **Wall tops** (pathfinder layer 15, units walking on fortress walls) are still pathed by the grid. Few maps have
+  them and nothing in the suite does; doing it blind would be untested code.
+- **Level 1 is still in the tree** (`AISteering`, `MoveTraffic`, group lanes) and is still the default. Deleting it
+  and making level 2 the default is M6: one decision for the user, then a mechanical change. Retail (level 0)
+  stays whatever happens: it is upstream's code and what `verify.ps1` replays against.
+
+Not done because it is tuning, which the user has put after this: weights (reversals are 5.1 where the rails had
+2.2), the turn-in-place and speed curves, how wide a group spreads.
+
 **(Superseded) Next (M4, second part, continued): what units do about each other, still on rails.**
 1. (Done, above: corners abreast.)
 2. (First version done, above.) Next: a group moves over as a body; crossing traffic (at right angles) is still

@@ -29,6 +29,7 @@
 #include "GameLogic/LocomotorSet.h"
 #include "GameLogic/MoveRules.h"
 #include "GameLogic/NavMeshQuery.h"
+#include "GameLogic/Module/PhysicsUpdate.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/TerrainLogic.h"
 
@@ -61,6 +62,7 @@ namespace
 	Bool s_tuningLoaded = false;
 
 	// Tuning.
+	Int CACHE = 1;				// reuse a route just found for a neighbour going to the same place (see CachedRoute)
 	Int BUILD = 0;				// build and maintain the mesh. Off until something reads it (M3).
 	Int DUMP = 0;					// print the label grid and the mesh statistics at map load (scripts/navtest.ps1 -Scenario draws it).
 	Int LOG = 0;					// print a line for every rebuild after map load.
@@ -71,6 +73,7 @@ namespace
 	void loadTuning()
 	{
 		MoveTune::apply("navmesh.build", BUILD);
+		MoveTune::apply("navmesh.cache", CACHE);
 		MoveTune::apply("navmesh.dump", DUMP);
 		MoveTune::apply("navmesh.log", LOG);
 		MoveTune::apply("navmesh.check", CHECK);
@@ -93,7 +96,7 @@ namespace
 		std::vector<NavBuild::Mesh> meshes;	///< 0 = the ground, then the bridges
 		std::vector<Int> layerOf;						///< the pathfinder layer of each (LAYER_GROUND for 0)
 		NavQuery::Atlas atlas;
-		NavQuery::TriGrid groundGrid;				///< buckets over the ground's mesh, for the every-frame questions
+		std::vector<NavQuery::TriGrid> grids;	///< buckets over each sheet's mesh, for the every-frame questions
 	};
 	std::vector<SizedMesh *> s_sized;
 	UnsignedInt s_gridSerial = 1;
@@ -198,7 +201,9 @@ namespace
 			sm->atlas.addSheet(&sm->meshes[k], cells[k].ox, cells[k].oy);
 		}
 		sm->atlas.connect();
-		sm->groundGrid.build(sm->meshes[0], 8);
+		sm->grids.resize(sm->meshes.size());
+		for (size_t g = 0; g < sm->meshes.size(); ++g)
+			sm->grids[g].build(sm->meshes[g], 8);
 		if (LOG)
 		{
 			Int tris = 0;
@@ -505,8 +510,18 @@ Bool NavMesh::onMesh( Object *obj, const LocomotorSet& locomotorSet, Real x, Rea
 	p.y = y / HALF;
 	int tri = -1;
 	// "On" allows a quarter of a half-cell: a line that runs along the mesh's edge is on it.
-	// (The ground sheet only: bridge decks are not asked about here.)
-	return !sm->meshes.empty() && NavQuery::nearestPassable(sm->meshes[0], sm->groundGrid, p, 1u << NavBuild::SHEET_GROUND, 0.25f, out, tri);
+	// Ground is ground whichever sheet it belongs to: the ground at a bridge's ends is on the bridge's sheet, and
+	// asking the main sheet alone called it a wall (an infantryman stood facing it for a whole run). Decks are not
+	// asked about here: this is for units on the ground layer.
+	for (size_t k = 0; k < sm->meshes.size(); ++k)
+	{
+		NavQuery::Pt local;
+		local.x = p.x - (Real)sm->atlas.sheets[k].ox;
+		local.y = p.y - (Real)sm->atlas.sheets[k].oy;
+		if (NavQuery::nearestPassable(sm->meshes[k], sm->grids[k], local, 1u << NavBuild::SHEET_GROUND, 0.25f, out, tri))
+			return TRUE;
+	}
+	return FALSE;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -521,7 +536,76 @@ Bool NavMesh::segmentOnMesh( Object *obj, const LocomotorSet& locomotorSet, Real
 	NavQuery::Pt a, b;
 	a.x = x0 / HALF; a.y = y0 / HALF;
 	b.x = x1 / HALF; b.y = y1 / HALF;
-	return !sm->meshes.empty() && NavQuery::segmentClear(sm->meshes[0], sm->groundGrid, a, b, 1u << NavBuild::SHEET_GROUND, 2.0f);
+	// Clear within one sheet's ground. (A line that passes from one sheet's ground to another's is answered "no":
+	// that only makes a look-ahead or a spread corner more cautious beside a bridge.)
+	for (size_t k = 0; k < sm->meshes.size(); ++k)
+	{
+		NavQuery::Pt la, lb;
+		la.x = a.x - (Real)sm->atlas.sheets[k].ox; la.y = a.y - (Real)sm->atlas.sheets[k].oy;
+		lb.x = b.x - (Real)sm->atlas.sheets[k].ox; lb.y = b.y - (Real)sm->atlas.sheets[k].oy;
+		if (NavQuery::segmentClear(sm->meshes[k], sm->grids[k], la, lb, 1u << NavBuild::SHEET_GROUND, 2.0f))
+			return TRUE;
+	}
+	return FALSE;
+}
+
+namespace
+{
+	/// A Path from the points of a pulled string and the layer of each: every node is a corner, so each one's "next
+	/// optimized" is simply the next.
+	Path *pathFrom( const std::vector<Coord3D>& pts, const std::vector<PathfindLayerEnum>& layers )
+	{
+		Path *path = newInstance(Path);
+		Coord3D last = pts[0];
+		path->appendNode(&pts[0], layers[0]);
+		for (size_t k = 1; k < pts.size(); ++k)
+		{
+			Real dx = pts[k].x - last.x, dy = pts[k].y - last.y;
+			Bool isEnd = (k + 1 == pts.size());
+			if (dx*dx + dy*dy < 1.0f)
+			{
+				// A point a hair from the node before it is that node; if it is where the string gets on a bridge, the
+				// node is.
+				if (layers[k] != LAYER_GROUND && path->getLastNode()->getLayer() == LAYER_GROUND)
+					path->getLastNode()->setLayer(layers[k]);
+				if (!isEnd)
+					continue;
+				if (path->getFirstNode() != path->getLastNode())
+				{
+					path->updateLastNode(&pts[k]);	// the destination itself is the last node, not a point a hair from it.
+					continue;
+				}
+			}
+			path->appendNode(&pts[k], layers[k]);
+			last = pts[k];
+		}
+		for (PathNode *node = path->getFirstNode(); node != nullptr; node = node->getNext())
+			node->setNextOptimized(node->getNext());
+		path->markOptimized();
+		return path;
+	}
+
+	// ---- Routes lately found, for the brief's "cache common corridors when large control groups receive identical
+	// move commands". A group order is one search and then, for every other member, two straight-line questions:
+	// can I go straight to the first corner of a route just found to (nearly) the same place for my size, and
+	// from its last corner straight to my own place? If so that route is mine too. Ground routes only.
+	struct CachedRoute
+	{
+		unsigned mask;
+		Int radius;
+		UnsignedInt serial, frame;
+		Coord3D start, goal;
+		std::vector<Coord3D> corners;	///< between the start and the goal, neither included
+	};
+	const size_t MAX_CACHED_ROUTES = 16;
+	const UnsignedInt CACHED_ROUTE_FRAMES = LOGICFRAMES_PER_SECOND;	// one order's members are pathed within a few frames
+	const Real CACHED_ROUTE_NEAR = 20.0f * PATHFIND_CELL_SIZE_F;
+	// How far off the mesh an end may be and still be joined to it for the two straight-line questions. Small: a
+	// unit pressed against a thin wall, joined generously, is joined to the ground on the wall's other side, and
+	// the route it is then handed starts through the wall (an infantryman walked into one for a whole run).
+	const Real CACHED_ROUTE_SNAP = 0.5f;
+	std::vector<CachedRoute> s_routes;
+	Int s_statCached = 0;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -550,6 +634,56 @@ Path *NavMesh::findPath( Object *obj, const LocomotorSet& locomotorSet, const Co
 	SizedMesh *sm = sizedMesh(mask, radius);
 	if (cost)
 		*cost = 200;
+
+	UnsignedInt now = TheGameLogic->getFrame();
+	// Only for a unit setting off from rest, which is what the members of a fresh order are. A unit that asks
+	// again while under way (attack-move does, often) gets its own search: handed a neighbour's corners each
+	// time, it was sent to and fro between them (desert-attackmove: wobble 0.9 -> 26, one unit never arrived).
+	PhysicsBehavior *objPhysics = obj->getPhysics();
+	Bool fromRest = objPhysics != nullptr && objPhysics->getVelocityMagnitude() < 0.1f;
+	if (CACHE && fromRest && objLayer == LAYER_GROUND && toLayer == LAYER_GROUND && !sm->meshes.empty())
+	{
+		const unsigned GROUND = 1u << NavBuild::SHEET_GROUND;
+		for (size_t r = s_routes.size(); r-- > 0; )	// newest first
+		{
+			const CachedRoute& route = s_routes[r];
+			if (route.mask != mask || route.radius != radius || route.serial != s_gridSerial || now - route.frame > CACHED_ROUTE_FRAMES)
+				continue;
+			if (sqr(route.goal.x - to->x) + sqr(route.goal.y - to->y) > sqr(CACHED_ROUTE_NEAR))
+				continue;
+			// ... from (nearly) the same place too: a route from elsewhere to my destination is somebody else's,
+			// and its first corner may lie behind me.
+			if (sqr(route.start.x - from->x) + sqr(route.start.y - from->y) > sqr(CACHED_ROUTE_NEAR))
+				continue;
+			if (!route.corners.empty()
+					&& (route.corners.front().x - from->x) * (to->x - from->x) + (route.corners.front().y - from->y) * (to->y - from->y) <= 0.0f)
+				continue;
+			NavQuery::Pt a, b;
+			a.x = from->x / HALF; a.y = from->y / HALF;
+			const Coord3D& firstStop = route.corners.empty() ? *to : route.corners.front();
+			b.x = firstStop.x / HALF; b.y = firstStop.y / HALF;
+			if (!NavQuery::segmentClear(sm->meshes[0], sm->grids[0], a, b, GROUND, CACHED_ROUTE_SNAP))
+				continue;
+			if (!route.corners.empty())
+			{
+				a.x = route.corners.back().x / HALF; a.y = route.corners.back().y / HALF;
+				b.x = to->x / HALF; b.y = to->y / HALF;
+				if (!NavQuery::segmentClear(sm->meshes[0], sm->grids[0], a, b, GROUND, CACHED_ROUTE_SNAP))
+					continue;
+			}
+			std::vector<Coord3D> pts;
+			std::vector<PathfindLayerEnum> layers;
+			pts.push_back(*from);
+			pts.insert(pts.end(), route.corners.begin(), route.corners.end());
+			pts.push_back(*to);
+			layers.assign(pts.size(), LAYER_GROUND);
+			++s_statMesh;
+			++s_statCached;
+			if (cost)
+				*cost = 40;
+			return pathFrom(pts, layers);
+		}
+	}
 
 	// Where the unit is: on a bridge's deck, on the ground, or at a bridge's end, where it can be either (the ground
 	// cells there are the bridge's "connect" cells, and the unit's layer changes as it drives over them).
@@ -631,34 +765,25 @@ Path *NavMesh::findPath( Object *obj, const LocomotorSet& locomotorSet, const Co
 	layers.push_back(toLayer);
 	if (overBridge)
 		++s_statBridge;
-	Path *path = newInstance(Path);
-	Coord3D last = pts[0];
-	path->appendNode(&pts[0], layers[0]);
-	for (size_t k = 1; k < pts.size(); ++k)
+	else if (CACHE && objLayer == LAYER_GROUND && toLayer == LAYER_GROUND && pts.size() >= 4)
 	{
-		Real dx = pts[k].x - last.x, dy = pts[k].y - last.y;
-		Bool isEnd = (k + 1 == pts.size());
-		if (dx*dx + dy*dy < 1.0f)
-		{
-			// A point a hair from the node before it is that node; if it is where the string gets on a bridge, the
-			// node is.
-			if (layers[k] != LAYER_GROUND && path->getLastNode()->getLayer() == LAYER_GROUND)
-				path->getLastNode()->setLayer(layers[k]);
-			if (!isEnd)
-				continue;
-			if (path->getFirstNode() != path->getLastNode())
-			{
-				path->updateLastNode(&pts[k]);	// the destination itself is the last node, not a point a hair from it.
-				continue;
-			}
-		}
-		path->appendNode(&pts[k], layers[k]);
-		last = pts[k];
+		if (s_routes.size() >= MAX_CACHED_ROUTES)
+			s_routes.erase(s_routes.begin());
+		s_routes.push_back(CachedRoute());
+		CachedRoute& route = s_routes.back();
+		route.mask = mask;
+		route.radius = radius;
+		route.serial = s_gridSerial;
+		route.frame = now;
+		route.start = *from;
+		route.goal = *to;
+		// The corners only: pts is [where the unit is, the string from its start to its goal, where it was sent],
+		// and the string's own two ends are this unit's start and place, not corners of the route. (Left in, every
+		// neighbour was first sent to this unit's start and finally through its place.)
+		if (pts.size() > 4)
+			route.corners.assign(pts.begin() + 2, pts.end() - 2);
 	}
-	for (PathNode *node = path->getFirstNode(); node != nullptr; node = node->getNext())
-		node->setNextOptimized(node->getNext());
-	path->markOptimized();
-	return path;
+	return pathFrom(pts, layers);
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -732,6 +857,7 @@ void NavMesh::printStats()
 		if ((Int)s_sized[i]->meshes.size() > sheets)
 			sheets = (Int)s_sized[i]->meshes.size();
 	}
+	printf("NavMeshCache: reused=%d of %d\n", s_statCached, s_statMesh);
 	printf("NavMeshPaths: mesh=%d overBridge=%d noStart=%d noGoal=%d noPath=%d wall=%d sizes=%d bridgeSheets=%d builds=%d meanNodes=%.1f\n",
 		s_statMesh, s_statBridge, s_statNoStart, s_statNoGoal, s_statNoPath, s_statWall, (Int)s_sized.size(), sheets > 0 ? sheets - 1 : 0,
 		s_statBuilds, s_statMesh ? (Real)s_statNodes / (Real)s_statMesh : 0.0f);

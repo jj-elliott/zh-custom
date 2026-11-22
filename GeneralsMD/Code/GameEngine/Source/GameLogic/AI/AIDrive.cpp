@@ -45,14 +45,11 @@ namespace AIDrive
 {
 	struct Data
 	{
-		NavDrive::Plan plan;
-		NavDrive::State state;
 		// What the plan was made for: a different path (or the same one changed) means a new plan.
 		const Path *path;
 		Coord3D pathFirst, pathLast;
 		Real shownHeading;	///< the heading the object is given: the plan's, eased (see TURN_EASE)
 		Bool allGround;			///< the path never leaves the ground layer (so the mesh can be asked about it)
-		UnsignedInt noSidestepUntil;	///< frame before which no (further) side-step is considered
 		// Steering (drive.mode 1): the route's points, which of them is being made for, the velocity being asked
 		// for (smoothed) and the speed the unit has.
 		std::vector<NavDrive::Pt> route;
@@ -64,6 +61,7 @@ namespace AIDrive
 		Int heldAtGoal;
 		Int nearGoalFrames;	///< frames near its place without getting nearer
 		Real lastRemaining;
+		Int wallFrames;			///< (leaky) frames of standing at a wall with nowhere to slide
 		Int stuckFrames;		///< frames (leaky) of being pushed back along its route by something it cannot move
 		Real slideSide;			///< which way round it is going while stuck: +1 / -1, 0 = not decided
 		Bool abandoned;		///< this path is left to the old follower
@@ -79,8 +77,6 @@ namespace
 	Real FOLLOW_LANE = 0.9f;				// a unit ahead counts if it is within this share of the two radii off our line
 	Real FOLLOW_GAP = 1.05f;				// the gap is measured from this many radii apart
 	Real SAME_WAY_COS = 0.3f;				// "going our way": the cosine between its heading and ours is above this
-	Real OFF_PLAN = 3.0f;						// world units the object may be from where the plan has it before the plan is dropped
-	Real ARC_SAMPLE = 4.0f;					// world units between the points of an arc that are checked against the mesh
 	// The plan's heading changes at the full turn rate the moment an arc begins and stops the moment it ends, which
 	// is exact and looks weightless. The object's heading closes this share of its difference from the plan's each
 	// frame instead: it leans into a turn over a few frames and settles out of it, and trails the plan's heading by
@@ -96,8 +92,7 @@ namespace
 	Int DEBUG_UNIT = 0;
 	Bool s_loaded = false;
 	Int s_spread = 0, s_spreadUndone = 0;
-	// ---- Steering, the micro tier of the SC2 brief (drive.mode 1, the default; 0 = the rails above).
-	Int MODE = 1;
+	// ---- Steering, the micro tier of the SC2 brief.
 	Real W_SEPARATE = 1.4f;					// weights of the parts of the velocity a unit asks for (seek is 1)
 	Real W_COHERE = 0.08f;
 	Real W_AVOID = 1.2f;
@@ -112,15 +107,9 @@ namespace
 	Int LOOK_EVERY = 2;							// every this many frames: can the point after the next be gone to directly?
 	Real TURN_GENTLE = 0.15f;				// heading errors below this (radians) ...
 	Real TURN_GENTLE_SHARE = 0.06f;	// ... are closed by this share a frame
+	Int s_reroutes = 0;
 	Int s_steerFrames = 0, s_wallStops = 0, s_pushes = 0, s_lookAheads = 0, s_arrivedShort = 0;
 
-	// Side-steps (trySidestep).
-	Int SIDESTEP = 1;
-	Real SIDE_LOOK = 60.0f;					// frames ahead a meeting must be to be acted on (2 s)
-	Real SIDE_MARGIN = 1.15f;				// the new line passes this many (sums of radii) to the side of what it avoids
-	Real SIDE_MAX = 14.0f;					// the most a line is moved sideways, in the unit's own radii
-	Int SIDE_HOLD = 45;							// frames after a side-step before another is considered
-	Int s_sidesteps = 0, s_sidestepNone = 0;
 
 	// The shapes of the groups most recently ordered to move (AIDrive::registerGroup).
 	struct GroupShape
@@ -132,8 +121,7 @@ namespace
 	std::vector<GroupShape> s_shapes;
 	UnsignedInt s_nextShapeKey = 1;
 
-	Int s_plans = 0, s_smaller = 0, s_pivots = 0, s_cheats = 0, s_offMesh = 0, s_abandoned = 0;
-	Int s_frames = 0, s_followFrames = 0;
+	Int s_plans = 0;
 
 	void loadTuning()
 	{
@@ -144,13 +132,11 @@ namespace
 		MoveTune::apply("drive.followHeadway", FOLLOW_HEADWAY);
 		MoveTune::apply("drive.followLane", FOLLOW_LANE);
 		MoveTune::apply("drive.followGap", FOLLOW_GAP);
-		MoveTune::apply("drive.offPlan", OFF_PLAN);
 		MoveTune::apply("drive.turnEase", TURN_EASE);
 		MoveTune::apply("drive.speedScale", SPEED_SCALE);
 		MoveTune::apply("drive.spread", SPREAD);
 		MoveTune::apply("drive.spreadSpacing", SPREAD_SPACING);
 		MoveTune::apply("drive.spreadMax", SPREAD_MAX);
-		MoveTune::apply("drive.mode", MODE);
 		MoveTune::apply("drive.wSeparate", W_SEPARATE);
 		MoveTune::apply("drive.wCohere", W_COHERE);
 		MoveTune::apply("drive.wAvoid", W_AVOID);
@@ -163,11 +149,6 @@ namespace
 		MoveTune::apply("drive.cornerReach", CORNER_REACH);
 		MoveTune::apply("drive.turnGentle", TURN_GENTLE);
 		MoveTune::apply("drive.turnGentleShare", TURN_GENTLE_SHARE);
-		MoveTune::apply("drive.sidestep", SIDESTEP);
-		MoveTune::apply("drive.sideLook", SIDE_LOOK);
-		MoveTune::apply("drive.sideMargin", SIDE_MARGIN);
-		MoveTune::apply("drive.sideMax", SIDE_MAX);
-		MoveTune::apply("drive.sideHold", SIDE_HOLD);
 		MoveTune::apply("debug.unit", DEBUG_UNIT);
 	}
 
@@ -208,26 +189,6 @@ namespace
 				kin.turnSpeed = kin.maxSpeed * 0.25f;
 			// Above that speed its turning circle grows with speed: it corners wide and fast where there is room.
 		}
-	}
-
-	/// Are the plan's arcs on ground this unit may be on? (The straights are the path's own, give or take the
-	/// tangents; the arcs are where the line leaves the string, by up to a turning radius.)
-	Bool arcsOnMesh( Object *obj, AIUpdateInterface *ai, const NavDrive::Plan& plan )
-	{
-		for (size_t i = 0; i < plan.prims.size(); ++i)
-		{
-			const NavDrive::Prim& p = plan.prims[i];
-			if (p.type != NavDrive::ARC || i == 0)	// (a first arc is the unit turning where it stands: it is where it is)
-				continue;
-			Int steps = REAL_TO_INT_FLOOR(p.length / ARC_SAMPLE) + 1;
-			for (Int k = 1; k <= steps; ++k)
-			{
-				Real a = p.a0 + p.sweep * (Real)k / (Real)(steps + 1);
-				if (!NavMesh::onMesh(obj, ai->getLocomotorSet(), p.cx + p.r * Cos(a), p.cy + p.r * Sin(a)))
-					return FALSE;
-			}
-		}
-		return TRUE;
 	}
 
 	/// A group ordered to one place keeps its shape, so on open ground its members' paths are parallel. But every
@@ -331,311 +292,6 @@ namespace
 		}
 	}
 
-	Bool makePlan( Object *obj, AIUpdateInterface *ai, Path *path, const NavDrive::Kinematics& kin, AIDrive::Data *data )
-	{
-		// The string: where the unit is, then the path's corners (its optimized nodes) after the first.
-		std::vector<NavDrive::Pt> pts;
-		NavDrive::Pt pt;
-		const Coord3D *pos = obj->getPosition();
-		pt.x = pos->x; pt.y = pos->y;
-		pts.push_back(pt);
-		Bool allGround = obj->getLayer() == LAYER_GROUND;
-		Int guard = 4096;
-		for (PathNode *node = path->getFirstNode()->getNextOptimized(); node != nullptr && --guard > 0; node = node->getNextOptimized())
-		{
-			pt.x = node->getPosition()->x;
-			pt.y = node->getPosition()->y;
-			pts.push_back(pt);
-			if (node->getLayer() != LAYER_GROUND)
-				allGround = FALSE;
-		}
-		if (pts.size() < 2)
-			return FALSE;
-		if (allGround)
-			spreadCorners(obj, ai, pts);
-		data->allGround = allGround;
-
-		// Full-size arcs if they are on the unit's ground, else smaller ones, else none (stop and pivot). Paths that
-		// use a bridge are not checked: bridges are not in the mesh yet.
-		static const Real SCALE[4] = { 1.0f, 0.5f, 0.25f, 0.0f };
-		for (Int s = 0; s < 4; ++s)
-		{
-			NavDrive::Kinematics k = kin;
-			k.cornerSpeed *= SCALE[s];
-			k.turnSpeed *= SCALE[s];
-			if (s == 3)
-				k.turnSpeed = 0.0f;	// a wheeled unit pivots too when there is no room for anything else.
-			NavDrive::build(pts, obj->getOrientation(), k, data->plan);
-			if (data->plan.prims.empty())
-				return FALSE;
-			if (s == 3 || !allGround || arcsOnMesh(obj, ai, data->plan))
-			{
-				if (s > 0)
-					++s_offMesh;
-				break;
-			}
-		}
-		PhysicsBehavior *physics = obj->getPhysics();
-		Real speed = physics ? physics->getForwardSpeed2D() : 0.0f;
-		if (speed < 0.0f)
-			speed = 0.0f;
-		if (speed > kin.maxSpeed)
-			speed = kin.maxSpeed;
-		NavDrive::start(data->plan, pos->x, pos->y, obj->getOrientation(), speed, data->state);
-		data->shownHeading = obj->getOrientation();
-		++s_plans;
-		s_smaller += data->plan.smallerArcs;
-		s_pivots += data->plan.pivots;
-		s_cheats += data->plan.cheats;
-		return TRUE;
-	}
-
-	/// The most speed the units ahead allow: behind one going our way we go its speed plus what closes the gap.
-	Real followCap( Object *obj, const NavDrive::State& st, const NavDrive::Kinematics& kin )
-	{
-		Real cap = 1.0e9f;
-		Real hx = Cos(st.heading), hy = Sin(st.heading);
-		Real ourRadius = radiusOf(obj);
-		Bool weAreInfantry = obj->isKindOf(KINDOF_INFANTRY);
-		Real range = ourRadius + kin.maxSpeed * FOLLOW_HEADWAY + 6.0f * PATHFIND_CELL_SIZE_F;
-		SimpleObjectIterator *iter = ThePartitionManager->iterateObjectsInRange( obj, range, FROM_CENTER_2D, nullptr, ITER_SORTED_NEAR_TO_FAR );
-		MemoryPoolObjectHolder hold(iter);
-		Int count = 0;
-		for (Object *other = iter->first(); other && count < 24; other = iter->next())
-		{
-			if (other == obj || other->isEffectivelyDead() || other->getContainedBy() != nullptr)
-				continue;
-			if (other->isKindOf(KINDOF_STRUCTURE) || other->isKindOf(KINDOF_IMMOBILE))
-				continue;
-			AIUpdateInterface *aiOther = other->getAI();
-			PhysicsBehavior *otherPhysics = other->getPhysics();
-			if (aiOther == nullptr || otherPhysics == nullptr || !aiOther->isDoingGroundMovement())
-				continue;
-			// Infantry walk through each other, and vehicles do not queue behind infantry.
-			if (other->isKindOf(KINDOF_INFANTRY))
-				continue;
-			if (weAreInfantry)
-				continue;
-			++count;
-			const Coord3D *op = other->getPosition();
-			Real rx = op->x - st.x, ry = op->y - st.y;
-			Real ahead = rx * hx + ry * hy;
-			Real lateral = rx * hy - ry * hx;
-			Real both = ourRadius + radiusOf(other);
-			if (ahead <= 0.0f || fabs(lateral) > both * FOLLOW_LANE)
-				continue;
-			// Going our way, and actually going?
-			const Coord3D *ov = otherPhysics->getVelocity();
-			Real along = ov->x * hx + ov->y * hy;
-			Real otherSpeed = sqrt(ov->x * ov->x + ov->y * ov->y);
-			if (otherSpeed < 0.05f || along < otherSpeed * SAME_WAY_COS)
-				continue;
-			Real gap = ahead - both * FOLLOW_GAP;
-			Real most = along + gap / FOLLOW_HEADWAY;
-			if (most < 0.0f)
-				most = 0.0f;
-			if (most < cap)
-				cap = most;
-		}
-		return cap;
-	}
-}
-
-namespace
-{
-	struct InTheWay
-	{
-		Real ahead, right, both;	// where it is in our frame (right of our line is positive), and our radius + its
-		Bool oncoming;						// coming towards us (it will side-step too), as against standing
-	};
-	struct Shift
-	{
-		Real right;
-	};
-
-	/// Something is coming the other way along our line, or standing on it. A unit on rails cannot swerve; it gets a
-	/// new line: the old one moved sideways, by the least that clears everything coming or standing ahead (to the
-	/// right if it is the same either way), from a little way ahead until it is past, and from there on to the rest
-	/// of its route. Decided once, on a straight, and then held: the unit turns out, runs parallel, and carries on.
-	/// Two units meeting head on both do this, and it is settled the way traffic settles it: each to its own right,
-	/// half each. So against something oncoming a line only ever moves right, and by half of what would clear it
-	/// were it to hold its line (it is assumed to move as far the other way; if it turns out not to, there is a
-	/// second side-step later). Something standing still is passed on whichever side is nearer, by the whole of it.
-	/// If no line clears, or the ground or the unit's brakes do not allow one, nothing is done (and it will drive
-	/// through, as before).
-	Bool trySidestep( Object *obj, AIUpdateInterface *ai, AIDrive::Data *data, const NavDrive::Kinematics& kin )
-	{
-		NavDrive::State& st = data->state;
-		UnsignedInt now = TheGameLogic->getFrame();
-		if (!SIDESTEP || now < data->noSidestepUntil || st.v < 0.05f || st.done)
-			return FALSE;
-		if (data->plan.prims[st.prim].type != NavDrive::LINE || obj->isKindOf(KINDOF_INFANTRY))
-			return FALSE;
-		// Not on the last stretch: there units are making for places next to each other.
-		Real toEndX = data->pathLast.x - st.x, toEndY = data->pathLast.y - st.y;
-		if (toEndX*toEndX + toEndY*toEndY < sqr(6.0f * PATHFIND_CELL_SIZE_F))
-			return FALSE;
-
-		Real hx = Cos(st.heading), hy = Sin(st.heading);
-		Real rx = hy, ry = -hx;	// to our right
-		Real ourRadius = radiusOf(obj);
-		Real horizon = 2.0f * ourRadius + 2.0f * kin.maxSpeed * SIDE_LOOK;
-		if (horizon > 40.0f * PATHFIND_CELL_SIZE_F)
-			horizon = 40.0f * PATHFIND_CELL_SIZE_F;
-		std::vector<InTheWay> seen;
-		Bool meeting = FALSE;
-		Bool anyOncoming = FALSE;
-		Real meetAt = 0.0f;
-		Real meetBoth = 0.0f;
-		{
-			SimpleObjectIterator *iter = ThePartitionManager->iterateObjectsInRange( obj, horizon, FROM_CENTER_2D, nullptr, ITER_SORTED_NEAR_TO_FAR );
-			MemoryPoolObjectHolder hold(iter);
-			for (Object *other = iter->first(); other && seen.size() < 32; other = iter->next())
-			{
-				if (other == obj || other->isEffectivelyDead() || other->getContainedBy() != nullptr)
-					continue;
-				if (other->isKindOf(KINDOF_STRUCTURE) || other->isKindOf(KINDOF_IMMOBILE) || other->isKindOf(KINDOF_INFANTRY))
-					continue;
-				AIUpdateInterface *aiOther = other->getAI();
-				PhysicsBehavior *otherPhysics = other->getPhysics();
-				if (aiOther == nullptr || otherPhysics == nullptr || !aiOther->isDoingGroundMovement())
-					continue;
-				if (obj->canCrushOrSquish(other))
-					continue;
-				const Coord3D *op = other->getPosition();
-				Real dx = op->x - st.x, dy = op->y - st.y;
-				InTheWay w;
-				w.ahead = dx * hx + dy * hy;
-				w.right = dx * rx + dy * ry;
-				w.both = ourRadius + radiusOf(other);
-				if (w.ahead <= 0.0f || w.ahead > horizon)
-					continue;
-				const Coord3D *ov = otherPhysics->getVelocity();
-				Real along = ov->x * hx + ov->y * hy;
-				Real otherSpeed = sqrt(ov->x * ov->x + ov->y * ov->y);
-				Bool standing = otherSpeed < 0.05f && aiOther->isIdle();
-				Bool oncoming = otherSpeed >= 0.05f && along < -otherSpeed * SAME_WAY_COS;
-				if (!standing && !oncoming)
-					continue;	// going our way (we follow it), crossing, or waiting in a queue of its own
-				w.oncoming = oncoming;
-				if (oncoming)
-					anyOncoming = TRUE;
-				seen.push_back(w);
-				if (fabs(w.right) < w.both)
-				{
-					Real closing = st.v + (oncoming ? -along : 0.0f);
-					if (closing < 0.05f)
-						closing = 0.05f;
-					if ((w.ahead - w.both) / closing < SIDE_LOOK && (!meeting || w.ahead < meetAt))
-					{
-						meeting = TRUE;
-						meetAt = w.ahead;
-						meetBoth = w.both;
-					}
-				}
-			}
-		}
-		if (!meeting)
-			return FALSE;
-
-		// Lines that clear everything seen. Least movement first.
-		std::vector<Shift> shifts;
-		size_t j, k;
-		for (j = 0; j < seen.size(); ++j)
-		{
-			for (Int side = 0; side < 2; ++side)
-			{
-				Shift c;
-				if (seen[j].oncoming)
-				{
-					if (side == 1)
-						continue;
-					c.right = (seen[j].right + seen[j].both * SIDE_MARGIN) * 0.5f;	// it ends up on our left
-				}
-				else
-					c.right = seen[j].right + (side == 0 ? 1.0f : -1.0f) * seen[j].both * SIDE_MARGIN;
-				if (anyOncoming && c.right < 0.0f)
-					continue;	// with traffic coming, to the right or not at all
-				if (fabs(c.right) > SIDE_MAX * ourRadius)
-					continue;
-				Bool clear = TRUE;
-				for (k = 0; k < seen.size() && clear; ++k)
-				{
-					// Where it will be across our new line: an oncoming one moves as far to its right as we to ours.
-					Real across = seen[k].oncoming ? seen[k].right - 2.0f * c.right : seen[k].right - c.right;
-					if (fabs(across) < seen[k].both * SIDE_MARGIN * 0.999f)
-						clear = FALSE;
-				}
-				if (!clear)
-					continue;
-				// insert in order of size; of two the same size the one to the right first
-				size_t at = 0;
-				while (at < shifts.size() && (fabs(shifts[at].right) < fabs(c.right) - 0.01f
-						|| (fabs(fabs(shifts[at].right) - fabs(c.right)) <= 0.01f && shifts[at].right >= c.right)))
-					++at;
-				shifts.insert(shifts.begin() + at, c);
-			}
-		}
-
-		std::vector<NavDrive::Pt> rest;
-		NavDrive::remaining(data->plan, st, rest);
-		if (rest.empty())
-			return FALSE;
-		Real turnRadius = (kin.turnSpeed > 0.0f ? (st.v > kin.turnSpeed ? st.v : kin.turnSpeed) : st.v) / kin.turnRate;
-		for (j = 0; j < shifts.size() && j < 4; ++j)
-		{
-			Real t = shifts[j].right;
-			Real outBy = 2.0f * fabs(t);
-			if (outBy < 1.5f * turnRadius)
-				outBy = 1.5f * turnRadius;
-			if (outBy > meetAt - meetBoth * 0.5f)
-				outBy = meetAt - meetBoth * 0.5f;
-			if (fabs(t) < 0.5f)
-				continue;	// nothing to do: it is already clear by this reckoning
-			if (outBy < 1.2f * fabs(t))
-				continue;	// too close to turn out in time
-			Real pastBy = meetAt + meetBoth;
-			if (pastBy < outBy + 2.0f * ourRadius)
-				pastBy = outBy + 2.0f * ourRadius;
-			std::vector<NavDrive::Pt> pts;
-			NavDrive::Pt p;
-			p.x = st.x; p.y = st.y;
-			pts.push_back(p);
-			NavDrive::Pt out, past;
-			out.x = st.x + hx * outBy + rx * t;    out.y = st.y + hy * outBy + ry * t;
-			past.x = st.x + hx * pastBy + rx * t;  past.y = st.y + hy * pastBy + ry * t;
-			pts.push_back(out);
-			pts.push_back(past);
-			// The rest of the route, from the first of its points that is still ahead of where the side-step ends.
-			size_t first = 0;
-			while (first + 1 < rest.size() && (rest[first].x - past.x) * hx + (rest[first].y - past.y) * hy <= ourRadius)
-				++first;
-			for (k = first; k < rest.size(); ++k)
-				pts.push_back(rest[k]);
-			if (data->allGround)
-			{
-				Bool onGround = TRUE;
-				for (k = 0; k + 1 < 4 && k + 1 < pts.size() && onGround; ++k)
-					onGround = NavMesh::segmentOnMesh(obj, ai->getLocomotorSet(), pts[k].x, pts[k].y, pts[k+1].x, pts[k+1].y);
-				if (!onGround)
-					continue;
-			}
-			NavDrive::Plan plan;
-			NavDrive::build(pts, st.heading, kin, plan, st.v);
-			if (plan.prims.empty() || plan.brakingRun)
-				continue;	// its brakes do not allow this line from here
-			if (data->allGround && !arcsOnMesh(obj, ai, plan))
-				continue;
-			data->plan = plan;
-			NavDrive::start(data->plan, st.x, st.y, st.heading, st.v, st);
-			data->noSidestepUntil = now + SIDE_HOLD;
-			++s_sidesteps;
-			return TRUE;
-		}
-		data->noSidestepUntil = now + 15;
-		++s_sidestepNone;
-		return FALSE;
-	}
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -764,7 +420,6 @@ namespace
 			{
 				data = new AIDrive::Data;
 				data->holding = FALSE;
-				data->noSidestepUntil = 0;
 			}
 			data->path = path;
 			data->pathFirst = *first;
@@ -800,6 +455,7 @@ namespace
 			data->arrived = FALSE;
 			data->heldAtGoal = 0;
 			data->stuckFrames = 0;
+			data->wallFrames = 0;
 			data->nearGoalFrames = 0;
 			data->lastRemaining = 1.0e9f;
 			data->slideSide = 0.0f;
@@ -827,7 +483,20 @@ namespace
 			const NavDrive::Pt& b = route[data->nextPoint - 1];
 			Real dx = x - c.x, dy = y - c.y;
 			Real reach = CORNER_REACH > ourRadius ? CORNER_REACH : ourRadius;
-			if (dx*dx + dy*dy < reach*reach || dx * (c.x - b.x) + dy * (c.y - b.y) > 0.0f)
+			Bool reached = dx*dx + dy*dy < reach*reach;
+			Bool passed = !reached && dx * (c.x - b.x) + dy * (c.y - b.y) > 0.0f;
+			// Near a corner, or level with it (pushed wide, or slid along a wall past it), counts as done with it
+			// only if the point after can be gone to from here; right on the corner always does. Without that a
+			// unit a few units short of the mouth of an alley turned up it early, into the wall beside the mouth,
+			// and one that had slid past the end of a wall made for the next point straight through it: for ever.
+			if ((reached || passed) && dx*dx + dy*dy > 1.5f * 1.5f
+					&& obj->getLayer() == LAYER_GROUND && data->routeOnGround[data->nextPoint] && data->routeOnGround[data->nextPoint + 1])
+			{
+				const NavDrive::Pt& after = route[data->nextPoint + 1];
+				if (!NavMesh::segmentOnMesh(obj, ai->getLocomotorSet(), x, y, after.x, after.y))
+					reached = passed = FALSE;
+			}
+			if (reached || passed)
 				++data->nextPoint;
 			else
 				break;
@@ -1255,6 +924,69 @@ namespace
 				nx = x;
 				ny = y;
 				++s_wallStops;
+				data->wallFrames += 2;
+				if (DEBUG_UNIT != 0 && (Int)obj->getID() == DEBUG_UNIT && (now % 30) == 0)
+					printf("DBGWALL f=%u at=(%.1f,%.1f) step=(%.2f,%.2f) target=(%.1f,%.1f) pt=%d/%d routeEnd=(%.1f,%.1f)\n", now, x, y, sx, sy, target.x, target.y, data->nextPoint, lastPoint, route[lastPoint].x, route[lastPoint].y);
+				if (DEBUG_UNIT != 0 && (Int)obj->getID() == DEBUG_UNIT && (now % 30) == 0)
+				{
+					char line[80];
+					Int n = 0;
+					for (Int k = -6; k <= 14 && n < 70; ++k)
+						line[n++] = NavMesh::onMesh(obj, ai->getLocomotorSet(), x + seekX * 4.0f * (Real)k, y + seekY * 4.0f * (Real)k) ? '#' : '.';
+					line[n] = 0;
+					printf("DBGWALL2 along the way to the target, 4 apart, from 24 behind: %s seg=%d\n", line,
+						NavMesh::segmentOnMesh(obj, ai->getLocomotorSet(), x, y, target.x, target.y) ? 1 : 0);
+				}
+			}
+		}
+		// Held at a wall for a second: the route cannot be followed from where it has ended up (pushed into a
+		// pocket, or handed a route whose next point is not reachable from here). It gets a new one from where it
+		// stands. (Found by the benchmark: an infantryman facing a wall for the rest of the run.)
+		if (data->wallFrames > 0)
+			--data->wallFrames;
+		if (data->wallFrames > LOGICFRAMES_PER_SECOND)
+		{
+			data->wallFrames = 0;
+			Coord3D here = *pos, to;
+			to.x = route[lastPoint].x;
+			to.y = route[lastPoint].y;
+			to.z = data->pathLast.z;
+			Path *fresh = NavMesh::findPath(obj, ai->getLocomotorSet(), &here, &to, nullptr);
+			if (fresh != nullptr)
+			{
+				std::vector<NavDrive::Pt> newRoute;
+				std::vector<unsigned char> newGround;
+				NavDrive::Pt pt;
+				pt.x = here.x; pt.y = here.y;
+				newRoute.push_back(pt);
+				newGround.push_back(obj->getLayer() == LAYER_GROUND ? 1 : 0);
+				Int guard = 4096;
+				for (PathNode *node = fresh->getFirstNode()->getNextOptimized(); node != nullptr && --guard > 0; node = node->getNextOptimized())
+				{
+					pt.x = node->getPosition()->x;
+					pt.y = node->getPosition()->y;
+					newRoute.push_back(pt);
+					newGround.push_back(node->getLayer() == LAYER_GROUND ? 1 : 0);
+				}
+				deleteInstance(fresh);
+				if (DEBUG_UNIT != 0 && (Int)obj->getID() == DEBUG_UNIT)
+				{
+					printf("DBGREROUTE f=%u", now);
+					for (size_t q = 0; q < newRoute.size(); ++q)
+						printf(" (%.1f,%.1f)", newRoute[q].x, newRoute[q].y);
+					printf("\n");
+				}
+				++s_reroutes;
+				if (newRoute.size() >= 2)
+				{
+					data->route.swap(newRoute);
+					data->routeOnGround.swap(newGround);
+					data->nextPoint = 1;
+					data->speed = speed;
+					data->shownHeading = newHeading;
+					applyPose(obj, physics, data, nx, ny, newHeading, speed, turn);
+					return TRUE;
+				}
 			}
 		}
 		data->speed = speed;
@@ -1288,101 +1020,7 @@ Bool AIDrive::update( Object *obj, AIUpdateInterface *ai, Data *& data, Real des
 	kinematicsOf(obj, loco, kin);
 	if (kin.maxSpeed <= 0.0f || kin.turnRate <= 0.0f)
 		return FALSE;
-	if (MODE == 1)
-		return steer(obj, ai, data, path, kin, desiredSpeed, physics);
-
-	const Coord3D *first = path->getFirstNode()->getPosition();
-	const Coord3D *last = path->getLastNode()->getPosition();
-	const Coord3D *pos = obj->getPosition();
-	Bool samePath = data != nullptr && data->path == path
-		&& data->pathFirst.x == first->x && data->pathFirst.y == first->y
-		&& data->pathLast.x == last->x && data->pathLast.y == last->y;
-	if (!samePath)
-	{
-		if (data == nullptr)
-		{
-			data = new Data;
-			data->holding = FALSE;
-			data->allGround = FALSE;
-			data->noSidestepUntil = 0;
-		}
-		data->path = path;
-		data->pathFirst = *first;
-		data->pathLast = *last;
-		data->abandoned = !makePlan(obj, ai, path, kin, data);
-	}
-	if (data->abandoned)
-		return FALSE;
-
-	// Is the object where the plan left it? If something else has moved it, the plan no longer describes it.
-	NavDrive::State& st = data->state;
-	{
-		Real dx = pos->x - st.x, dy = pos->y - st.y;
-		if (dx*dx + dy*dy > OFF_PLAN * OFF_PLAN)
-		{
-			data->abandoned = TRUE;
-			++s_abandoned;
-			return FALSE;
-		}
-	}
-	if (st.done)
-		return FALSE;	// at the end of the line: the old code does the arriving.
-
-	trySidestep(obj, ai, data, kin);
-
-	Real cap = desiredSpeed;
-	Real follow = followCap(obj, st, kin);
-	++s_frames;
-	if (follow < cap)
-	{
-		cap = follow;
-		++s_followFrames;
-	}
-	NavDrive::step(data->plan, kin, cap, st);
-
-	Coord3D to;
-	to.x = st.x;
-	to.y = st.y;
-	to.z = TheTerrainLogic->getLayerHeight(st.x, st.y, obj->getLayer());
-	obj->setPosition(&to);
-	// The body's heading follows the plan's with a little lag (TURN_EASE), never past it.
-	Real behind = st.heading - data->shownHeading;
-	while (behind > PI) behind -= 2.0f * PI;
-	while (behind <= -PI) behind += 2.0f * PI;
-	Real turnNow = behind * TURN_EASE;
-	if (TURN_EASE >= 1.0f || fabs(behind) < 0.002f || st.done)
-		turnNow = behind;
-	data->shownHeading += turnNow;
-	while (data->shownHeading > PI) data->shownHeading -= 2.0f * PI;
-	while (data->shownHeading <= -PI) data->shownHeading += 2.0f * PI;
-	obj->setOrientation(data->shownHeading);
-	// Physics does not move a unit with this status (the engine's own rule for a braking unit), and it is told the
-	// velocity the unit has so that whatever reads it sees the truth.
-	obj->setStatus( MAKE_OBJECT_STATUS_MASK( OBJECT_STATUS_BRAKING ) );
-	data->holding = TRUE;
-	// Physics is kept awake and "driven" the way the locomotor keeps it (a motive force, here of nothing), because
-	// the wheels, treads and dust are drawn from its speed and from whether it is driven; then its velocity is made
-	// the unit's, and its cached speed thrown away (scrubVelocity2D is the call that does that).
-	Coord3D none;
-	none.zero();
-	physics->applyMotiveForce(&none);
-	Coord3D delta;
-	const Coord3D *vel = physics->getVelocity();
-	delta.x = Cos(st.heading) * st.moved - vel->x;
-	delta.y = Sin(st.heading) * st.moved - vel->y;
-	delta.z = 0.0f;
-	physics->addVelocityTo(&delta);
-	physics->scrubVelocity2D(st.moved * 0.9999f);
-	physics->setTurning(turnNow > 0.002f ? TURN_POSITIVE : (turnNow < -0.002f ? TURN_NEGATIVE : TURN_NONE));
-
-	if (DEBUG_UNIT != 0 && (Int)obj->getID() == DEBUG_UNIT)
-	{
-		printf("DBGDRIVE f=%u prim=%d/%d along=%.2f v=%.3f cap=%.3f x=%.1f y=%.1f h=%.3f\n", TheGameLogic->getFrame(), st.prim,
-			(Int)data->plan.prims.size(), st.along, st.v, cap, st.x, st.y, st.heading);
-	}
-	if (st.done)
-		release(obj, data);
-	return TRUE;
+	return steer(obj, ai, data, path, kin, desiredSpeed, physics);
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1390,7 +1028,6 @@ void AIDrive::printStats()
 {
 	if (!MoveRules::navmesh())
 		return;
-	printf("AIDrive: plans=%d smallerArcs=%d pivots=%d cheats=%d arcsOffMesh=%d abandoned=%d followPct=%.1f cornersSpread=%d spreadUndone=%d sidesteps=%d noSidestep=%d | steer: frames=%d lookAheads=%d pushes=%d wallStops=%d arrivedShort=%d\n",
-		s_plans, s_smaller, s_pivots, s_cheats, s_offMesh, s_abandoned, s_frames ? 100.0f * (Real)s_followFrames / (Real)s_frames : 0.0f,
-		s_spread, s_spreadUndone, s_sidesteps, s_sidestepNone, s_steerFrames, s_lookAheads, s_pushes, s_wallStops, s_arrivedShort);
+	printf("AIDrive: routes=%d cornersSpread=%d spreadUndone=%d steerFrames=%d lookAheads=%d pushes=%d wallStops=%d arrivedShort=%d reroutes=%d\n",
+		s_plans, s_spread, s_spreadUndone, s_steerFrames, s_lookAheads, s_pushes, s_wallStops, s_arrivedShort, s_reroutes);
 }

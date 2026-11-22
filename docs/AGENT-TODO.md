@@ -178,6 +178,13 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       not use them to justify deviating from it. Overlap 0.56 with no head-on overlap, reversals 3.6, no timeouts;
       city and river are slow. Untuned and unseen.
       **Open, human:** play level 2 (`.\scripts\movetest.ps1 -Name pathfinding -Level 2`): groups, head-on, a choke.
+      **2026-11-22 footprint pass** (PLAN.md "Footprint pass"): user played, large units navigated badly -> retail's
+      contact rules were still running under steering; off at level 2 now, their jobs done by steering (arrival,
+      pushing into clear room, going round, re-route at a wall). Weight-based right of way, route cache for group
+      orders, corner rule fixed, rails deleted. Suite: no timeouts, overlap 0.04.
+      **Open, human:** play level 2 again, big units especially; then say whether level 2 becomes the default and
+      level 1 is deleted (M6).
+      **Open, agent:** wall tops (layer 15) in the mesh; M6 on the user's word; tuning only after the user's notes.
       Third pass: level 2 was slow because retail moves units faster than their listed speed off the map axes
       (PLAN.md "Third pass"); `drive.speedScale` 1.1716 applied. Bridge approaches use the mesh; `desert-attackmove`
       added. Suite: level 2 arrives as soon as level 1 with half its overlap and a third of its turning.
