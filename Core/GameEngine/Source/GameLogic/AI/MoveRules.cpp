@@ -37,6 +37,8 @@ namespace MoveRules
 			level = RETAIL;
 		if( level > HIGHEST )
 			level = HIGHEST;
+		if( level == UNIFIED )
+			level = NAVMESH;	// level 1 (traffic map, AISteering, lanes) is gone; its number is kept so 2 stays 2.
 		s_level = level;
 	}
 

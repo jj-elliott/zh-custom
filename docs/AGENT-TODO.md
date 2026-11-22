@@ -178,6 +178,10 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       not use them to justify deviating from it. Overlap 0.56 with no head-on overlap, reversals 3.6, no timeouts;
       city and river are slow. Untuned and unseen.
       **Open, human:** play level 2 (`.\scripts\movetest.ps1 -Name pathfinding -Level 2`): groups, head-on, a choke.
+      **2026-11-22 M6 done:** level 2 is the default; level 1 (AISteering, MoveTraffic, lanes) deleted; `-moverules 0`
+      is retail. `movesuite.ps1` rows are now "level 2 (default)" and RETAIL.
+      **Open, agent:** wall tops (layer 15) as a mesh sheet (handed to the bridges session, branch
+      `claude/move-navmesh-bridges-105441`; merge needs the user). Tuning waits for the user's notes.
       **2026-11-22 footprint pass** (PLAN.md "Footprint pass"): user played, large units navigated badly -> retail's
       contact rules were still running under steering; off at level 2 now, their jobs done by steering (arrival,
       pushing into clear room, going round, re-route at a wall). Weight-based right of way, route cache for group

@@ -28,7 +28,6 @@
 
 #pragma once
 
-#include "GameLogic/AISteering.h"	// zh-pipeline Phase 7
 namespace AIDrive { struct Data; }	// zh-pipeline Phase 7, GameLogic/AIDrive.h
 #include "GameLogic/Module/UpdateModule.h"
 #include "GameLogic/AI.h"
@@ -531,12 +530,7 @@ public:
 	Int getPushRank() const;											///< 2 player-ordered move, 1 other move, 0 not moving
 	Bool shouldAskToYield(Object *other) const;		///< should idle ally "other" step aside for us
 	Bool isStoppedToAttack(Object *other) const;	///< "other" is standing still shooting: an obstacle, not traffic
-	Bool canSteer() const;												///< is this unit's movement the kind AISteering handles
-	// zh-pipeline MoveRules::UNIFIED, lanes (AIGroup::friend_moveLanesToPos): which lane of which group plan this unit
-	// travels in (0 = none) and its place in it, front = 0. Units with the same key will be on the same line, so they
-	// merge in row order (AISteering, follow). Transient like m_steer: cleared by the next command, not saved.
-	void setLane( UnsignedInt key, Int row ) { m_laneKey = key; m_laneRow = row; }
-	UnsignedInt getLaneKey() const { return m_laneKey; }
+	Bool canSteer() const;												///< is this unit's movement the steered kind (not docking, exiting production, ...)
 	// zh-pipeline MoveRules::NAVMESH: where this unit is in the group it was ordered to move with: its offset from
 	// the group's middle (world units; the group keeps its shape, so this is also its place at the destination) and
 	// how far the furthest member is from the middle. Radius 0 = moving alone. AIDrive uses it to take corners
@@ -547,8 +541,6 @@ public:
 	UnsignedInt getGroupKey() const { return m_groupKey; }
 	Real getGroupOffsetX() const { return m_groupOffsetX; }
 	Real getGroupOffsetY() const { return m_groupOffsetY; }
-	Int getLaneRow() const { return m_laneRow; }
-	const AISteering::State& getSteerState() const { return m_steer; }	///< for MoveBench's diagnostics
 	Bool isSteeredPair(Object *other) const;			///< we and ally "other" are both under way and steered: no contact rules between us
 	void setFinalPosition(const Coord3D *pos) { m_finalPosition = *pos; m_doFinalPosition = false;}
 
@@ -762,10 +754,7 @@ private:
 	Real				m_groupOffsetY;
 	Real				m_groupRadius;
 	UnsignedInt	m_groupKey;
-	UnsignedInt	m_laneKey;									///< see setLane.
-	Int					m_laneRow;
 	UnsignedInt	m_jamLastFrame;							///< Last frame we were blocked by a standing ally.
-	AISteering::State	m_steer;							///< AISteering's memory for this unit.
 	/**
 		If nonzero and >= now, frame when we should queueForPath.
 

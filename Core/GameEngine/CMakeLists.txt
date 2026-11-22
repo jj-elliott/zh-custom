@@ -250,7 +250,6 @@ set(GAMEENGINE_SRC
 #    Include/GameLogic/AIGuardRetaliate.h
     Include/GameLogic/AIPathfind.h
     Include/GameLogic/MoveRules.h
-    Include/GameLogic/MoveTraffic.h
     Include/GameLogic/NavDrive.h
     Include/GameLogic/NavMesh.h
     Include/GameLogic/NavMeshBuild.h
@@ -885,7 +884,6 @@ set(GAMEENGINE_SRC
 #    Source/GameLogic/AI/AIGuardRetaliate.cpp
     Source/GameLogic/AI/AIPathfind.cpp
     Source/GameLogic/AI/MoveRules.cpp
-    Source/GameLogic/AI/MoveTraffic.cpp
     Source/GameLogic/AI/NavDrive.cpp
     Source/GameLogic/AI/NavMesh.cpp
     Source/GameLogic/AI/NavMeshBuild.cpp

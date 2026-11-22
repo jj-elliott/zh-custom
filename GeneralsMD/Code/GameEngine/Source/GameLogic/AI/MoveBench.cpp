@@ -679,11 +679,6 @@ int run()
 			{
 				t.lastMovingFrame = now;
 				++movingFrames;
-				// The logic frame counter has moved on since the unit's update: its stamps are one behind.
-				if (ai->getSteerState().activeFrame + 1 >= now)
-					++steerFrames;
-				if (ai->getSteerState().pushFrame + 1 >= now)
-					++pushFrames;
 				if (moved < STANDING_SPEED)
 					++t.stalledFrames;
 			}
@@ -708,9 +703,7 @@ int run()
 					t.lastReversalFrame = now;
 					Real gx = pos->x - t.dest.x;
 					Real gy = pos->y - t.dest.y;
-					if (now - ai->getSteerState().activeFrame <= LOGICFRAMES_PER_SECOND/2)
-						++t.revSteer;
-					else if (now - t.orderFrame < 5*LOGICFRAMES_PER_SECOND)
+					if (now - t.orderFrame < 5*LOGICFRAMES_PER_SECOND)
 						++t.revStart;
 					else if (gx*gx + gy*gy < 200.0f*200.0f)
 						++t.revEnd;

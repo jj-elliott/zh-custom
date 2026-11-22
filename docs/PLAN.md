@@ -1103,6 +1103,21 @@ Suite, 7 courses, 3 variants:
 Not done because it is tuning, which the user has put after this: weights (reversals are 5.1 where the rails had
 2.2), the turn-in-place and speed curves, how wide a group spreads.
 
+### M6 (2026-11-22): level 2 is the default, level 1 is deleted
+
+On the user's word. `MoveRules::LATEST` is `NAVMESH`; `-moverules 1` now gives 2 (the number 2 is kept so nothing
+that says "level 2" changes meaning); `-moverules 0` is retail, for `verify.ps1` and comparison. Deleted:
+`AISteering.h/.cpp`, `MoveTraffic.h/.cpp` and its five hooks in `AIPathfind.cpp`, group lanes
+(`AIGroup::friend_moveLanesToPos`, `planLanes`, the lane fields on `AIUpdateInterface`), the steering call in
+`doLocomotor`, the steering columns' source in MoveBench (steerPct / pushPct now always read 0).
+Left, deliberately: the `MoveRules::unified()` branches inside retail's contact code (`processCollision`,
+`blockedBy`, `getPushRank`, ...). At level 2 ground units never reach most of them and `getPushRank` is used by
+steering; unpicking the rest from upstream's functions is churn for no behaviour.
+Checked: the suite and the soak's final CRCs are identical before and after the deletion (nothing level 2 used was
+removed); `skirmish-01.rep` verifies at level 0.
+
+**Everything in tests and docs that says "level 1" or "unified" from here up is history.**
+
 **(Superseded) Next (M4, second part, continued): what units do about each other, still on rails.**
 1. (Done, above: corners abreast.)
 2. (First version done, above.) Next: a group moves over as a body; crossing traffic (at right angles) is still

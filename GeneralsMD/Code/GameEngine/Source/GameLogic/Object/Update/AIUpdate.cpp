@@ -55,9 +55,7 @@
 #include "GameLogic/AI.h"
 #include "GameLogic/AIPathfind.h"
 #include "GameLogic/MoveRules.h"	// zh-pipeline Phase 7
-#include "GameLogic/MoveTraffic.h"	// zh-pipeline Phase 7
 #include "GameLogic/NavMesh.h"
-#include "GameLogic/AISteering.h"	// zh-pipeline Phase 7
 #include "GameLogic/AIDrive.h"	// zh-pipeline Phase 7
 #include "GameLogic/Locomotor.h"
 #include "GameLogic/Module/AIUpdate.h"
@@ -244,8 +242,6 @@ AIUpdateInterface::AIUpdateInterface( Thing *thing, const ModuleData* moduleData
 	m_ignoreCollisionsUntil = 0;
 	m_jamStartFrame = 0;
 	m_jamLastFrame = 0;
-	m_laneKey = 0;
-	m_laneRow = 0;
 	m_drive = nullptr;
 	m_groupOffsetX = 0.0f;
 	m_groupOffsetY = 0.0f;
@@ -1950,29 +1946,6 @@ Bool AIUpdateInterface::computePath( PathfindServicesInterface *pathServices, Co
 	Path *theNewPath = nullptr;
 	TheAI->pathfinder()->setIgnoreObstacleID( getIgnoredObstacleID() );
 
-	// zh-pipeline @feature 2026-11-16 MoveRules::UNIFIED, congestion-aware pathing (GameLogic/MoveTraffic.h): tell the
-	// traffic map who is about to be pathed, so the search prices cells other units have planned to use, and the
-	// route found is recorded for the units pathed after us.
-	// Vehicles only: infantry walk through each other and are nudged aside by vehicles (AISteering), so they neither
-	// claim routes nor avoid claimed ones. How much traffic costs a vehicle scales with its top speed (1 world unit a
-	// frame, a main battle tank, = 1): a nimble unit loses little by a detour and is the one that takes it; a slow
-	// one keeps the direct line.
-	if (MoveRules::unified() && !MoveRules::navmesh() && isDoingGroundMovement() && m_curLocomotor != nullptr
-			&& !getObject()->isKindOf(KINDOF_AIRCRAFT) && !getObject()->isKindOf(KINDOF_INFANTRY))
-	{
-		Real topSpeed = m_curLocomotor->getMaxSpeedForCondition(getObject()->getBodyModule()->getDamageState());
-		if (topSpeed > 0.01f)
-		{
-			const GeometryInfo& geom = getObject()->getGeometryInfo();
-			Real halfWidth = (geom.getGeomType() == GEOMETRY_BOX) ? geom.getMinorRadius() : geom.getMajorRadius();
-			Real willingness = topSpeed;
-			if (willingness < 0.5f) willingness = 0.5f;
-			if (willingness > 1.75f) willingness = 1.75f;
-			MoveTraffic::setMover((UnsignedInt)getObject()->getID(), PATHFIND_CELL_SIZE_F / topSpeed,
-				REAL_TO_INT_FLOOR(halfWidth / PATHFIND_CELL_SIZE_F + 0.5f), willingness);
-		}
-	}
-
 	Coord3D originalDestination = *destination;
 	// sanity check - if destination cell is invalid, don't bother pathing
 
@@ -2017,10 +1990,6 @@ Bool AIUpdateInterface::computePath( PathfindServicesInterface *pathServices, Co
 		m_retryPath = true;
 	}
 	TheAI->pathfinder()->setIgnoreObstacleID( INVALID_ID );
-	if (theNewPath) {
-		MoveTraffic::stamp(theNewPath);	// zh-pipeline: no-op unless a mover was set above
-	}
-	MoveTraffic::clearMover();
 	if (theNewPath) {
 		// destroy previous path
 		destroyPath();
@@ -2536,19 +2505,6 @@ UpdateSleepTime AIUpdateInterface::doLocomotor()
 							}
 						}
 
-						// zh-pipeline @feature 2026-11-16 MoveRules::UNIFIED: local avoidance bends this frame's aim point and
-						// speed around the units ahead, queues behind moving ones it touches, and reports when that queue has
-						// held it at a standstill for 2 s (then this unit alone ignores collisions for 2 s). Not for the last
-						// three cells (units settle on their goal cells by the retail rules) or while already ignoring collisions.
-						if (canSteer() && onPathDistToGoal+getPathExtraDistance() > 3.0f*PATHFIND_CELL_SIZE_F
-								&& m_ignoreCollisionsUntil <= TheGameLogic->getFrame())
-						{
-							if (AISteering::steer(getObject(), this, goalPos, speed, m_steer))
-							{
-								setIgnoreCollisionTime(2*LOGICFRAMES_PER_SECOND);
-							}
-						}
-
 						m_curLocomotor->locoUpdate_moveTowardsPosition(getObject(), goalPos,
 							onPathDistToGoal+getPathExtraDistance(), speed, &blocked);
 
@@ -2942,8 +2898,7 @@ void AIUpdateInterface::aiDoCommand(const AICommandParms* parms)
 	if (!isAllowedToRespondToAiCommands(parms))
 		return;
 
-	m_laneKey = 0;	// zh-pipeline: a new command ends the lane plan (the lane planner sets it after its own command).
-	m_groupRadius = 0.0f;	// zh-pipeline: ... and the unit's place in a group (the group order sets it after its command).
+	m_groupRadius = 0.0f;	// zh-pipeline: a new command ends the unit's place in a group (the group order sets it after its command).
 
 #ifdef ALLOW_SURRENDER
 	// surrendered items have very limited options, and only via AI cmds
