@@ -506,6 +506,7 @@ void Pathfinder::classifyObjectFootprint( Object *obj, Bool insert )
 				}
 				// recalc the wall.
 				m_layers[LAYER_WALL].classifyWallCells(m_wallPieces, m_numWallPieces);
+				NavMesh::markDirty();	// zh-pipeline: the wall top has changed (a piece of it is gone)
 			}
 		}
 	}

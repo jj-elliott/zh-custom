@@ -187,8 +187,15 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       from the site -> route points the unit's mesh does not contain (grid-fallback routes, goals in a footprint) are
       followed without the mesh wall clamp. No scenario in `tests\courses` covers boarding or building: add one
       when MoveBench can give enter / build orders.
-      **Open, agent:** wall tops (layer 15) as a mesh sheet (handed to the bridges session, branch
-      `claude/move-navmesh-bridges-105441`; merge needs the user). Tuning waits for the user's notes.
+      **Open, agent:** `drivetest.ps1` exits 1: "bucket grid against the plain scan: 1 differ" (of 59292 lines; the
+      TriGrid `segmentClear` disagrees with the plain scan once). Present before the wall-tops merge on both
+      parents; probably a line grazing a wall, not looked into yet.
+      **Wall tops are in the mesh (2026-11-22)**, merged here 2026-11-22 on the user's
+      word: PLAN.md "Wall tops in the mesh". A top is one sheet joined to nothing (the grid joins it to
+      nothing either); a unit on a top goes to the nearest spot of it wherever it is sent. Courses `wall-walk`,
+      `wall-long` (scenario directive `onwall`), hook `bench.wallDown`. **Open, human:** watch units on a wall
+      (Fallen Empire or Iron Dragon have them; units must be placed on the wall by the map or a script).
+      Tuning waits for the user's notes.
       **2026-11-22 footprint pass** (PLAN.md "Footprint pass"): user played, large units navigated badly -> retail's
       contact rules were still running under steering; off at level 2 now, their jobs done by steering (arrival,
       pushing into clear room, going round, re-route at a wall). Weight-based right of way, route cache for group

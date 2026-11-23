@@ -53,7 +53,7 @@ namespace AIDrive
 		// Steering (drive.mode 1): the route's points, which of them is being made for, the velocity being asked
 		// for (smoothed) and the speed the unit has.
 		std::vector<NavDrive::Pt> route;
-		std::vector<unsigned char> routeOnGround;	///< per route point: it is on the ground layer (not a bridge's deck)
+		std::vector<unsigned char> routeOnGround;	///< per route point: 1 = on the ground layer, 2 = on a wall top, 0 = on a bridge's deck (surfaceOf)
 		Int nextPoint;
 		Real wantX, wantY;
 		Real speed;
@@ -369,6 +369,14 @@ namespace
 		return TRUE;
 	}
 
+	/// The surfaces a unit's own mesh can be asked about (NavMesh::onMesh / segmentOnMesh answer for the layer the
+	/// unit is on): the ground, and a wall top, which is a mesh of its own that a unit never leaves. 0: a bridge's
+	/// deck, where the route is simply followed.
+	inline unsigned char surfaceOf( PathfindLayerEnum layer )
+	{
+		return (unsigned char)(layer == LAYER_GROUND ? 1 : (layer == LAYER_WALL ? 2 : 0));
+	}
+
 	/// Put the object where it has been moved to, facing as it has turned, and tell physics (see AIDrive.h).
 	void applyPose( Object *obj, PhysicsBehavior *physics, AIDrive::Data *data, Real x, Real y, Real heading, Real moved, Real turned )
 	{
@@ -429,7 +437,7 @@ namespace
 			NavDrive::Pt pt;
 			pt.x = pos->x; pt.y = pos->y;
 			data->route.push_back(pt);
-			data->routeOnGround.push_back(obj->getLayer() == LAYER_GROUND ? 1 : 0);
+			data->routeOnGround.push_back(surfaceOf(obj->getLayer()));
 			data->allGround = obj->getLayer() == LAYER_GROUND;
 			Int guard = 4096;
 			for (PathNode *node = path->getFirstNode()->getNextOptimized(); node != nullptr && --guard > 0; node = node->getNextOptimized())
@@ -437,7 +445,7 @@ namespace
 				pt.x = node->getPosition()->x;
 				pt.y = node->getPosition()->y;
 				data->route.push_back(pt);
-				data->routeOnGround.push_back(node->getLayer() == LAYER_GROUND ? 1 : 0);
+				data->routeOnGround.push_back(surfaceOf(node->getLayer()));
 				if (node->getLayer() != LAYER_GROUND)
 					data->allGround = FALSE;
 			}
@@ -500,7 +508,8 @@ namespace
 			// unit a few units short of the mouth of an alley turned up it early, into the wall beside the mouth,
 			// and one that had slid past the end of a wall made for the next point straight through it: for ever.
 			if ((reached || passed) && dx*dx + dy*dy > 1.5f * 1.5f
-					&& obj->getLayer() == LAYER_GROUND && data->routeOnGround[data->nextPoint] && data->routeOnGround[data->nextPoint + 1])
+					&& surfaceOf(obj->getLayer()) != 0 && data->routeOnGround[data->nextPoint] == surfaceOf(obj->getLayer())
+					&& data->routeOnGround[data->nextPoint + 1] == surfaceOf(obj->getLayer()))
 			{
 				const NavDrive::Pt& after = route[data->nextPoint + 1];
 				if (!NavMesh::segmentOnMesh(obj, ai->getLocomotorSet(), x, y, after.x, after.y))
@@ -513,8 +522,12 @@ namespace
 		}
 		// The mesh is asked about wherever the unit and the stretch it is on are on the ground; on a bridge's deck
 		// (and on the ground at its ends, which belongs to the bridge's own sheet) the route is simply followed.
-		Bool onGround = obj->getLayer() == LAYER_GROUND && data->routeOnGround[data->nextPoint] && data->routeOnGround[data->nextPoint - 1];
-		if (onGround && data->nextPoint < lastPoint && data->routeOnGround[data->nextPoint + 1]
+		// A wall top counts as ground here: the unit is kept on the top's own mesh, or it would be pushed off the wall.
+		const unsigned char surface = surfaceOf(obj->getLayer());
+		// (A unit on a wall top is kept on it whatever its route's points say: there is nowhere else it can be.)
+		Bool onGround = surface == 2
+			|| (surface != 0 && data->routeOnGround[data->nextPoint] == surface && data->routeOnGround[data->nextPoint - 1] == surface);
+		if (onGround && data->nextPoint < lastPoint && data->routeOnGround[data->nextPoint + 1] == surface
 				&& ((now + (UnsignedInt)obj->getID()) % (UnsignedInt)LOOK_EVERY) == 0)
 		{
 			const NavDrive::Pt& after = route[data->nextPoint + 1];
@@ -570,6 +583,10 @@ namespace
 				// order says to ignore are not in its way: it must be able to touch them. (Kept apart from its own
 				// transport, a unit stopped beside it and never got in.)
 				if (other == goalObject || other->getID() == ignoredID)
+					continue;
+				// A unit on a wall top and one on the ground (under an arch of that wall, or beside it) are not in
+				// each other's way.
+				if ((other->getLayer() == LAYER_WALL) != (obj->getLayer() == LAYER_WALL))
 					continue;
 				if (other->isKindOf(KINDOF_STRUCTURE) || other->isKindOf(KINDOF_IMMOBILE))
 					continue;
@@ -827,7 +844,12 @@ namespace
 		}
 		else
 			data->nearGoalFrames = 0;
-		data->lastRemaining = remaining;
+		// On a wall top "getting nowhere" is measured against the nearest it has been, not against last frame: there
+		// is no room to go round a unit standing in the way and no room to push it into, so a unit short of its place
+		// steps forward and is pushed back the same distance, every frame, and by the frame-to-frame measure it is
+		// making progress half the time (found by wall-walk: a Ranger doing that for three minutes).
+		if (!(surface == 2 && data->nearGoalFrames > 0 && remaining > data->lastRemaining))
+			data->lastRemaining = remaining;
 		if (settling)
 		{
 			// (counted only while it is clear of everyone standing: it does not stop on top of anybody)
@@ -1016,14 +1038,14 @@ namespace
 				NavDrive::Pt pt;
 				pt.x = here.x; pt.y = here.y;
 				newRoute.push_back(pt);
-				newGround.push_back(obj->getLayer() == LAYER_GROUND ? 1 : 0);
+				newGround.push_back(surfaceOf(obj->getLayer()));
 				Int guard = 4096;
 				for (PathNode *node = fresh->getFirstNode()->getNextOptimized(); node != nullptr && --guard > 0; node = node->getNextOptimized())
 				{
 					pt.x = node->getPosition()->x;
 					pt.y = node->getPosition()->y;
 					newRoute.push_back(pt);
-					newGround.push_back(node->getLayer() == LAYER_GROUND ? 1 : 0);
+					newGround.push_back(surfaceOf(node->getLayer()));
 				}
 				deleteInstance(fresh);
 				if (DEBUG_UNIT != 0 && (Int)obj->getID() == DEBUG_UNIT)

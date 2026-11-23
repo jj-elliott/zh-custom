@@ -1,0 +1,9 @@
+# Infantry along the top of a fortress wall (Fallen Empire's wall runs east-west at y ~ 1260). Nothing walks up
+# onto a wall in this game, so the group is placed on it: the path must come from the wall top's own mesh sheet
+# and the units must stay on the wall's layer, over the top, all the way (MoveBenchWall: offWallUnitFrames=0).
+map Maps\Fallen Empire\Fallen Empire.map
+group
+onwall
+from 2200 1258
+to 2600 1258
+spawn AmericaInfantryRanger 6

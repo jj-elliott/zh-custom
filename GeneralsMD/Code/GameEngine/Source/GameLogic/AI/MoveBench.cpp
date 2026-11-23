@@ -59,6 +59,8 @@ namespace
 		Bool issued;
 	};
 
+	std::vector<ObjectID> s_onWall;	// the units of "onwall" groups: checked every frame to be on the wall top still
+
 	struct Tracked
 	{
 		ObjectID id;
@@ -162,6 +164,9 @@ namespace
 	//   spawn <object template> <count>
 	//   at <frames>                   when the group gets its order (default 0)
 	//   attackmove                    attack-move instead of move
+	//   onwall                        the group stands on a wall top (fortress walls) and is sent along it: "from" and
+	//                                 "to" must be over the wall. Nothing walks up onto a wall in this game: maps place
+	//                                 units there.
 	// Lines starting with # are comments. The map is loaded as a single-player game with nobody on it, so there is
 	// no base, no enemy and no script getting in the way: only the terrain and the units the file asks for.
 	struct SpawnSpec
@@ -175,6 +180,7 @@ namespace
 		AsciiString fromName, toName;
 		UnsignedInt at;
 		Bool attackMove;
+		Bool onWall;
 		std::vector<SpawnSpec> spawns;
 	};
 	struct Scenario
@@ -231,6 +237,7 @@ namespace
 				g.to.zero();
 				g.at = 0;
 				g.attackMove = false;
+				g.onWall = false;
 				sc.groups.push_back(g);
 			}
 			else if (sc.groups.empty())
@@ -252,6 +259,10 @@ namespace
 			else if (strcmp(p, "attackmove") == 0)
 			{
 				sc.groups.back().attackMove = true;
+			}
+			else if (strcmp(p, "onwall") == 0)
+			{
+				sc.groups.back().onWall = true;
 			}
 			else if (strncmp(p, "spawn ", 6) == 0)
 			{
@@ -324,6 +335,16 @@ namespace
 			order.attackMove = group.attackMove;
 			order.dest = group.to;
 			order.issued = false;
+			if (group.onWall)
+			{
+				// A destination is on the wall if it is at the wall's height (TerrainLogic::getLayerForDestination).
+				if (!TheAI->pathfinder()->isPointOnWall(&group.from) || !TheAI->pathfinder()->isPointOnWall(&group.to))
+				{
+					printf("MoveBench: group %u is \"onwall\" but its from or to is not on a wall top\n", (unsigned)(g + 1));
+					return FALSE;
+				}
+				order.dest.z = TheAI->pathfinder()->getWallHeight();
+			}
 			size_t nextSlot = 0;
 			for (size_t s = 0; s < group.spawns.size(); ++s)
 			{
@@ -366,8 +387,21 @@ namespace
 					for (; nextSlot < slots.size() && !placed; ++nextSlot)
 					{
 						Coord3D pos = group.from;
-						pos.x += slots[nextSlot].x * SPACING;
-						pos.y += slots[nextSlot].y * SPACING;
+						// (On a wall top places are a cell apart: it is a few cells wide.)
+						pos.x += slots[nextSlot].x * (group.onWall ? PATHFIND_CELL_SIZE_F : SPACING);
+						pos.y += slots[nextSlot].y * (group.onWall ? PATHFIND_CELL_SIZE_F : SPACING);
+						if (group.onWall)
+						{
+							if (!TheAI->pathfinder()->isPointOnWall(&pos))
+								continue;
+							pos.z = TheAI->pathfinder()->getWallHeight();
+							obj->setPosition(&pos);
+							obj->setLayer(LAYER_WALL);
+							obj->setOrientation(facing);
+							s_onWall.push_back(obj->getID());
+							placed = true;
+							continue;
+						}
 						if (!TheAI->pathfinder()->validMovementPosition(FALSE, LAYER_GROUND, obj->getAI()->getLocomotorSet(), &pos))
 							continue;
 						pos.z = TheTerrainLogic->getGroundHeight(pos.x, pos.y);
@@ -580,7 +614,10 @@ int run()
 	//                                         when one is destroyed / repaired (Pathfinder::changeBridgeState)
 	//   bench.reorder                         every order given so far is given again (units get new paths from
 	//                                         wherever they are: on a bridge, for one)
-	Int bridgesDown = -1, bridgesUp = -1, reorder = -1;
+	//   bench.wallDown                        the walk-on wall piece nearest the last order's destination is destroyed
+	Int bridgesDown = -1, bridgesUp = -1, reorder = -1, wallDown = -1;
+	UnsignedInt offWallFrames = 0, wallDeaths = 0;
+	MoveTune::apply("bench.wallDown", wallDown);
 	MoveTune::apply("bench.bridgesDown", bridgesDown);
 	MoveTune::apply("bench.bridgesUp", bridgesUp);
 	MoveTune::apply("bench.reorder", reorder);
@@ -617,6 +654,31 @@ int run()
 				}
 			}
 			printf("MoveBenchReorder: frame=%u unitsOnABridge=%d\n", elapsed, onBridge);
+		}
+
+		if (wallDown >= 0 && elapsed == (UnsignedInt)wallDown)
+		{
+			const Coord3D& around = orders[orders.size()-1].dest;
+			Object *piece = nullptr;
+			Real best = 0.0f;
+			for (Object *w = TheGameLogic->getFirstObject(); w; w = w->getNextObject())
+			{
+				if (!w->isKindOf(KINDOF_WALK_ON_TOP_OF_WALL) || w->isEffectivelyDead())
+					continue;
+				Real d = sqr(w->getPosition()->x - around.x) + sqr(w->getPosition()->y - around.y);
+				if (piece == nullptr || d < best)
+				{
+					piece = w;
+					best = d;
+				}
+			}
+			if (piece != nullptr)
+			{
+				printf("MoveBenchWall: frame=%u destroying %s at (%.0f, %.0f)\n", elapsed, piece->getTemplate()->getName().str(),
+					piece->getPosition()->x, piece->getPosition()->y);
+				// (These pieces have no health to lose: taken off the map the way a script would.)
+				TheGameLogic->destroyObject(piece);
+			}
 		}
 
 		// Give the orders that are due.
@@ -658,6 +720,27 @@ int run()
 		elapsed = now - startFrame;
 
 		// Measure.
+		// Units put on a wall top must still be on it: on the wall's layer, over the top, at its height.
+		for (size_t wi = 0; wi < s_onWall.size(); ++wi)
+		{
+			Object *onWall = TheGameLogic->findObjectByID(s_onWall[wi]);
+			if (onWall == nullptr || onWall->isEffectivelyDead())
+			{
+				++wallDeaths;
+				continue;
+			}
+			if (onWall->getLayer() != LAYER_WALL || !TheAI->pathfinder()->isPointOnWall(onWall->getPosition())
+					|| fabs(onWall->getPosition()->z - TheAI->pathfinder()->getWallHeight()) > 1.0f)
+			{
+				if (offWallFrames < 6)
+					printf("MoveBenchWall: frame=%u unit %u off the wall top: layer=%d at (%.1f, %.1f, %.1f), over the top=%d, wall height %.1f\n",
+						elapsed, (unsigned)onWall->getID(), (Int)onWall->getLayer(), onWall->getPosition()->x, onWall->getPosition()->y,
+						onWall->getPosition()->z, TheAI->pathfinder()->isPointOnWall(onWall->getPosition()) ? 1 : 0,
+						TheAI->pathfinder()->getWallHeight());
+				++offWallFrames;
+			}
+		}
+
 		Bool anyBusy = false;
 		size_t u;
 		for (u = 0; u < units.size(); ++u)
@@ -797,6 +880,8 @@ int run()
 	if (counted == 0)
 		counted = 1;
 	NavMesh::printStats();
+	if (!s_onWall.empty())
+		printf("MoveBenchWall: units=%d offWallUnitFrames=%u deadUnitFrames=%u\n", (Int)s_onWall.size(), offWallFrames, wallDeaths);
 	AIDrive::printStats();
 	printf("MoveBench: units=%d meanArrive=%.2f maxArrive=%.2f goalDist=%.1f overlap=%.2f reversals=%.2f stalled=%.2f detour=%.3f timeout=%d frames=%u level=%d ovMM=%.2f ovMS=%.2f ovSS=%.2f ovCross=%.2f revSteer=%.2f revStart=%.2f revEnd=%.2f wobble=%.2f steerPct=%.1f pushPct=%.1f\n",
 		counted, sumArrive / counted, maxArrive, sumShort / counted,
