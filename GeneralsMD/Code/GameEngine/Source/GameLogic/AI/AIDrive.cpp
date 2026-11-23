@@ -447,6 +447,16 @@ namespace
 			// (On a route with a bridge too: a corner on or beside the deck finds no room on the ground mesh and
 			// stays where it is.)
 			spreadCorners(obj, ai, data->route);
+			// The mesh only holds a unit to its ground where the route is on that ground. A route the grid search
+			// made (the mesh had no answer: into a building site, a dock, a place too tight for the unit's size) can
+			// lead where the mesh says the unit may not be, and so can the last step of any route to such a place.
+			// Round those points the route is simply followed, as on a bridge. (Held to the mesh there, dozers
+			// stood at an edge the route went straight through.)
+			for (size_t q = 1; q < data->route.size(); ++q)
+			{
+				if (data->routeOnGround[q] && !NavMesh::onMesh(obj, ai->getLocomotorSet(), data->route[q].x, data->route[q].y))
+					data->routeOnGround[q] = 0;
+			}
 			data->nextPoint = 1;
 			data->wantX = 0.0f;
 			data->wantY = 0.0f;
@@ -542,6 +552,8 @@ namespace
 		Bool goalTaken = FALSE;
 		Bool touchingStanding = FALSE;
 		Bool weAreInfantry = obj->isKindOf(KINDOF_INFANTRY);
+		const Object *goalObject = ai->getGoalObject();
+		ObjectID ignoredID = ai->getIgnoredObstacleID();
 		Real myVx = hx * data->speed, myVy = hy * data->speed;
 		{
 			Real range = 2.0f * ourRadius + 2.0f * kin.maxSpeed * AVOID_FRAMES + 2.0f * PATHFIND_CELL_SIZE_F;
@@ -553,6 +565,11 @@ namespace
 			for (Object *other = iter->first(); other && count < 24; other = iter->next())
 			{
 				if (other == obj || other->isEffectivelyDead() || other->getContainedBy() != nullptr)
+					continue;
+				// The thing it is going to (a transport to board, a unit to repair or dock with) and whatever its
+				// order says to ignore are not in its way: it must be able to touch them. (Kept apart from its own
+				// transport, a unit stopped beside it and never got in.)
+				if (other == goalObject || other->getID() == ignoredID)
 					continue;
 				if (other->isKindOf(KINDOF_STRUCTURE) || other->isKindOf(KINDOF_IMMOBILE))
 					continue;
@@ -829,6 +846,46 @@ namespace
 		}
 		else
 			data->heldAtGoal = 0;
+
+		// ---- The last few steps: straight onto the spot. A unit that has to hit an exact place (a dozer starting a
+		// building, anything docking) cannot do it by driving at it within its turning circle: it misses by a little,
+		// swings round and tries again, snaking to and fro (the user saw dozers doing it). Close in, it is moved
+		// straight to the place at a walking pace while its body turns the way it is going, which is what retail's
+		// own "slide into place" does and what an SC2 unit, having no turning circle, does anyway.
+		if (data->nextPoint == lastPoint && !settling && !goalTaken)
+		{
+			Real closeIn = 1.5f * ourRadius;
+			Real circle = kin.turnSpeed > 0.0f ? 2.0f * kin.turnSpeed / kin.turnRate : 0.0f;
+			if (closeIn < circle) closeIn = circle;
+			if (closeIn < PATHFIND_CELL_SIZE_F) closeIn = PATHFIND_CELL_SIZE_F;
+			if (toDist < closeIn)
+			{
+				Real pace = kin.maxSpeed * 0.5f;
+				Real stopMostHere = (-kin.brake + sqrt(kin.brake * kin.brake + 8.0f * kin.brake * toDist)) * 0.5f;
+				if (pace > stopMostHere) pace = stopMostHere;
+				if (pace < 0.15f) pace = 0.15f;
+				Real step = data->speed + kin.accel < pace ? data->speed + kin.accel : pace;
+				if (data->speed > pace)
+					step = data->speed - kin.brake > pace ? data->speed - kin.brake : pace;
+				if (step > toDist) step = toDist;
+				Real turnTo = toDist > 0.5f ? wrapAngle(atan2(toY, toX) - heading) : 0.0f;
+				if (turnTo > kin.turnRate) turnTo = kin.turnRate;
+				if (turnTo < -kin.turnRate) turnTo = -kin.turnRate;
+				Real slideHeading = wrapAngle(heading + turnTo);
+				Real sx = toDist > 0.001f ? x + toX / toDist * step : target.x;
+				Real sy = toDist > 0.001f ? y + toY / toDist * step : target.y;
+				data->speed = step;
+				data->shownHeading = slideHeading;
+				applyPose(obj, physics, data, sx, sy, slideHeading, step, turnTo);
+				if (toDist - step <= 0.05f)
+				{
+					applyPose(obj, physics, data, target.x, target.y, slideHeading, step, turnTo);
+					data->arrived = TRUE;
+					AIDrive::release(obj, data);
+				}
+				return TRUE;
+			}
+		}
 
 		// ---- Moving as this unit can.
 		Real wantSpeed = sqrt(data->wantX * data->wantX + data->wantY * data->wantY);

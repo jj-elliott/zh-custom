@@ -180,6 +180,13 @@ Added 2026-10-21 from `docs/FEATURE-PARITY.md` (what the GenTool/GenPatcher setu
       **Open, human:** play level 2 (`.\scripts\movetest.ps1 -Name pathfinding -Level 2`): groups, head-on, a choke.
       **2026-11-22 M6 done:** level 2 is the default; level 1 (AISteering, MoveTraffic, lanes) deleted; `-moverules 0`
       is retail. `movesuite.ps1` rows are now "level 2 (default)" and RETAIL.
+      **2026-11-22 play-test fixes (AIDrive.cpp), not yet seen in game by the user:** (1) dozers snaking at a build
+      site -> inside max(1.5 radii, turning circle, 1 cell) of the last route point a unit slides straight to it at
+      half speed instead of driving arcs at it; (2) units could not board transports -> the goal object and the
+      order's ignored obstacle are not neighbours for separation / pushing / "place taken"; (3) dozers stuck away
+      from the site -> route points the unit's mesh does not contain (grid-fallback routes, goals in a footprint) are
+      followed without the mesh wall clamp. No scenario in `tests\courses` covers boarding or building: add one
+      when MoveBench can give enter / build orders.
       **Open, agent:** wall tops (layer 15) as a mesh sheet (handed to the bridges session, branch
       `claude/move-navmesh-bridges-105441`; merge needs the user). Tuning waits for the user's notes.
       **2026-11-22 footprint pass** (PLAN.md "Footprint pass"): user played, large units navigated badly -> retail's
